@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* ========================================
+   GLOBAL BASE STYLES - MINIMAL & CLEAN
+   ======================================== */
+
+body {
+  font-family: var(--font-geist-sans, Arial, sans-serif);
+  line-height: 1.6;
+  scroll-behavior: smooth;
+}
+
+/* ========================================
+   REUSABLE ANIMATIONS
+   ======================================== */
+
+/* Card Slide In with Rotation */
+@keyframes cardSlideIn {
+  0% {
+    transform: translateY(30px) rotateX(10deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+/* Smooth Fade In Up */
+@keyframes fadeInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Smooth Fade In */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   PERFORMANCE UTILITIES
+   ======================================== */
+
+/* GPU Acceleration for Smooth Animations */
+.gpu-accelerate {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Layout Optimization */
+.no-repaint {
+  contain: layout style paint;
+}
+
+/* ========================================
+   ACCESSIBILITY
+   ======================================== */
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
