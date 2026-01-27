@@ -11,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { attendanceService } from '../../src/services/attendance';
@@ -38,6 +39,7 @@ export default function AttendanceScreen() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -81,8 +83,14 @@ export default function AttendanceScreen() {
       console.error('Failed to fetch attendance:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchAttendanceData();
+  }, []);
 
   const fetchTasks = useCallback(async () => {
     setIsLoadingTasks(true);
@@ -308,29 +316,23 @@ Today's Task Updates:`;
 
     setIsProcessing(true);
     try {
-      const subTasksToSave = newSubTasks.map(st => ({
-        id: st.id,
-        title: st.title,
-        notes: st.notes,
-        completed: false,
-      }));
+      const subTasksToSave = newSubTasks
+        .filter(st => st.title.trim()) // Only include subtasks with titles
+        .map(st => ({
+          id: st.id,
+          title: st.title.trim(),
+          notes: st.notes?.trim() || '',
+          completed: false,
+        }));
 
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/tasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getAuthToken()}`,
-        },
-        body: JSON.stringify({
-          title: newTaskTitle.trim(),
-          description: '',
-          priority: newTaskPriority,
-          status: 'pending',
-          subTasks: subTasksToSave,
-        }),
+      const result = await tasksService.createTask({
+        title: newTaskTitle.trim(),
+        priority: newTaskPriority,
+        status: 'pending',
+        subTasks: subTasksToSave,
       });
 
-      if (response.ok) {
+      if (result.success) {
         // Reset form
         setNewTaskTitle('');
         setNewTaskPriority('medium');
@@ -338,19 +340,18 @@ Today's Task Updates:`;
         setShowAddTaskModal(false);
         // Refresh tasks
         await fetchTasks();
+        // Re-open check-in modal
+        setTimeout(() => setShowCheckInModal(true), 100);
+        Alert.alert('Success', 'Task created successfully');
       } else {
-        Alert.alert('Error', 'Failed to create task');
+        Alert.alert('Error', result.error || 'Failed to create task');
       }
     } catch (error) {
+      console.error('Error creating task:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const getAuthToken = async () => {
-    const SecureStore = await import('expo-secure-store');
-    return await SecureStore.getItemAsync('auth_token');
   };
 
   const addSubTask = () => {
@@ -379,7 +380,17 @@ Today's Task Updates:`;
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor="#3b82f6"
+          colors={['#3b82f6']}
+        />
+      }
+    >
       {/* Status Card */}
       <View style={styles.statusCard}>
         <Text style={styles.statusLabel}>Current Status</Text>
@@ -469,7 +480,15 @@ Today's Task Updates:`;
             {/* Add Task Button */}
             <TouchableOpacity
               style={styles.addTaskButton}
-              onPress={() => setShowAddTaskModal(true)}
+              onPress={() => {
+                console.log('Add Task button pressed, closing check-in modal first...');
+                setShowCheckInModal(false);
+                // Small delay to let the first modal close before opening the second
+                setTimeout(() => {
+                  console.log('Opening add task modal...');
+                  setShowAddTaskModal(true);
+                }, 100);
+              }}
             >
               <Text style={styles.addTaskButtonText}>+ Add New Task</Text>
             </TouchableOpacity>
@@ -546,14 +565,15 @@ Today's Task Updates:`;
       {/* Add Task Modal */}
       <Modal
         visible={showAddTaskModal}
-        transparent
         animationType="slide"
         onRequestClose={() => setShowAddTaskModal(false)}
+        onShow={() => console.log('Add Task Modal is now visible')}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.fullScreenModal}
-        >
+        <View style={styles.fullScreenModal}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
           <View style={styles.modalHeader}>
             <Text style={styles.modalHeaderTitle}>Add New Task</Text>
           </View>
@@ -640,6 +660,8 @@ Today's Task Updates:`;
                 setNewTaskPriority('medium');
                 setNewSubTasks([]);
                 setShowAddTaskModal(false);
+                // Re-open check-in modal
+                setTimeout(() => setShowCheckInModal(true), 100);
               }}
             >
               <Text style={styles.cancelModalButtonText}>Cancel</Text>
@@ -656,7 +678,8 @@ Today's Task Updates:`;
               )}
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Location Selection Modal */}

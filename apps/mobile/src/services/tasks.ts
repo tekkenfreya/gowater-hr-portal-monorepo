@@ -92,4 +92,69 @@ export const tasksService = {
       return { success: false, error: 'Network error. Please try again.' };
     }
   },
+
+  async createTask(taskData: {
+    title: string;
+    description?: string;
+    priority?: Task['priority'];
+    status?: Task['status'];
+    subTasks?: SubTask[];
+  }): Promise<{ success: boolean; task?: Task; error?: string }> {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: taskData.title,
+          description: taskData.description || '',
+          priority: taskData.priority || 'medium',
+          status: taskData.status || 'pending',
+          subTasks: taskData.subTasks || [],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to create task' };
+      }
+
+      return { success: true, task: data.task };
+    } catch (error) {
+      console.error('Error creating task:', error);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  },
+
+  async updateTask(id: string, taskData: {
+    title?: string;
+    description?: string;
+    priority?: Task['priority'];
+    status?: Task['status'];
+    subTasks?: SubTask[];
+  }): Promise<{ success: boolean; task?: Task; error?: string }> {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          id,
+          ...taskData,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to update task' };
+      }
+
+      return { success: true, task: data.task };
+    } catch (error) {
+      console.error('Error updating task:', error);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  },
 };

@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -17,6 +18,8 @@ import { useAuth } from '../src/contexts/AuthContext';
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
@@ -46,36 +49,72 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>GoWater</Text>
-          <Text style={styles.subtitle}>Employee Portal</Text>
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Sign In Header */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>Sign in</Text>
+          <Text style={styles.subtitle}>Please login to continue to your account.</Text>
         </View>
 
         {/* Login Form */}
         <View style={styles.form}>
-          <Text style={styles.label}>Employee ID or Email</Text>
+          {/* Username Field */}
+          <Text style={styles.label}>Username (Email or Employee ID)</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your ID or email"
-            placeholderTextColor="#666"
+            placeholder="R-001 or your@email.com"
+            placeholderTextColor="#9ca3af"
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
+            keyboardType="email-address"
           />
 
+          {/* Password Field */}
           <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your password"
-            placeholderTextColor="#666"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="••••••••"
+              placeholderTextColor="#9ca3af"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Text style={styles.eyeIcon}>{showPassword ? '👁' : '👁‍🗨'}</Text>
+            </TouchableOpacity>
+          </View>
 
+          {/* Keep me logged in */}
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setKeepLoggedIn(!keepLoggedIn)}
+          >
+            <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
+              {keepLoggedIn && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxLabel}>Keep me logged in</Text>
+          </TouchableOpacity>
+
+          {/* Sign In Button */}
           <TouchableOpacity
             style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
@@ -84,11 +123,18 @@ export default function LoginScreen() {
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>LOGIN</Text>
+              <Text style={styles.buttonText}>Sign in</Text>
             )}
           </TouchableOpacity>
         </View>
-      </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Need an account? Contact your administrator to create one for you.
+          </Text>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -96,69 +142,128 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#ffffff',
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
   },
-  logoText: {
-    fontSize: 42,
+  logo: {
+    width: 120,
+    height: 120,
+  },
+  headerContainer: {
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#3b82f6',
+    color: '#1f2937',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    marginTop: 8,
+    fontSize: 15,
+    color: '#6b7280',
   },
   form: {
-    backgroundColor: '#1a2332',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    marginBottom: 24,
   },
   label: {
-    color: '#9ca3af',
+    color: '#374151',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   input: {
-    backgroundColor: '#0f1824',
-    borderRadius: 12,
-    padding: 16,
-    color: '#fff',
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 14,
+    color: '#1f2937',
     fontSize: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginBottom: 20,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 14,
+    color: '#1f2937',
+    fontSize: 16,
+  },
+  eyeButton: {
+    padding: 14,
+  },
+  eyeIcon: {
+    fontSize: 18,
+    color: '#9ca3af',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  checkmark: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    color: '#374151',
+    fontSize: 14,
   },
   button: {
     backgroundColor: '#3b82f6',
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
-    marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    fontWeight: '600',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 24,
+  },
+  footerText: {
+    color: '#6b7280',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
