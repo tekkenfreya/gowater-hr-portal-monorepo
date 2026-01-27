@@ -4,7 +4,16 @@ import { getAttendanceService } from '@/lib/attendance';
 import { logger } from '@/lib/logger';
 
 async function verifyAuth(request: NextRequest) {
-  const token = request.cookies.get('auth-token')?.value;
+  // Check cookies first (web), then Authorization header (mobile)
+  let token = request.cookies.get('auth-token')?.value;
+
+  if (!token) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
+
   if (!token) return null;
 
   const authService = getAuthService();

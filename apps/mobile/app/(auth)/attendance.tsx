@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,52 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { attendanceService } from '../../src/services/attendance';
+import { tasksService, Task, SubTask } from '../../src/services/tasks';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 type WorkLocation = 'WFH' | 'Onsite' | 'Field';
+
+interface CheckInTask {
+  id: string;
+  title: string;
+  description?: string;
+  status: Task['status'];
+  priority: Task['priority'];
+  subTasks: SubTask[];
+}
+
+interface NewSubTask {
+  id: string;
+  title: string;
+  notes: string;
+}
 
 export default function AttendanceScreen() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [reportContent, setReportContent] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState<WorkLocation | null>(null);
+
+  // Tasks for check-in
+  const [checkInTasks, setCheckInTasks] = useState<CheckInTask[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+
+  // New task form
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<Task['priority']>('medium');
+  const [newSubTasks, setNewSubTasks] = useState<NewSubTask[]>([]);
+
   const [attendanceData, setAttendanceData] = useState<{
     isCheckedIn: boolean;
     checkInTime?: string;
@@ -30,6 +62,7 @@ export default function AttendanceScreen() {
     breakStartTime?: string;
     workLocation?: WorkLocation;
     totalHours: number;
+    breakDuration?: number;
   }>({
     isCheckedIn: false,
     isOnBreak: false,
@@ -51,14 +84,49 @@ export default function AttendanceScreen() {
     }
   };
 
+  const fetchTasks = useCallback(async () => {
+    setIsLoadingTasks(true);
+    try {
+      const tasks = await tasksService.getTasks();
+      // Filter to show only incomplete tasks (not archived, not completed)
+      const incompleteTasks = tasks.filter(task =>
+        task.status !== 'archived' && task.status !== 'completed'
+      ).map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        subTasks: (task.subTasks || []).filter(st => !st.completed),
+      }));
+      setCheckInTasks(incompleteTasks);
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  }, []);
+
+  const openCheckInModal = () => {
+    fetchTasks();
+    setShowCheckInModal(true);
+  };
+
+  const handleProceedToLocation = () => {
+    setShowCheckInModal(false);
+    setShowLocationModal(true);
+  };
+
   const handleCheckIn = async (location: WorkLocation) => {
     setShowLocationModal(false);
+    setSelectedLocation(location);
     setIsProcessing(true);
+
     try {
       const result = await attendanceService.checkIn(location);
       if (result.success) {
         await fetchAttendanceData();
-        // Generate and show report
+        // Generate and show report with tasks
         const report = generateStartReport(location);
         setReportContent(report);
         setShowReportModal(true);
@@ -73,6 +141,9 @@ export default function AttendanceScreen() {
   };
 
   const handleCheckOut = async () => {
+    // First fetch tasks for EOD report
+    await fetchTasks();
+
     Alert.alert(
       'Confirm Check Out',
       'Are you sure you want to check out?',
@@ -86,7 +157,7 @@ export default function AttendanceScreen() {
               const result = await attendanceService.checkOut();
               if (result.success) {
                 await fetchAttendanceData();
-                // Generate EOD report
+                // Generate EOD report with tasks
                 const report = generateEODReport();
                 setReportContent(report);
                 setShowReportModal(true);
@@ -123,21 +194,66 @@ export default function AttendanceScreen() {
     }
   };
 
+  const getStatusTag = (status: string): string => {
+    const statusMap: { [key: string]: string } = {
+      'pending': '[PENDING]',
+      'in_progress': '[IN PROGRESS]',
+      'completed': '[COMPLETED]',
+      'cancel': '[CANCELED]',
+      'blocked': '[BLOCKED]',
+    };
+    return statusMap[status] || `[${status.toUpperCase()}]`;
+  };
+
+  const getSubTaskStatusText = (completed: boolean): string => {
+    return completed ? 'Done' : 'Pending';
+  };
+
+  const formatBreakTime = (seconds: number): string => {
+    if (!seconds || seconds === 0) return '0m';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
   const generateStartReport = (location: WorkLocation) => {
     const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    return `*START OF DAY REPORT*
+    let report = `GoWater Start of Day Report
 
-Employee: ${user?.employeeName || user?.name}
-Employee ID: ${user?.employeeId}
 Date: ${date}
-Time In: ${time}
-Work Location: ${location}
+Employee: ${user?.employeeName || user?.name || 'N/A'}
+Position: ${user?.role || 'N/A'}
+Work Arrangement: ${location}
+Login Time: ${time}
+Logout Time: N/A
+Hours Worked: 0.00 hours
+Break Time: 0m
 
----
-GoWater Attendance System`;
+Today's Planned Tasks:`;
+
+    if (checkInTasks.length === 0) {
+      report += '\nNo tasks planned for today.';
+    } else {
+      checkInTasks.forEach((task, index) => {
+        report += `\n${index + 1}. ${task.title} ${getStatusTag(task.status)}`;
+        if (task.subTasks && task.subTasks.length > 0) {
+          task.subTasks.forEach((subTask) => {
+            report += `\n   ${subTask.title} [${getSubTaskStatusText(subTask.completed)}]`;
+            if (subTask.notes) {
+              report += `\n   [${subTask.notes}]`;
+            }
+          });
+        }
+      });
+    }
+
+    return report;
   };
 
   const generateEODReport = () => {
@@ -145,23 +261,113 @@ GoWater Attendance System`;
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    return `*END OF DAY REPORT*
+    let report = `GoWater End of Day Report
 
-Employee: ${user?.employeeName || user?.name}
-Employee ID: ${user?.employeeId}
 Date: ${date}
-Time Out: ${time}
-Work Location: ${attendanceData.workLocation || 'N/A'}
-Total Hours: ${attendanceData.totalHours.toFixed(2)}
+Employee: ${user?.employeeName || user?.name || 'N/A'}
+Position: ${user?.role || 'N/A'}
+Work Arrangement: ${attendanceData.workLocation || 'N/A'}
+Login Time: ${attendanceData.checkInTime || 'N/A'}
+Logout Time: ${time}
+Hours Worked: ${attendanceData.totalHours.toFixed(2)} hours
+Break Time: ${formatBreakTime(attendanceData.breakDuration || 0)}
 
----
-GoWater Attendance System`;
+Today's Task Updates:`;
+
+    if (checkInTasks.length === 0) {
+      report += '\nNo tasks worked on today.';
+    } else {
+      checkInTasks.forEach((task, index) => {
+        report += `\n${index + 1}. ${task.title} ${getStatusTag(task.status)}`;
+        if (task.subTasks && task.subTasks.length > 0) {
+          task.subTasks.forEach((subTask) => {
+            report += `\n   ${subTask.title} [${getSubTaskStatusText(subTask.completed)}]`;
+            if (subTask.notes) {
+              report += `\n   [${subTask.notes}]`;
+            }
+          });
+        }
+      });
+    }
+
+    return report;
   };
 
   const copyReportToClipboard = async () => {
     await Clipboard.setStringAsync(reportContent);
     Alert.alert('Copied!', 'Report copied to clipboard. Paste it in WhatsApp.');
     setShowReportModal(false);
+  };
+
+  // Add new task
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) {
+      Alert.alert('Error', 'Please enter a task title');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const subTasksToSave = newSubTasks.map(st => ({
+        id: st.id,
+        title: st.title,
+        notes: st.notes,
+        completed: false,
+      }));
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          title: newTaskTitle.trim(),
+          description: '',
+          priority: newTaskPriority,
+          status: 'pending',
+          subTasks: subTasksToSave,
+        }),
+      });
+
+      if (response.ok) {
+        // Reset form
+        setNewTaskTitle('');
+        setNewTaskPriority('medium');
+        setNewSubTasks([]);
+        setShowAddTaskModal(false);
+        // Refresh tasks
+        await fetchTasks();
+      } else {
+        Alert.alert('Error', 'Failed to create task');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getAuthToken = async () => {
+    const SecureStore = await import('expo-secure-store');
+    return await SecureStore.getItemAsync('auth_token');
+  };
+
+  const addSubTask = () => {
+    setNewSubTasks([
+      ...newSubTasks,
+      { id: `temp-${Date.now()}`, title: '', notes: '' },
+    ]);
+  };
+
+  const updateSubTask = (id: string, field: 'title' | 'notes', value: string) => {
+    setNewSubTasks(
+      newSubTasks.map(st => (st.id === id ? { ...st, [field]: value } : st))
+    );
+  };
+
+  const removeSubTask = (id: string) => {
+    setNewSubTasks(newSubTasks.filter(st => st.id !== id));
   };
 
   if (isLoading) {
@@ -210,7 +416,7 @@ GoWater Attendance System`;
         {!attendanceData.isCheckedIn ? (
           <TouchableOpacity
             style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
-            onPress={() => setShowLocationModal(true)}
+            onPress={openCheckInModal}
             disabled={isProcessing}
           >
             {isProcessing ? (
@@ -246,6 +452,213 @@ GoWater Attendance System`;
         )}
       </View>
 
+      {/* Check-In Modal with Tasks */}
+      <Modal
+        visible={showCheckInModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCheckInModal(false)}
+      >
+        <View style={styles.fullScreenModal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>Start of Day Login</Text>
+            <Text style={styles.modalHeaderSubtitle}>Review tasks and confirm login</Text>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* Add Task Button */}
+            <TouchableOpacity
+              style={styles.addTaskButton}
+              onPress={() => setShowAddTaskModal(true)}
+            >
+              <Text style={styles.addTaskButtonText}>+ Add New Task</Text>
+            </TouchableOpacity>
+
+            {/* Tasks List */}
+            {isLoadingTasks ? (
+              <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 24 }} />
+            ) : checkInTasks.length === 0 ? (
+              <View style={styles.emptyTasks}>
+                <Text style={styles.emptyTasksText}>No tasks planned for today</Text>
+                <Text style={styles.emptyTasksSubtext}>Add a task to get started</Text>
+              </View>
+            ) : (
+              checkInTasks.map((task, index) => (
+                <View key={task.id} style={styles.taskCard}>
+                  <View style={styles.taskHeader}>
+                    <View style={styles.taskNumberContainer}>
+                      <Text style={styles.taskNumber}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.taskInfo}>
+                      <Text style={styles.taskTitle}>{task.title}</Text>
+                      <View style={styles.taskBadges}>
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(task.status) }]}>
+                          <Text style={[styles.statusBadgeText, { color: getStatusTextColor(task.status) }]}>
+                            {task.status.replace('_', ' ').toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={[styles.priorityBadge, { backgroundColor: getPriorityBgColor(task.priority) }]}>
+                          <Text style={styles.priorityBadgeText}>{task.priority.toUpperCase()}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Subtasks */}
+                  {task.subTasks && task.subTasks.length > 0 && (
+                    <View style={styles.subTasksContainer}>
+                      {task.subTasks.map((subTask, subIndex) => (
+                        <View key={subTask.id} style={styles.subTaskItem}>
+                          <Text style={styles.subTaskBullet}>•</Text>
+                          <View style={styles.subTaskContent}>
+                            <Text style={styles.subTaskTitle}>{subTask.title}</Text>
+                            {subTask.notes && (
+                              <Text style={styles.subTaskNotes}>{subTask.notes}</Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          {/* Footer Buttons */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelModalButton}
+              onPress={() => setShowCheckInModal(false)}
+            >
+              <Text style={styles.cancelModalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleProceedToLocation}
+            >
+              <Text style={styles.confirmButtonText}>Confirm Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Task Modal */}
+      <Modal
+        visible={showAddTaskModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddTaskModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.fullScreenModal}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>Add New Task</Text>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* Task Title */}
+            <Text style={styles.inputLabel}>Task Title</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter task title..."
+              placeholderTextColor="#6b7280"
+              value={newTaskTitle}
+              onChangeText={setNewTaskTitle}
+            />
+
+            {/* Priority Selection */}
+            <Text style={styles.inputLabel}>Priority</Text>
+            <View style={styles.priorityOptions}>
+              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[
+                    styles.priorityOption,
+                    newTaskPriority === p && styles.priorityOptionActive,
+                    { backgroundColor: newTaskPriority === p ? getPriorityBgColor(p) : '#1a2332' }
+                  ]}
+                  onPress={() => setNewTaskPriority(p)}
+                >
+                  <Text style={[
+                    styles.priorityOptionText,
+                    newTaskPriority === p && styles.priorityOptionTextActive
+                  ]}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Subtasks */}
+            <View style={styles.subTasksSection}>
+              <View style={styles.subTasksHeader}>
+                <Text style={styles.inputLabel}>Sub-tasks</Text>
+                <TouchableOpacity onPress={addSubTask}>
+                  <Text style={styles.addSubTaskText}>+ Add Sub-task</Text>
+                </TouchableOpacity>
+              </View>
+
+              {newSubTasks.map((subTask, index) => (
+                <View key={subTask.id} style={styles.newSubTaskItem}>
+                  <Text style={styles.subTaskIndex}>{index + 1}.</Text>
+                  <View style={styles.subTaskInputs}>
+                    <TextInput
+                      style={styles.subTaskTitleInput}
+                      placeholder="Sub-task title"
+                      placeholderTextColor="#6b7280"
+                      value={subTask.title}
+                      onChangeText={(text) => updateSubTask(subTask.id, 'title', text)}
+                    />
+                    <TextInput
+                      style={styles.subTaskNotesInput}
+                      placeholder="Notes (optional)"
+                      placeholderTextColor="#6b7280"
+                      value={subTask.notes}
+                      onChangeText={(text) => updateSubTask(subTask.id, 'notes', text)}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeSubTaskButton}
+                    onPress={() => removeSubTask(subTask.id)}
+                  >
+                    <Text style={styles.removeSubTaskText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Footer Buttons */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelModalButton}
+              onPress={() => {
+                setNewTaskTitle('');
+                setNewTaskPriority('medium');
+                setNewSubTasks([]);
+                setShowAddTaskModal(false);
+              }}
+            >
+              <Text style={styles.cancelModalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.confirmButton, isProcessing && styles.buttonDisabled]}
+              onPress={handleAddTask}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.confirmButtonText}>Add Task</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Location Selection Modal */}
       <Modal
         visible={showLocationModal}
@@ -263,7 +676,9 @@ GoWater Attendance System`;
                 style={styles.locationOption}
                 onPress={() => handleCheckIn(location)}
               >
-                <Text style={styles.locationOptionText}>{location}</Text>
+                <Text style={styles.locationOptionText}>
+                  {location === 'WFH' ? 'Work From Home' : location}
+                </Text>
               </TouchableOpacity>
             ))}
 
@@ -285,12 +700,12 @@ GoWater Attendance System`;
         onRequestClose={() => setShowReportModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={styles.reportModalContent}>
             <Text style={styles.modalTitle}>Copy Report to WhatsApp</Text>
 
-            <View style={styles.reportPreview}>
+            <ScrollView style={styles.reportPreview}>
               <Text style={styles.reportText}>{reportContent}</Text>
-            </View>
+            </ScrollView>
 
             <TouchableOpacity
               style={styles.copyButton}
@@ -311,6 +726,37 @@ GoWater Attendance System`;
     </ScrollView>
   );
 }
+
+// Helper functions for colors
+const getStatusBgColor = (status: string) => {
+  switch (status) {
+    case 'pending': return '#fef3c7';
+    case 'in_progress': return '#dbeafe';
+    case 'completed': return '#dcfce7';
+    case 'cancel': return '#fee2e2';
+    default: return '#f3f4f6';
+  }
+};
+
+const getStatusTextColor = (status: string) => {
+  switch (status) {
+    case 'pending': return '#d97706';
+    case 'in_progress': return '#2563eb';
+    case 'completed': return '#16a34a';
+    case 'cancel': return '#dc2626';
+    default: return '#6b7280';
+  }
+};
+
+const getPriorityBgColor = (priority: string) => {
+  switch (priority) {
+    case 'urgent': return '#ef4444';
+    case 'high': return '#f97316';
+    case 'medium': return '#eab308';
+    case 'low': return '#22c55e';
+    default: return '#9ca3af';
+  }
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -427,6 +873,290 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
+
+  // Full Screen Modal
+  fullScreenModal: {
+    flex: 1,
+    backgroundColor: '#0f1824',
+  },
+  modalHeader: {
+    backgroundColor: '#22c55e',
+    padding: 20,
+    paddingTop: 50,
+  },
+  modalHeaderTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  modalHeaderSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  modalBody: {
+    flex: 1,
+    padding: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+    gap: 12,
+  },
+  cancelModalButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#374151',
+  },
+  cancelModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmButton: {
+    flex: 2,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#22c55e',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
+  // Add Task Button
+  addTaskButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 2,
+    borderColor: '#3b82f6',
+    borderStyle: 'dashed',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addTaskButtonText: {
+    color: '#3b82f6',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Empty Tasks
+  emptyTasks: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyTasksText: {
+    color: '#9ca3af',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyTasksSubtext: {
+    color: '#6b7280',
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  // Task Card
+  taskCard: {
+    backgroundColor: '#1a2332',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  taskHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  taskNumberContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#3b82f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  taskNumber: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  taskInfo: {
+    flex: 1,
+  },
+  taskTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  taskBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  priorityBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+
+  // Subtasks in task card
+  subTasksContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  subTaskItem: {
+    flexDirection: 'row',
+    paddingVertical: 6,
+  },
+  subTaskBullet: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginRight: 8,
+  },
+  subTaskContent: {
+    flex: 1,
+  },
+  subTaskTitle: {
+    color: '#d1d5db',
+    fontSize: 14,
+  },
+  subTaskNotes: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+
+  // Add Task Form
+  inputLabel: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  textInput: {
+    backgroundColor: '#1a2332',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+  },
+  priorityOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  priorityOption: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  priorityOptionActive: {
+    borderColor: 'transparent',
+  },
+  priorityOptionText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  priorityOptionTextActive: {
+    color: '#fff',
+  },
+
+  // Subtasks section in add form
+  subTasksSection: {
+    marginTop: 24,
+  },
+  subTasksHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addSubTaskText: {
+    color: '#3b82f6',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  newSubTaskItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    backgroundColor: '#1a2332',
+    borderRadius: 12,
+    padding: 12,
+  },
+  subTaskIndex: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 8,
+    marginTop: 12,
+  },
+  subTaskInputs: {
+    flex: 1,
+    gap: 8,
+  },
+  subTaskTitleInput: {
+    backgroundColor: '#0f1824',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+  },
+  subTaskNotesInput: {
+    backgroundColor: '#0f1824',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+  },
+  removeSubTaskButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  removeSubTaskText: {
+    color: '#ef4444',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+
+  // Location Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -471,16 +1201,28 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 16,
   },
+
+  // Report Modal
+  reportModalContent: {
+    backgroundColor: '#1a2332',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
   reportPreview: {
     backgroundColor: '#0f1824',
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
+    maxHeight: 300,
   },
   reportText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   copyButton: {
     backgroundColor: '#3b82f6',

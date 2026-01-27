@@ -100,3 +100,23 @@ export function isLateCheckIn(dateString: string | Date): boolean {
   const hour = getPhilippineHour(dateString);
   return hour >= 10;
 }
+
+/**
+ * Get today's date in Philippine timezone as YYYY-MM-DD format
+ * This is crucial for attendance records to use consistent dates
+ * @returns Date string in YYYY-MM-DD format (Philippine timezone)
+ */
+export function getPhilippineDateString(date?: Date): string {
+  const d = date || new Date();
+
+  // Get the date parts in Philippine timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PHILIPPINE_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  // en-CA locale gives us YYYY-MM-DD format
+  return formatter.format(d);
+}

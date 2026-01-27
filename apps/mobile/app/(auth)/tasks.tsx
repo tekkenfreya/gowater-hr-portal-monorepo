@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { tasksService, Task } from '../../src/services/tasks';
+import { tasksService, Task, SubTask } from '../../src/services/tasks';
 
 export default function TasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,10 +37,17 @@ export default function TasksScreen() {
     fetchTasks();
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === 'all') return true;
-    return task.status === filter;
-  });
+  const filteredTasks = tasks
+    .filter((task) => {
+      if (filter === 'all') return true;
+      return task.status === filter;
+    })
+    .sort((a, b) => {
+      // Sort by createdAt descending (latest first)
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -67,6 +74,27 @@ export default function TasksScreen() {
         return '#22c55e';
       default:
         return '#9ca3af';
+    }
+  };
+
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else {
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
     }
   };
 
@@ -129,15 +157,40 @@ export default function TasksScreen() {
               <Text style={styles.taskTitle}>{task.title}</Text>
 
               {task.description && (
-                <Text style={styles.taskDescription} numberOfLines={2}>
+                <Text style={styles.taskDescription}>
                   {task.description}
                 </Text>
               )}
 
+              {/* Subtasks */}
+              {task.subTasks && task.subTasks.length > 0 && (
+                <View style={styles.subtasksContainer}>
+                  <Text style={styles.subtasksLabel}>Subtasks ({task.subTasks.filter(st => st.completed).length}/{task.subTasks.length})</Text>
+                  {task.subTasks.map((subtask: SubTask) => (
+                    <View key={subtask.id} style={styles.subtaskItem}>
+                      <Text style={[styles.subtaskCheckbox, subtask.completed && styles.subtaskChecked]}>
+                        {subtask.completed ? '✓' : '○'}
+                      </Text>
+                      <View style={styles.subtaskContent}>
+                        <Text style={[styles.subtaskTitle, subtask.completed && styles.subtaskCompleted]}>
+                          {subtask.title}
+                        </Text>
+                        {subtask.notes && (
+                          <Text style={styles.subtaskNotes}>{subtask.notes}</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               <View style={styles.taskFooter}>
-                {task.category && (
-                  <Text style={styles.taskCategory}>{task.category}</Text>
-                )}
+                <View style={styles.taskFooterLeft}>
+                  {task.category && (
+                    <Text style={styles.taskCategory}>{task.category}</Text>
+                  )}
+                  <Text style={styles.taskDate}>{formatDate(task.createdAt)}</Text>
+                </View>
                 {task.timeSpent > 0 && (
                   <Text style={styles.taskTime}>
                     {Math.floor(task.timeSpent / 3600)}h {Math.floor((task.timeSpent % 3600) / 60)}m
@@ -202,9 +255,9 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     backgroundColor: '#1a2332',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#374151',
   },
@@ -250,13 +303,71 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  taskFooterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   taskCategory: {
     color: '#3b82f6',
     fontSize: 12,
     fontWeight: '600',
   },
+  taskDate: {
+    color: '#6b7280',
+    fontSize: 12,
+  },
   taskTime: {
     color: '#9ca3af',
     fontSize: 12,
+  },
+  subtasksContainer: {
+    marginTop: 12,
+    marginBottom: 12,
+    backgroundColor: '#0f1824',
+    borderRadius: 10,
+    padding: 12,
+  },
+  subtasksLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  subtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a2332',
+  },
+  subtaskCheckbox: {
+    color: '#9ca3af',
+    fontSize: 16,
+    marginRight: 10,
+    width: 20,
+  },
+  subtaskChecked: {
+    color: '#22c55e',
+  },
+  subtaskContent: {
+    flex: 1,
+  },
+  subtaskTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  subtaskCompleted: {
+    color: '#9ca3af',
+    textDecorationLine: 'line-through',
+  },
+  subtaskNotes: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });

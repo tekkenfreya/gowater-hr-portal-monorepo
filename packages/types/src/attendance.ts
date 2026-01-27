@@ -1,4 +1,7 @@
-export interface User {
+// Note: User interface is defined in auth.ts to avoid duplication
+// Import User from auth.ts if needed: import { User } from './auth';
+
+export interface AttendanceUser {
   id: string;
   email: string;
   name: string;
@@ -180,7 +183,7 @@ export interface AttendanceSummary {
 
 export interface SupervisorDashboard {
   supervisorId: string;
-  teamMembers: User[];
+  teamMembers: AttendanceUser[];
   pendingApprovals: {
     leaveRequests: LeaveRequest[];
     regularizationRequests: RegularizationRequest[];

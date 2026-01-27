@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { attendanceService } from '../../src/services/attendance';
 
 export default function DashboardScreen() {
@@ -15,18 +16,21 @@ export default function DashboardScreen() {
     isOnBreak: false,
   });
 
-  useEffect(() => {
-    fetchAttendanceStatus();
-  }, []);
-
-  const fetchAttendanceStatus = async () => {
+  const fetchAttendanceStatus = useCallback(async () => {
     try {
       const status = await attendanceService.getTodayStatus();
       setAttendanceStatus(status);
     } catch (error) {
       console.error('Failed to fetch attendance status:', error);
     }
-  };
+  }, []);
+
+  // Refresh data every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchAttendanceStatus();
+    }, [fetchAttendanceStatus])
+  );
 
   const handleLogout = () => {
     Alert.alert(

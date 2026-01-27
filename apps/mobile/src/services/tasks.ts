@@ -2,15 +2,23 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
+export interface SubTask {
+  id: string;
+  title: string;
+  notes?: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancel' | 'archived';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancel' | 'archived' | 'blocked';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   timeSpent: number;
   category?: string;
   tags: string[];
+  subTasks?: SubTask[];
   createdAt: Date;
   updatedAt: Date;
 }

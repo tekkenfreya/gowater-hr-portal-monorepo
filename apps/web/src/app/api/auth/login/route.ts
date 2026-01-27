@@ -29,9 +29,10 @@ export async function POST(request: NextRequest) {
 
     logger.audit('User login', result.user?.id, { username });
 
-    // Set HTTP-only cookie for the token
+    // Set HTTP-only cookie for the token (for web)
     const response = NextResponse.json({
       user: result.user,
+      token: result.token, // Also include token in body for mobile apps
       message: 'Login successful'
     });
 

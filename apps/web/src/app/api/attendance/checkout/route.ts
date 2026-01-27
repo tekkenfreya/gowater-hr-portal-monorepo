@@ -6,7 +6,16 @@ import { logger } from '@/lib/logger';
 import jwt from 'jsonwebtoken';
 
 async function verifyAuth(request: NextRequest) {
-  const token = request.cookies.get('auth-token')?.value;
+  // Check cookies first (web), then Authorization header (mobile)
+  let token = request.cookies.get('auth-token')?.value;
+
+  if (!token) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
+
   if (!token) return null;
 
   const authService = getAuthService();
@@ -31,7 +40,13 @@ export async function POST(request: NextRequest) {
 
     if (requestedUserId && requestedUserId !== user.id) {
       // Admin override requested - check permission
-      const token = request.cookies.get('auth-token')?.value;
+      let token = request.cookies.get('auth-token')?.value;
+      if (!token) {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+        }
+      }
       if (!token) {
         return NextResponse.json(
           { error: 'Authentication required' },

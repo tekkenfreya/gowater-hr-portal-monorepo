@@ -1,6 +1,6 @@
 import { getDb } from './supabase';
 import { logger } from './logger';
-import { getPhilippineHour } from './timezone';
+import { getPhilippineHour, getPhilippineDateString } from './timezone';
 import {
   AttendanceManagementFilters,
   AttendanceRecordWithUser,
@@ -41,7 +41,7 @@ export class AttendanceService {
 
   async checkIn(userId: number, notes?: string, workLocation?: 'WFH' | 'Onsite' | 'Field'): Promise<{ success: boolean; error?: string }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
 
       // Check if already checked in today (without checkout)
       const existing = await this.db.get('attendance', { user_id: userId, date: today });
@@ -143,7 +143,7 @@ export class AttendanceService {
 
   async checkOut(userId: number, notes?: string): Promise<{ success: boolean; error?: string; totalHours?: number }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
 
       const record = await this.db.get('attendance', { user_id: userId, date: today });
 
@@ -183,7 +183,7 @@ export class AttendanceService {
 
   async getTodayAttendance(userId: number): Promise<AttendanceRecord | null> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
       
       const record = await this.db.get('attendance', { user_id: userId, date: today });
 
@@ -275,7 +275,7 @@ export class AttendanceService {
 
   async deleteTodayAttendance(userId: number): Promise<{ success: boolean; error?: string }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
       
       const existing = await this.db.get('attendance', { user_id: userId, date: today });
       
@@ -294,7 +294,7 @@ export class AttendanceService {
 
   async startBreak(userId: number): Promise<{ success: boolean; error?: string }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
       
       const record = await this.db.get('attendance', { user_id: userId, date: today });
       
@@ -327,7 +327,7 @@ export class AttendanceService {
 
   async endBreak(userId: number): Promise<{ success: boolean; error?: string; breakDuration?: number }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPhilippineDateString();
 
       const record = await this.db.get('attendance', { user_id: userId, date: today });
 

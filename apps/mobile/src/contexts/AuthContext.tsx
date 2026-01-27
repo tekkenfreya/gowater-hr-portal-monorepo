@@ -56,6 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || 'Login failed' };
       }
 
+      // Validate response data
+      if (!data.token || typeof data.token !== 'string') {
+        console.error('Invalid token received:', data.token);
+        return { success: false, error: 'Invalid token received from server' };
+      }
+
+      if (!data.user) {
+        console.error('Invalid user data received:', data.user);
+        return { success: false, error: 'Invalid user data received from server' };
+      }
+
       // Store auth data securely
       await SecureStore.setItemAsync('auth_token', data.token);
       await SecureStore.setItemAsync('user_data', JSON.stringify(data.user));

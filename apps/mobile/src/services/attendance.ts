@@ -12,6 +12,7 @@ interface AttendanceStatus {
   breakStartTime?: string;
   workLocation?: WorkLocation;
   totalHours: number;
+  breakDuration?: number;
 }
 
 interface ApiResponse {
@@ -41,15 +42,23 @@ export const attendanceService = {
       }
 
       const data = await response.json();
+      const attendance = data.attendance || data;
+
+      const checkInTime = attendance.checkInTime || attendance.check_in_time;
+      const checkOutTime = attendance.checkOutTime || attendance.check_out_time;
+
+      // User is checked in ONLY if they have a check-in time AND no check-out time
+      const isCheckedIn = !!checkInTime && !checkOutTime;
 
       return {
-        isCheckedIn: !!data.checkInTime,
-        checkInTime: data.checkInTime,
-        checkOutTime: data.checkOutTime,
-        isOnBreak: !!data.breakStartTime && !data.breakEndTime,
-        breakStartTime: data.breakStartTime,
-        workLocation: data.workLocation,
-        totalHours: data.totalHours || 0,
+        isCheckedIn,
+        checkInTime,
+        checkOutTime,
+        isOnBreak: !!(attendance.breakStartTime || attendance.break_start_time) && !(attendance.breakEndTime || attendance.break_end_time),
+        breakStartTime: attendance.breakStartTime || attendance.break_start_time,
+        workLocation: attendance.workLocation || attendance.work_location,
+        totalHours: attendance.totalHours || attendance.total_hours || 0,
+        breakDuration: attendance.breakDuration || attendance.break_duration || 0,
       };
     } catch (error) {
       console.error('Error fetching attendance status:', error);
