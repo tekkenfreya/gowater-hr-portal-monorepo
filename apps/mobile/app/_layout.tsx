@@ -41,7 +41,7 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
     >
       <StatusBar style="dark" />
       <Animated.Image
-        source={require('../assets/logo.png')}
+        source={require('../assets/splash.png')}
         style={[
           styles.loadingLogo,
           {
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingLogo: {
-    width: 220,
-    height: 220,
+    width: 280,
+    height: 280,
   },
 });
