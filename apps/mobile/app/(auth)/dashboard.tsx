@@ -12,12 +12,14 @@ import {
   Platform,
   KeyboardAvoidingView,
   RefreshControl,
+  Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
 import { attendanceService } from '../../src/services/attendance';
 import { tasksService, Task, SubTask } from '../../src/services/tasks';
+import { photoCaptureService, LocationData } from '../../src/services/photoCapture';
 
 type WorkLocation = 'WFH' | 'Onsite' | 'Field';
 
@@ -51,12 +53,26 @@ export default function DashboardScreen() {
 
   // Modals
   const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
   const [reportContent, setReportContent] = useState('');
   const [reportType, setReportType] = useState<'start' | 'end'>('start');
+
+  // Photo capture state (check-in)
+  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [capturedLocation, setCapturedLocation] = useState<LocationData | null>(null);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+
+  // Photo capture state (check-out)
+  const [showCheckOutPhotoModal, setShowCheckOutPhotoModal] = useState(false);
+  const [checkOutPhotoUri, setCheckOutPhotoUri] = useState<string | null>(null);
+  const [checkOutPhotoUrl, setCheckOutPhotoUrl] = useState<string | null>(null);
+  const [checkOutLocation, setCheckOutLocation] = useState<LocationData | null>(null);
+  const [isCapturingCheckOutPhoto, setIsCapturingCheckOutPhoto] = useState(false);
 
   // Tasks for check-out (with editable status)
   const [checkOutTasks, setCheckOutTasks] = useState<CheckInTask[]>([]);
@@ -270,22 +286,58 @@ const openCheckInModal = () => {
     setShowCheckInModal(true);
   };
 
-  const handleProceedToLocation = () => {
+  const handleProceedToPhoto = () => {
     setShowCheckInModal(false);
-    setShowLocationModal(true);
+    // Reset photo state
+    setCapturedPhotoUri(null);
+    setCapturedPhotoUrl(null);
+    setCapturedLocation(null);
+    setShowPhotoModal(true);
   };
+
+  const handleCapturePhoto = async () => {
+    if (!user) return;
+
+    setIsCapturingPhoto(true);
+    try {
+      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+
+      if (result.success) {
+        setCapturedPhotoUri(result.localUri || null);
+        setCapturedPhotoUrl(result.photoUrl || null);
+        setCapturedLocation(result.location || null);
+        // Proceed to location selection
+        setShowPhotoModal(false);
+        setShowLocationModal(true);
+      } else if (result.error === 'Photo capture was cancelled') {
+        // User cancelled, stay on photo modal
+        Alert.alert('Photo Required', 'Please take a photo to continue with check-in.');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to capture photo');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred while capturing photo');
+    } finally {
+      setIsCapturingPhoto(false);
+    }
+  };
+
 
   const handleCheckIn = async (location: WorkLocation) => {
     setShowLocationModal(false);
     setIsProcessing(true);
 
     try {
-      const result = await attendanceService.checkIn(location);
+      const result = await attendanceService.checkIn(location, capturedPhotoUrl || undefined);
       if (result.success) {
         await fetchAttendanceStatus();
-        const report = generateStartReport(location);
+        const report = generateStartReport(location, capturedPhotoUrl, capturedLocation);
         setReportContent(report);
         setShowReportModal(true);
+        // Reset photo state after successful check-in
+        setCapturedPhotoUri(null);
+        setCapturedPhotoUrl(null);
+        setCapturedLocation(null);
       } else {
         Alert.alert('Error', result.error || 'Failed to check in');
       }
@@ -311,12 +363,22 @@ const openCheckInModal = () => {
     return completed ? 'Done' : 'Pending';
   };
 
-  const generateStartReport = (location: WorkLocation) => {
+  const generateStartReport = (location: WorkLocation, photoUrl?: string | null, locationData?: LocationData | null) => {
     const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    let report = `GoWater Start of Day Report
+    let report = `GoWater Start of Day Report`;
+
+    // Add photo URL at the very top if available
+    if (photoUrl) {
+      report += `\n\nCheck-in Photo: ${photoUrl}`;
+      if (locationData?.address) {
+        report += `\nLocation: ${locationData.address}`;
+      }
+    }
+
+    report += `
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -358,6 +420,10 @@ Today's Planned Tasks:`;
   const openCheckOutModal = async () => {
     setIsLoadingTasks(true);
     setShowCheckOutModal(true);
+    // Reset checkout photo state
+    setCheckOutPhotoUri(null);
+    setCheckOutPhotoUrl(null);
+    setCheckOutLocation(null);
     try {
       const tasks = await tasksService.getTasks();
       const incompleteTasks = tasks.filter(task =>
@@ -378,6 +444,72 @@ Today's Planned Tasks:`;
       console.error('Failed to fetch tasks:', error);
     } finally {
       setIsLoadingTasks(false);
+    }
+  };
+
+  const handleProceedToCheckOutPhoto = () => {
+    setShowCheckOutModal(false);
+    setShowCheckOutPhotoModal(true);
+  };
+
+  const handleCaptureCheckOutPhoto = async () => {
+    if (!user) return;
+
+    setIsCapturingCheckOutPhoto(true);
+    try {
+      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+
+      if (result.success) {
+        setCheckOutPhotoUri(result.localUri || null);
+        setCheckOutPhotoUrl(result.photoUrl || null);
+        setCheckOutLocation(result.location || null);
+      } else if (result.error === 'Photo capture was cancelled') {
+        Alert.alert('Photo Required', 'Please take a photo to complete check-out.');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to capture photo');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred while capturing photo');
+    } finally {
+      setIsCapturingCheckOutPhoto(false);
+    }
+  };
+
+  const handleConfirmCheckOutWithPhoto = async () => {
+    setShowCheckOutPhotoModal(false);
+    setIsProcessing(true);
+    try {
+      // Save task updates to server
+      for (const task of checkOutTasks) {
+        await tasksService.updateTask(task.id, {
+          status: task.status,
+          subTasks: task.subTasks,
+        });
+      }
+
+      // Generate and copy report
+      const report = generateEODReport(checkOutPhotoUrl, checkOutLocation);
+      await Clipboard.setStringAsync(report);
+
+      // Call checkout API with photo URL
+      const result = await attendanceService.checkOut(checkOutPhotoUrl || undefined);
+      if (result.success) {
+        await fetchAttendanceStatus();
+        // Reset checkout photo state
+        setCheckOutPhotoUri(null);
+        setCheckOutPhotoUrl(null);
+        setCheckOutLocation(null);
+        setReportContent(report);
+        setReportType('end');
+        setShowReportModal(true);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to check out');
+      }
+    } catch (error) {
+      console.error('Error during checkout:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -434,12 +566,22 @@ Today's Planned Tasks:`;
     return `${minutes}m`;
   };
 
-  const generateEODReport = () => {
+  const generateEODReport = (photoUrl?: string | null, locationData?: LocationData | null) => {
     const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    let report = `GoWater End of Day Report
+    let report = `GoWater End of Day Report`;
+
+    // Add photo URL at the very top if available
+    if (photoUrl) {
+      report += `\n\nCheck-out Photo: ${photoUrl}`;
+      if (locationData?.address) {
+        report += `\nLocation: ${locationData.address}`;
+      }
+    }
+
+    report += `
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -471,39 +613,6 @@ Today's Task Updates:`;
     return report;
   };
 
-  const handleConfirmCheckOut = async () => {
-    setIsProcessing(true);
-    try {
-      // Save task updates to server
-      for (const task of checkOutTasks) {
-        await tasksService.updateTask(task.id, {
-          status: task.status,
-          subTasks: task.subTasks,
-        });
-      }
-
-      // Generate and copy report
-      const report = generateEODReport();
-      await Clipboard.setStringAsync(report);
-
-      // Call checkout API
-      const result = await attendanceService.checkOut();
-      if (result.success) {
-        await fetchAttendanceStatus();
-        setShowCheckOutModal(false);
-        setReportContent(report);
-        setReportType('end');
-        setShowReportModal(true);
-      } else {
-        Alert.alert('Error', result.error || 'Failed to check out');
-      }
-    } catch (error) {
-      console.error('Error during checkout:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   // Add new task
   const handleAddTask = async () => {
@@ -874,7 +983,7 @@ Today's Task Updates:`;
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.confirmButton}
-              onPress={handleProceedToLocation}
+              onPress={handleProceedToPhoto}
             >
               <Text style={styles.confirmButtonText}>Confirm Login</Text>
             </TouchableOpacity>
@@ -993,6 +1102,87 @@ Today's Task Updates:`;
             </TouchableOpacity>
           </View>
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Photo Capture Modal */}
+      <Modal
+        visible={showPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoModalContent}>
+            <Text style={styles.modalTitle}>Check-in Photo</Text>
+            <Text style={styles.photoModalSubtitle}>
+              Take a photo to verify your check-in location
+            </Text>
+
+            {capturedPhotoUri ? (
+              <View style={styles.photoPreviewContainer}>
+                <Image
+                  source={{ uri: capturedPhotoUri }}
+                  style={styles.photoPreview}
+                  resizeMode="cover"
+                />
+                {capturedLocation?.address && (
+                  <Text style={styles.photoLocationText} numberOfLines={2}>
+                    {capturedLocation.address}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.retakeButton}
+                  onPress={handleCapturePhoto}
+                  disabled={isCapturingPhoto}
+                >
+                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.photoCaptureContainer}>
+                <View style={styles.cameraPlaceholder}>
+                  <Text style={styles.cameraIcon}>📷</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.captureButton, isCapturingPhoto && styles.buttonDisabled]}
+                  onPress={handleCapturePhoto}
+                  disabled={isCapturingPhoto}
+                >
+                  {isCapturingPhoto ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.captureButtonText}>Take Photo</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {capturedPhotoUri && (
+              <View style={styles.photoModalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelPhotoButton}
+                  onPress={() => {
+                    setCapturedPhotoUri(null);
+                    setCapturedPhotoUrl(null);
+                    setCapturedLocation(null);
+                    setShowPhotoModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelPhotoButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.continueButton}
+                  onPress={() => {
+                    setShowPhotoModal(false);
+                    setShowLocationModal(true);
+                  }}
+                >
+                  <Text style={styles.continueButtonText}>Continue</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
 
@@ -1180,16 +1370,94 @@ Today's Task Updates:`;
               <Text style={styles.cancelModalButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.checkOutConfirmButton, isProcessing && styles.buttonDisabled]}
-              onPress={handleConfirmCheckOut}
-              disabled={isProcessing}
+              style={styles.checkOutConfirmButton}
+              onPress={handleProceedToCheckOutPhoto}
             >
-              {isProcessing ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.confirmButtonText}>Confirm Logout</Text>
-              )}
+              <Text style={styles.confirmButtonText}>Continue</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Check Out Photo Modal */}
+      <Modal
+        visible={showCheckOutPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCheckOutPhotoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoModalContent}>
+            <Text style={styles.modalTitle}>Check-out Photo</Text>
+            <Text style={styles.photoModalSubtitle}>
+              Take a photo to verify your check-out location
+            </Text>
+
+            {checkOutPhotoUri ? (
+              <View style={styles.photoPreviewContainer}>
+                <Image
+                  source={{ uri: checkOutPhotoUri }}
+                  style={styles.photoPreview}
+                  resizeMode="cover"
+                />
+                {checkOutLocation?.address && (
+                  <Text style={styles.photoLocationText} numberOfLines={2}>
+                    {checkOutLocation.address}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.retakeButton}
+                  onPress={handleCaptureCheckOutPhoto}
+                  disabled={isCapturingCheckOutPhoto}
+                >
+                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.photoCaptureContainer}>
+                <View style={styles.cameraPlaceholder}>
+                  <Text style={styles.cameraIcon}>📷</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.captureButton, styles.checkOutCaptureButton, isCapturingCheckOutPhoto && styles.buttonDisabled]}
+                  onPress={handleCaptureCheckOutPhoto}
+                  disabled={isCapturingCheckOutPhoto}
+                >
+                  {isCapturingCheckOutPhoto ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.captureButtonText}>Take Photo</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {checkOutPhotoUri && (
+              <View style={styles.photoModalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelPhotoButton}
+                  onPress={() => {
+                    setCheckOutPhotoUri(null);
+                    setCheckOutPhotoUrl(null);
+                    setCheckOutLocation(null);
+                    setShowCheckOutPhotoModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelPhotoButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.continueButton, styles.checkOutContinueButton, isProcessing && styles.buttonDisabled]}
+                  onPress={handleConfirmCheckOutWithPhoto}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.continueButtonText}>Confirm Logout</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1908,6 +2176,127 @@ const styles = StyleSheet.create({
   skipButtonText: {
     color: '#6b7280',
     fontSize: 14,
+  },
+
+  // Photo Capture Modal Styles
+  photoModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  photoModalSubtitle: {
+    color: '#6b7280',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: -16,
+    marginBottom: 20,
+  },
+  photoCaptureContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  cameraPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+  },
+  cameraIcon: {
+    fontSize: 48,
+  },
+  captureButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  captureButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  photoPreviewContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  photoLocationText: {
+    color: '#6b7280',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  retakeButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  retakeButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  photoModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  skipPhotoButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  skipPhotoButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  continueButton: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  cancelPhotoButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+  },
+  cancelPhotoButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  checkOutCaptureButton: {
+    backgroundColor: '#ef4444',
+  },
+  checkOutContinueButton: {
+    backgroundColor: '#ef4444',
   },
 
   // Check Out Modal Styles

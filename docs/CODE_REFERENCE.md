@@ -1,6 +1,6 @@
 # GoWater Code Reference
 
-> **Last Updated:** 2026-01-27
+> **Last Updated:** 2026-01-28
 > **Purpose:** Canonical reference for all services, hooks, types, and APIs
 > **Usage:** Search (Ctrl+F) for method names before implementation
 > **Maintenance:** Update when adding new services, hooks, or API routes
@@ -129,15 +129,16 @@ All services use the singleton pattern. Get instances using `get*Service()` func
 
 #### User Attendance Methods
 
-- `async checkIn(userId: number, notes?: string, workLocation?: 'WFH' | 'Onsite'): Promise<{success: boolean, error?: string}>`
+- `async checkIn(userId: number, notes?: string, workLocation?: 'WFH' | 'Onsite' | 'Field', photoUrl?: string): Promise<{success: boolean, error?: string}>`
   - **Purpose:** Check in for the day (creates or updates attendance record)
   - **Params:**
     - `userId` - User ID
     - `notes` - Optional notes
-    - `workLocation` - 'WFH' or 'Onsite' (default: 'WFH')
+    - `workLocation` - 'WFH', 'Onsite', or 'Field' (default: 'WFH')
+    - `photoUrl` - Optional URL of check-in photo (Cloudinary)
   - **Handles:** Admin pre-created records (records with no check_in_time), multiple sessions per day
   - **Returns:** `{success, error?}`
-  - **Example:** `await getAttendanceService().checkIn(1, 'Starting work', 'WFH')`
+  - **Example:** `await getAttendanceService().checkIn(1, 'Starting work', 'Field', 'https://res.cloudinary.com/...')`
 
 - `async checkOut(userId: number, notes?: string): Promise<{success: boolean, error?: string, totalHours?: number}>`
   - **Purpose:** Check out and calculate work hours (excluding break time)

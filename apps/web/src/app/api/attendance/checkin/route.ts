@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { notes, workLocation, userId: requestedUserId } = body;
+    const { notes, workLocation, userId: requestedUserId, photoUrl } = body;
 
     // Determine target userId (support admin override)
     let targetUserId = user.id; // Default to authenticated user
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const attendanceService = getAttendanceService();
-    const result = await attendanceService.checkIn(targetUserId, notes, workLocation);
+    const result = await attendanceService.checkIn(targetUserId, notes, workLocation, photoUrl);
 
     if (!result.success) {
       return NextResponse.json(

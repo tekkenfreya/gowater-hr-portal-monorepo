@@ -39,7 +39,7 @@ export interface AttendanceSummary {
 export class AttendanceService {
   private db = getDb();
 
-  async checkIn(userId: number, notes?: string, workLocation?: 'WFH' | 'Onsite' | 'Field'): Promise<{ success: boolean; error?: string }> {
+  async checkIn(userId: number, notes?: string, workLocation?: 'WFH' | 'Onsite' | 'Field', photoUrl?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const today = getPhilippineDateString();
 
@@ -74,6 +74,7 @@ export class AttendanceService {
           work_location: workLocation || 'WFH',
           notes: notes ? `${existing.notes || ''}\n${notes}` : existing.notes,
           sessions: JSON.stringify(sessions),
+          photo_url: photoUrl || existing.photo_url,
           updated_at: new Date()
         }, { id: existing.id });
 
@@ -97,6 +98,7 @@ export class AttendanceService {
           status,
           work_location: workLocation || existing.work_location || 'WFH',
           notes: notes ? `${existing.notes || ''}\n${notes}` : existing.notes,
+          photo_url: photoUrl || existing.photo_url,
           updated_at: new Date()
         }, { id: existing.id });
 
@@ -114,6 +116,7 @@ export class AttendanceService {
           status,
           work_location: workLocation || 'WFH',
           notes,
+          photo_url: photoUrl,
           total_hours: 0
         });
 
@@ -141,7 +144,7 @@ export class AttendanceService {
     }
   }
 
-  async checkOut(userId: number, notes?: string): Promise<{ success: boolean; error?: string; totalHours?: number }> {
+  async checkOut(userId: number, notes?: string, photoUrl?: string): Promise<{ success: boolean; error?: string; totalHours?: number }> {
     try {
       const today = getPhilippineDateString();
 
@@ -171,6 +174,7 @@ export class AttendanceService {
         check_out_time: checkOutTime,
         total_hours: newTotalHours, // Accumulate hours (excluding break time)
         notes: notes ? `${record.notes || ''}\n${notes}` : record.notes,
+        checkout_photo_url: photoUrl || record.checkout_photo_url,
         updated_at: new Date()
       }, { id: record.id });
 

@@ -3,7 +3,7 @@
 ## 📖 Overview
 This document contains all reusable functions, services, fields, types, and APIs in the GoWater HR codebase to avoid naming conflicts and ensure consistency.
 
-> **Last Updated:** 2026-01-27
+> **Last Updated:** 2026-01-28
 > **Recent Changes:** Migrated to Turborepo monorepo structure
 
 ---
@@ -23,7 +23,7 @@ gowater-monorepo/
 │   └── mobile/              # React Native Expo app
 │       └── src/
 │           ├── contexts/    # Auth context
-│           └── services/    # API service wrappers
+│           └── services/    # API service wrappers (attendance.ts, tasks.ts, photoCapture.ts)
 ├── packages/
 │   └── types/               # Shared TypeScript types (@gowater/types)
 │       └── src/
@@ -54,7 +54,7 @@ id, permission_key, display_name, description, category, is_active, created_at, 
 id, user_id, permission_id, granted_at, granted_by
 
 -- attendance
-id, user_id, date, check_in_time, check_out_time, break_start_time, break_end_time, break_duration, total_hours, status, work_location, sessions, notes, created_at, updated_at
+id, user_id, date, check_in_time, check_out_time, break_start_time, break_end_time, break_duration, total_hours, status, work_location, sessions, notes, photo_url, created_at, updated_at
 
 -- attendance_automation_settings (Automated attendance scheduling)
 id, user_id, is_enabled, auto_check_in_time, auto_check_out_time, auto_break_start_time, auto_break_duration, default_work_location, work_days, created_at, updated_at

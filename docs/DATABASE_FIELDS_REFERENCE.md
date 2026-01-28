@@ -1,6 +1,6 @@
 # Database Fields Reference
 
-> **Last Updated:** 2026-01-27
+> **Last Updated:** 2026-01-28
 > **Purpose:** Complete database schema with exact field names, types, and constraints
 > **Usage:** Reference this when writing SQL queries, service methods, or type definitions
 > **Source:** Extracted from live Supabase database using DATABASE_SCHEMA.sql
@@ -105,8 +105,9 @@ gowater-monorepo/
 | `break_start_time` | timestamp with time zone | YES | - | Current break start time |
 | `break_end_time` | timestamp with time zone | YES | - | Last break end time |
 | `break_duration` | integer | YES | 0 | Total break time in seconds |
-| `work_location` | text | YES | 'WFH' | WFH or Onsite |
+| `work_location` | text | YES | 'WFH' | WFH, Onsite, or Field |
 | `sessions` | jsonb | YES | '[]' | Multiple check-in/out sessions |
+| `photo_url` | text | YES | - | Check-in photo URL (Cloudinary) with watermark |
 
 ---
 

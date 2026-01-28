@@ -70,13 +70,13 @@ export const attendanceService = {
     }
   },
 
-  async checkIn(workLocation: WorkLocation): Promise<ApiResponse> {
+  async checkIn(workLocation: WorkLocation, photoUrl?: string): Promise<ApiResponse> {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/attendance/checkin`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ workLocation }),
+        body: JSON.stringify({ workLocation, photoUrl }),
       });
 
       const data = await response.json();
@@ -92,12 +92,13 @@ export const attendanceService = {
     }
   },
 
-  async checkOut(): Promise<ApiResponse> {
+  async checkOut(photoUrl?: string): Promise<ApiResponse> {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/attendance/checkout`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ photoUrl }),
       });
 
       const data = await response.json();

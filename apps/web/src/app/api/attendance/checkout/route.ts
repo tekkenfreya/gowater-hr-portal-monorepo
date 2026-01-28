@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { notes, userId: requestedUserId } = body;
+    const { notes, userId: requestedUserId, photoUrl } = body;
 
     // Determine target userId (support admin override)
     let targetUserId = user.id; // Default to authenticated user
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     const attendanceService = getAttendanceService();
-    const result = await attendanceService.checkOut(targetUserId, notes);
+    const result = await attendanceService.checkOut(targetUserId, notes, photoUrl);
 
     if (!result.success) {
       return NextResponse.json(

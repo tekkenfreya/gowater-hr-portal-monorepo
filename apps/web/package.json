@@ -17,6 +17,7 @@
     "@gowater/types": "workspace:*",
     "@supabase/supabase-js": "^2.57.2",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.9.0",
     "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.552.0",
