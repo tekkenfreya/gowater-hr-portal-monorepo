@@ -1,29 +1,29 @@
 import { Tabs } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Redirect } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-// Simple icon components
-function HomeIcon({ color }: { color: string }) {
+// Icon components
+function HomeIcon({ color, focused }: { color: string; focused: boolean }) {
   return (
-    <View style={[styles.iconContainer, { borderColor: color }]}>
-      <Text style={[styles.iconText, { color }]}>H</Text>
+    <View style={styles.iconWrapper}>
+      <Text style={[styles.iconEmoji]}>🏠</Text>
     </View>
   );
 }
 
-function ClockIcon({ color }: { color: string }) {
+function ClockIcon({ color, focused }: { color: string; focused: boolean }) {
   return (
-    <View style={[styles.iconContainer, { borderColor: color }]}>
-      <Text style={[styles.iconText, { color }]}>A</Text>
+    <View style={styles.iconWrapper}>
+      <Text style={[styles.iconEmoji]}>⏰</Text>
     </View>
   );
 }
 
-function TaskIcon({ color }: { color: string }) {
+function TaskIcon({ color, focused }: { color: string; focused: boolean }) {
   return (
-    <View style={[styles.iconContainer, { borderColor: color }]}>
-      <Text style={[styles.iconText, { color }]}>T</Text>
+    <View style={styles.iconWrapper}>
+      <Text style={[styles.iconEmoji]}>📋</Text>
     </View>
   );
 }
@@ -34,7 +34,7 @@ export default function AuthLayout() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
@@ -47,50 +47,65 @@ export default function AuthLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#1a2332',
-          borderTopColor: '#374151',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
+          backgroundColor: '#ffffff',
+          borderTopColor: '#e5e7eb',
+          borderTopWidth: 1,
+          height: 95,
+          paddingTop: 2,
+          paddingBottom: 38,
+          paddingHorizontal: 10,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarInactiveTintColor: '#6b7280',
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '600',
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingTop: 6,
         },
         headerStyle: {
-          backgroundColor: '#1a2332',
+          backgroundColor: '#ffffff',
+          elevation: 2,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#1f2937',
         headerTitleStyle: {
           fontWeight: 'bold',
-          textTransform: 'uppercase',
-          letterSpacing: 1,
+          fontSize: 18,
         },
+        headerShown: false,
+        animation: 'shift',
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <HomeIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => <HomeIcon color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="attendance"
         options={{
           title: 'Attendance',
-          tabBarIcon: ({ color }) => <ClockIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => <ClockIcon color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="tasks"
         options={{
           title: 'Tasks',
-          tabBarIcon: ({ color }) => <TaskIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => <TaskIcon color={color} focused={focused} />,
         }}
       />
     </Tabs>
@@ -100,24 +115,15 @@ export default function AuthLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  iconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    justifyContent: 'center',
+  iconWrapper: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  iconText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  iconEmoji: {
+    fontSize: 22,
   },
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -38,8 +38,16 @@ interface NewSubTask {
 
 export default function DashboardScreen() {
   const { user, logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Timer state
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Menu
+  const [showMenu, setShowMenu] = useState(false);
 
   // Modals
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -53,8 +61,9 @@ export default function DashboardScreen() {
   // Tasks for check-out (with editable status)
   const [checkOutTasks, setCheckOutTasks] = useState<CheckInTask[]>([]);
 
-  // Tasks for check-in
+  // Tasks for check-in and current tasks
   const [checkInTasks, setCheckInTasks] = useState<CheckInTask[]>([]);
+  const [currentTasks, setCurrentTasks] = useState<CheckInTask[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   // New task form
@@ -65,6 +74,7 @@ export default function DashboardScreen() {
   const [attendanceStatus, setAttendanceStatus] = useState<{
     isCheckedIn: boolean;
     checkInTime?: string;
+    checkInTimestamp?: number;
     checkOutTime?: string;
     isOnBreak: boolean;
     workLocation?: WorkLocation;
@@ -80,17 +90,141 @@ export default function DashboardScreen() {
     try {
       const status = await attendanceService.getTodayStatus();
       setAttendanceStatus(status);
+
+      // Use totalHours from API - preserve hours even after checkout
+      if (status.totalHours !== undefined && status.totalHours > 0) {
+        // Convert totalHours to seconds
+        const totalSeconds = Math.floor(status.totalHours * 3600);
+        setElapsedTime(totalSeconds);
+      } else if (status.isCheckedIn && status.checkInTime) {
+        // If checked in but no totalHours yet, calculate from check-in time
+        const checkInDate = new Date(status.checkInTime);
+        const now = new Date();
+        const elapsedSeconds = Math.floor((now.getTime() - checkInDate.getTime()) / 1000);
+        setElapsedTime(Math.max(0, elapsedSeconds));
+      } else {
+        setElapsedTime(0);
+      }
     } catch (error) {
       console.error('Failed to fetch attendance status:', error);
     } finally {
+      setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
+  // Timer effect
+  useEffect(() => {
+    if (attendanceStatus.isCheckedIn && !attendanceStatus.isOnBreak) {
+      timerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [attendanceStatus.isCheckedIn, attendanceStatus.isOnBreak]);
+
+  const formatTimer = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return {
+      hours: hours.toString().padStart(2, '0'),
+      minutes: minutes.toString().padStart(2, '0'),
+      seconds: seconds.toString().padStart(2, '0'),
+    };
+  };
+
+  const formatCheckInTime = (timeString?: string) => {
+    if (!timeString) return '';
+    try {
+      // Handle ISO date string or other formats
+      const date = new Date(timeString);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).toLowerCase();
+      }
+      // If it's already formatted like "10:30 AM", just return lowercase
+      return timeString.toLowerCase();
+    } catch {
+      return timeString;
+    }
+  };
+
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchAttendanceStatus();
+    fetchCurrentTasks();
   }, [fetchAttendanceStatus]);
+
+  const fetchCurrentTasks = useCallback(async () => {
+    try {
+      const tasks = await tasksService.getTasks();
+      // Include pending and in_progress tasks
+      const activeTasks = tasks.filter(task =>
+        task.status === 'pending' || task.status === 'in_progress'
+      ).slice(0, 3).map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        subTasks: (task.subTasks || []).filter(st => !st.completed),
+      }));
+      setCurrentTasks(activeTasks);
+    } catch (error) {
+      console.error('Failed to fetch current tasks:', error);
+    }
+  }, []);
+
+  const handleBreakToggle = async () => {
+    setIsProcessing(true);
+    try {
+      const result = attendanceStatus.isOnBreak
+        ? await attendanceService.endBreak()
+        : await attendanceService.startBreak();
+
+      if (result.success) {
+        await fetchAttendanceStatus();
+      } else {
+        Alert.alert('Error', result.error || 'Failed to toggle break');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setShowMenu(false);
+    Alert.alert(
+      'Confirm Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
 
   const fetchTasks = useCallback(async () => {
     setIsLoadingTasks(true);
@@ -114,31 +248,24 @@ export default function DashboardScreen() {
     }
   }, []);
 
+  // Initial load
+  useEffect(() => {
+    fetchAttendanceStatus();
+    fetchCurrentTasks();
+  }, []);
+
+  // Refetch when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchAttendanceStatus();
-    }, [fetchAttendanceStatus])
+      // Only refetch if not initial load
+      if (!isLoading) {
+        fetchAttendanceStatus();
+        fetchCurrentTasks();
+      }
+    }, [fetchAttendanceStatus, fetchCurrentTasks, isLoading])
   );
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Confirm Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/');
-          },
-        },
-      ]
-    );
-  };
-
-  const openCheckInModal = () => {
+const openCheckInModal = () => {
     fetchTasks();
     setShowCheckInModal(true);
   };
@@ -470,84 +597,196 @@ Today's Task Updates:`;
     }
   };
 
+  const timer = formatTimer(elapsedTime);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={onRefresh}
-          tintColor="#3b82f6"
-          colors={['#3b82f6']}
-        />
-      }
-    >
-      {/* Welcome Section */}
-      <View style={styles.welcomeCard}>
-        <Text style={styles.greeting}>Welcome back,</Text>
-        <Text style={styles.userName}>{user?.employeeName || user?.name}</Text>
-        <Text style={styles.employeeId}>{user?.employeeId}</Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileInitial}>
+              {(user?.employeeName || user?.name || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Home</Text>
+            <Text style={styles.headerSubtitle}>{user?.employeeName || user?.name}</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => setShowMenu(!showMenu)}
+        >
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+        </TouchableOpacity>
       </View>
 
-      {/* Status Cards */}
-      <View style={styles.statusContainer}>
-        <View style={[styles.statusCard, attendanceStatus.isCheckedIn ? styles.statusActive : styles.statusInactive]}>
-          <Text style={styles.statusLabel}>Status</Text>
-          <Text style={styles.statusValue}>
+      {/* Menu Dropdown */}
+      {showMenu && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              Alert.alert('Settings', 'Settings coming soon');
+            }}
+          >
+            <Text style={styles.menuItemText}>Settings</Text>
+          </TouchableOpacity>
+          <View style={styles.menuDivider} />
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={handleLogout}
+          >
+            <Text style={[styles.menuItemText, styles.menuItemLogout]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Divider Line */}
+      <View style={styles.headerDivider} />
+
+      <ScrollView
+        style={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#3b82f6"
+            colors={['#3b82f6']}
+          />
+        }
+      >
+        {/* Time Card */}
+        <View style={styles.timeCard}>
+          <View style={styles.timerRow}>
+            <View style={styles.timerDisplay}>
+              <View style={styles.timerBlock}>
+                <Text style={styles.timerNumber}>{timer.hours}</Text>
+              </View>
+              <Text style={styles.timerSeparator}>:</Text>
+              <View style={styles.timerBlock}>
+                <Text style={styles.timerNumber}>{timer.minutes}</Text>
+              </View>
+              <Text style={styles.timerSeparator}>:</Text>
+              <View style={styles.timerBlock}>
+                <Text style={styles.timerNumber}>{timer.seconds}</Text>
+              </View>
+            </View>
+
+            <View style={styles.actionButtons}>
+              {!attendanceStatus.isCheckedIn ? (
+                <TouchableOpacity
+                  style={styles.checkInBtn}
+                  onPress={openCheckInModal}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.checkInBtnText}>Check-In</Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.breakBtn, attendanceStatus.isOnBreak && styles.breakBtnActive]}
+                    onPress={handleBreakToggle}
+                    disabled={isProcessing}
+                  >
+                    <Text style={styles.breakBtnText}>
+                      {attendanceStatus.isOnBreak ? 'End' : 'Break'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.checkOutBtn}
+                    onPress={openCheckOutModal}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.checkOutBtnText}>Check-Out</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+
+          <Text style={[
+            styles.checkInStatus,
+            attendanceStatus.isCheckedIn ? styles.checkInStatusActive : styles.checkInStatusInactive
+          ]}>
             {attendanceStatus.isCheckedIn
               ? attendanceStatus.isOnBreak
                 ? 'On Break'
-                : 'Working'
-              : 'Not Checked In'}
+                : `Checked in at ${formatCheckInTime(attendanceStatus.checkInTime)}`
+              : 'Yet to check-in'}
           </Text>
-          {attendanceStatus.checkInTime && (
-            <Text style={styles.statusTime}>Since {attendanceStatus.checkInTime}</Text>
-          )}
         </View>
-      </View>
 
-      {/* Quick Actions */}
-      <View style={styles.actionsContainer}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+      {/* Current Tasks */}
+      <View style={styles.currentTasksCard}>
+        <View style={styles.currentTasksHeader}>
+          <View style={styles.currentTasksIconContainer}>
+            <Text style={styles.currentTasksIcon}>T</Text>
+          </View>
+          <View>
+            <Text style={styles.currentTasksTitle}>Current Tasks</Text>
+            <Text style={styles.currentTasksSubtitle}>
+              {currentTasks.length} pending task{currentTasks.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </View>
 
-        {!attendanceStatus.isCheckedIn ? (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.checkInButton]}
-            onPress={openCheckInModal}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={[styles.actionButtonText, styles.checkInButtonText]}>Check In</Text>
-            )}
-          </TouchableOpacity>
+        {currentTasks.length === 0 ? (
+          <View style={styles.noTasksContainer}>
+            <Text style={styles.noTasksText}>No pending tasks</Text>
+          </View>
         ) : (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.checkOutButton]}
-            onPress={openCheckOutModal}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={[styles.actionButtonText, styles.checkOutButtonText]}>Check Out</Text>
-            )}
-          </TouchableOpacity>
+          currentTasks.map((task) => (
+            <View key={task.id} style={styles.currentTaskItem}>
+              <View style={[styles.taskPriorityDot, { backgroundColor: getPriorityBgColor(task.priority) }]} />
+              <View style={styles.currentTaskInfo}>
+                <Text style={styles.currentTaskTitle} numberOfLines={1}>{task.title}</Text>
+                <Text style={[styles.currentTaskStatus, { color: getStatusTextColor(task.status) }]}>
+                  {task.status.replace('_', ' ')}
+                </Text>
+                {task.subTasks && task.subTasks.length > 0 && (
+                  <View style={styles.currentTaskSubtasks}>
+                    {task.subTasks.slice(0, 2).map((subTask) => (
+                      <View key={subTask.id} style={styles.currentSubtaskItem}>
+                        <Text style={styles.currentSubtaskBullet}>-</Text>
+                        <Text style={styles.currentSubtaskTitle} numberOfLines={1}>{subTask.title}</Text>
+                      </View>
+                    ))}
+                    {task.subTasks.length > 2 && (
+                      <Text style={styles.currentSubtaskMore}>+{task.subTasks.length - 2} more</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          ))
         )}
 
         <TouchableOpacity
-          style={styles.actionButton}
+          style={styles.viewMoreButton}
           onPress={() => router.push('/(auth)/tasks')}
         >
-          <Text style={styles.actionButtonText}>View Tasks</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.logoutButton]}
-          onPress={handleLogout}
-        >
-          <Text style={[styles.actionButtonText, styles.logoutButtonText]}>Logout</Text>
+          <Text style={styles.viewMoreButtonText}>View More</Text>
         </TouchableOpacity>
       </View>
 
@@ -954,124 +1193,328 @@ Today's Task Updates:`;
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
   },
-  welcomeCard: {
-    backgroundColor: '#1a2332',
-    margin: 16,
-    padding: 24,
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#3b82f6',
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  greeting: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  scrollContent: {
+    flex: 1,
   },
-  userName: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  employeeId: {
-    color: '#3b82f6',
-    fontSize: 14,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  statusContainer: {
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 12,
+    backgroundColor: '#f9fafb',
   },
-  statusCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  statusActive: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-  },
-  statusInactive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  statusLabel: {
-    color: '#9ca3af',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  statusValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  statusTime: {
-    color: '#9ca3af',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  actionsContainer: {
-    padding: 16,
-  },
-  sectionTitle: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  actionButton: {
-    backgroundColor: '#1a2332',
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  checkInButton: {
-    backgroundColor: '#3b82f6',
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#dbeafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 2,
     borderColor: '#3b82f6',
   },
-  checkInButtonText: {
-    color: '#fff',
+  profileInitial: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#3b82f6',
   },
-  checkOutButton: {
-    backgroundColor: '#ef4444',
-    borderColor: '#ef4444',
-  },
-  checkOutButtonText: {
-    color: '#fff',
+  headerTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
+    color: '#1f2937',
   },
-  logoutButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginTop: 24,
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#3b82f6',
+    fontWeight: '600',
   },
-  logoutButtonText: {
+  menuButton: {
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hamburgerLine: {
+    width: 22,
+    height: 2.5,
+    backgroundColor: '#374151',
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 95,
+    right: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  menuItemLogout: {
     color: '#ef4444',
   },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 12,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 16,
+  },
+
+  // Time Card
+  timeCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timerDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timerBlock: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 38,
+    alignItems: 'center',
+  },
+  timerNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    fontVariant: ['tabular-nums'],
+  },
+  timerSeparator: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#9ca3af',
+    marginHorizontal: 2,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkInBtn: {
+    backgroundColor: '#22c55e',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  checkInBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  breakBtn: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  breakBtnActive: {
+    backgroundColor: '#22c55e',
+  },
+  breakBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  checkOutBtn: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  checkOutBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  checkInStatus: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  checkInStatusActive: {
+    color: '#22c55e',
+  },
+  checkInStatusInactive: {
+    color: '#f59e0b',
+  },
+
+  // Current Tasks Card
+  currentTasksCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  currentTasksHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  currentTasksIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#dbeafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  currentTasksIcon: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  currentTasksTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  currentTasksSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  noTasksContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noTasksText: {
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  currentTaskItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  taskPriorityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
+    marginTop: 5,
+  },
+  currentTaskInfo: {
+    flex: 1,
+  },
+  currentTaskTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1f2937',
+  },
+  currentTaskStatus: {
+    fontSize: 12,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+  currentTaskSubtasks: {
+    marginTop: 6,
+    paddingLeft: 4,
+  },
+  currentSubtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  currentSubtaskBullet: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginRight: 6,
+  },
+  currentSubtaskTitle: {
+    color: '#6b7280',
+    fontSize: 12,
+    flex: 1,
+  },
+  currentSubtaskMore: {
+    color: '#3b82f6',
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  viewMoreButton: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 20,
+  },
+  viewMoreButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
   buttonDisabled: {
     opacity: 0.6,
   },
@@ -1079,7 +1522,7 @@ const styles = StyleSheet.create({
   // Full Screen Modal
   fullScreenModal: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
   },
   modalHeader: {
     backgroundColor: '#22c55e',
@@ -1104,18 +1547,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#e5e7eb',
     gap: 12,
+    backgroundColor: '#ffffff',
   },
   cancelModalButton: {
     flex: 1,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#374151',
+    backgroundColor: '#f3f4f6',
   },
   cancelModalButtonText: {
-    color: '#fff',
+    color: '#374151',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1134,7 +1578,7 @@ const styles = StyleSheet.create({
 
   // Add Task Button
   addTaskButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: '#eff6ff',
     borderWidth: 2,
     borderColor: '#3b82f6',
     borderStyle: 'dashed',
@@ -1155,24 +1599,29 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   emptyTasksText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 16,
     fontWeight: '600',
   },
   emptyTasksSubtext: {
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 14,
     marginTop: 4,
   },
 
   // Task Card
   taskCard: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   taskHeader: {
     flexDirection: 'row',
@@ -1196,7 +1645,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskTitle: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
@@ -1230,14 +1679,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#e5e7eb',
   },
   subTaskItem: {
     flexDirection: 'row',
     paddingVertical: 6,
   },
   subTaskBullet: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
     marginRight: 8,
   },
@@ -1245,11 +1694,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   subTaskTitle: {
-    color: '#d1d5db',
+    color: '#374151',
     fontSize: 14,
   },
   subTaskNotes: {
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 12,
     fontStyle: 'italic',
     marginTop: 2,
@@ -1257,19 +1706,19 @@ const styles = StyleSheet.create({
 
   // Add Task Form
   inputLabel: {
-    color: '#9ca3af',
+    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 16,
   },
   textInput: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 12,
     padding: 16,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
   },
   priorityOptions: {
@@ -1282,13 +1731,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
   },
   priorityOptionActive: {
     borderColor: 'transparent',
   },
   priorityOptionText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1315,12 +1765,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 12,
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   subTaskIndex: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
     fontWeight: '600',
     marginRight: 8,
@@ -1331,21 +1783,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTaskTitleInput: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 14,
   },
   subTaskNotesInput: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 14,
   },
   removeSubTaskButton: {
@@ -1361,35 +1813,40 @@ const styles = StyleSheet.create({
   // Location Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalTitle: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 24,
   },
   locationOption: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
   },
   locationOptionText: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
@@ -1400,28 +1857,35 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   cancelButtonText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 16,
   },
 
   // Report Modal
   reportModalContent: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
     maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   reportPreview: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
     maxHeight: 300,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   reportText: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 13,
     lineHeight: 20,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
@@ -1442,7 +1906,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   skipButtonText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
   },
 
@@ -1458,21 +1922,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
   },
   hoursWorkedCard: {
-    backgroundColor: '#1e3a5f',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: '#bfdbfe',
   },
   hoursWorkedLabel: {
-    color: '#9ca3af',
+    color: '#3b82f6',
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   hoursWorkedValue: {
-    color: '#3b82f6',
+    color: '#1d4ed8',
     fontSize: 32,
     fontWeight: 'bold',
     marginTop: 4,
@@ -1483,22 +1947,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   hoursWorkedTime: {
-    color: '#9ca3af',
+    color: '#3b82f6',
     fontSize: 12,
   },
   checkOutSectionTitle: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
   },
   checkOutTaskCard: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   checkOutTaskNumber: {
     backgroundColor: '#ef4444',
@@ -1513,11 +1982,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#0f1824',
+    borderColor: '#d1d5db',
+    backgroundColor: '#f9fafb',
   },
   statusOptionText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -1525,7 +1994,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#e5e7eb',
   },
   checkOutSubTaskItem: {
     marginBottom: 12,
@@ -1540,7 +2009,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#6b7280',
+    borderColor: '#d1d5db',
     marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1555,23 +2024,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   checkOutSubTaskTitle: {
-    color: '#d1d5db',
+    color: '#374151',
     fontSize: 14,
     flex: 1,
   },
   checkOutSubTaskCompleted: {
     textDecorationLine: 'line-through',
-    color: '#6b7280',
-  },
-  subTaskNotesInput: {
-    backgroundColor: '#0f1824',
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    padding: 10,
-    color: '#fff',
-    fontSize: 13,
-    marginLeft: 32,
-    minHeight: 40,
+    color: '#9ca3af',
   },
 });

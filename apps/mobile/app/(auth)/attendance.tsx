@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { router, useFocusEffect } from 'expo-router';
 import { attendanceService } from '../../src/services/attendance';
 import { tasksService, Task, SubTask } from '../../src/services/tasks';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -36,10 +37,11 @@ interface NewSubTask {
 }
 
 export default function AttendanceScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -71,11 +73,7 @@ export default function AttendanceScreen() {
     totalHours: 0,
   });
 
-  useEffect(() => {
-    fetchAttendanceData();
-  }, []);
-
-  const fetchAttendanceData = async () => {
+  const fetchAttendanceData = useCallback(async () => {
     try {
       const data = await attendanceService.getTodayStatus();
       setAttendanceData(data);
@@ -85,12 +83,26 @@ export default function AttendanceScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchAttendanceData();
+  }, []);
+
+  // Refetch when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!isLoading) {
+        fetchAttendanceData();
+      }
+    }, [fetchAttendanceData, isLoading])
+  );
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchAttendanceData();
-  }, []);
+  }, [fetchAttendanceData]);
 
   const fetchTasks = useCallback(async () => {
     setIsLoadingTasks(true);
@@ -371,6 +383,42 @@ Today's Task Updates:`;
     setNewSubTasks(newSubTasks.filter(st => st.id !== id));
   };
 
+  const handleLogout = () => {
+    setShowMenu(false);
+    Alert.alert(
+      'Confirm Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
+  const formatCheckInTime = (timeString?: string) => {
+    if (!timeString) return '';
+    try {
+      const date = new Date(timeString);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).toLowerCase();
+      }
+      return timeString.toLowerCase();
+    } catch {
+      return timeString;
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -380,88 +428,157 @@ Today's Task Updates:`;
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={onRefresh}
-          tintColor="#3b82f6"
-          colors={['#3b82f6']}
-        />
-      }
-    >
-      {/* Status Card */}
-      <View style={styles.statusCard}>
-        <Text style={styles.statusLabel}>Current Status</Text>
-        <Text style={[
-          styles.statusValue,
-          attendanceData.isCheckedIn ? styles.statusActive : styles.statusInactive
-        ]}>
-          {attendanceData.isCheckedIn
-            ? attendanceData.isOnBreak
-              ? 'On Break'
-              : 'Working'
-            : 'Not Checked In'}
-        </Text>
-        {attendanceData.checkInTime && (
-          <Text style={styles.timeText}>Checked in at {attendanceData.checkInTime}</Text>
-        )}
-        {attendanceData.workLocation && (
-          <Text style={styles.locationText}>{attendanceData.workLocation}</Text>
-        )}
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileInitial}>
+              {(user?.employeeName || user?.name || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Attendance</Text>
+            <Text style={styles.headerSubtitle}>{user?.employeeName || user?.name}</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => setShowMenu(!showMenu)}
+        >
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+          <View style={styles.hamburgerLine} />
+        </TouchableOpacity>
       </View>
 
-      {/* Time Info */}
-      {attendanceData.isCheckedIn && (
-        <View style={styles.timeCard}>
-          <View style={styles.timeRow}>
-            <Text style={styles.timeLabel}>Total Hours</Text>
-            <Text style={styles.timeValue}>{attendanceData.totalHours.toFixed(2)}</Text>
-          </View>
+      {/* Menu Dropdown */}
+      {showMenu && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              Alert.alert('Settings', 'Settings coming soon');
+            }}
+          >
+            <Text style={styles.menuItemText}>Settings</Text>
+          </TouchableOpacity>
+          <View style={styles.menuDivider} />
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={handleLogout}
+          >
+            <Text style={[styles.menuItemText, styles.menuItemLogout]}>Logout</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Actions */}
-      <View style={styles.actionsContainer}>
-        {!attendanceData.isCheckedIn ? (
-          <TouchableOpacity
-            style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
-            onPress={openCheckInModal}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>CHECK IN</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <>
+      {/* Divider Line */}
+      <View style={styles.headerDivider} />
+
+      <ScrollView
+        style={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#3b82f6"
+            colors={['#3b82f6']}
+          />
+        }
+      >
+        {/* Today's Summary Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Today's Summary</Text>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Check In</Text>
+              <Text style={styles.summaryValue}>
+                {attendanceData.checkInTime ? formatCheckInTime(attendanceData.checkInTime) : '--:--'}
+              </Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Check Out</Text>
+              <Text style={styles.summaryValue}>
+                {attendanceData.checkOutTime ? formatCheckInTime(attendanceData.checkOutTime) : '--:--'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Total Hours</Text>
+              <Text style={styles.summaryValue}>{attendanceData.totalHours.toFixed(2)} hrs</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Break Time</Text>
+              <Text style={styles.summaryValue}>{formatBreakTime(attendanceData.breakDuration || 0)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Location</Text>
+              <Text style={styles.summaryValue}>{attendanceData.workLocation || '--'}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Status</Text>
+              <Text style={[
+                styles.summaryValue,
+                attendanceData.isCheckedIn
+                  ? (attendanceData.isOnBreak ? styles.statusBreak : styles.statusActive)
+                  : styles.statusInactive
+              ]}>
+                {attendanceData.isCheckedIn
+                  ? attendanceData.isOnBreak ? 'On Break' : 'Working'
+                  : 'Not Checked In'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actionsContainer}>
+          {!attendanceData.isCheckedIn ? (
             <TouchableOpacity
-              style={[styles.breakButton, attendanceData.isOnBreak && styles.breakButtonActive, isProcessing && styles.buttonDisabled]}
-              onPress={handleBreakToggle}
+              style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
+              onPress={openCheckInModal}
               disabled={isProcessing}
             >
               {isProcessing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.breakButtonText}>
-                  {attendanceData.isOnBreak ? 'END BREAK' : 'START BREAK'}
-                </Text>
+                <Text style={styles.primaryButtonText}>CHECK IN</Text>
               )}
             </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.breakButton, attendanceData.isOnBreak && styles.breakButtonActive, isProcessing && styles.buttonDisabled]}
+                onPress={handleBreakToggle}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.breakButtonText}>
+                    {attendanceData.isOnBreak ? 'END BREAK' : 'START BREAK'}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.checkoutButton, isProcessing && styles.buttonDisabled]}
-              onPress={handleCheckOut}
-              disabled={isProcessing}
-            >
-              <Text style={styles.checkoutButtonText}>CHECK OUT</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+              <TouchableOpacity
+                style={[styles.checkoutButton, isProcessing && styles.buttonDisabled]}
+                onPress={handleCheckOut}
+                disabled={isProcessing}
+              >
+                <Text style={styles.checkoutButtonText}>CHECK OUT</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
       {/* Check-In Modal with Tasks */}
       <Modal
@@ -746,7 +863,8 @@ Today's Task Updates:`;
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -784,23 +902,167 @@ const getPriorityBgColor = (priority: string) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
   },
+  scrollContent: {
+    flex: 1,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 12,
+    backgroundColor: '#f9fafb',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#dbeafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#3b82f6',
+  },
+  profileInitial: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  menuButton: {
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hamburgerLine: {
+    width: 22,
+    height: 2.5,
+    backgroundColor: '#374151',
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 95,
+    right: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  menuItemLogout: {
+    color: '#ef4444',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 12,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 16,
+  },
+
+  // Summary Card
+  summaryCard: {
+    backgroundColor: '#ffffff',
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  summaryItem: {
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  statusActive: {
+    color: '#22c55e',
+  },
+  statusInactive: {
+    color: '#ef4444',
+  },
+  statusBreak: {
+    color: '#f59e0b',
+  },
+
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   statusCard: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     margin: 16,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusLabel: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -810,14 +1072,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 8,
   },
-  statusActive: {
-    color: '#22c55e',
-  },
-  statusInactive: {
-    color: '#ef4444',
-  },
   timeText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
     marginTop: 8,
   },
@@ -828,11 +1084,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   timeCard: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     marginHorizontal: 16,
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   timeRow: {
     flexDirection: 'row',
@@ -840,11 +1101,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timeLabel: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
   },
   timeValue: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 24,
     fontWeight: 'bold',
   },
@@ -880,12 +1141,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   checkoutButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: '#fee2e2',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.5)',
+    borderColor: '#fca5a5',
   },
   checkoutButtonText: {
     color: '#ef4444',
@@ -900,7 +1161,7 @@ const styles = StyleSheet.create({
   // Full Screen Modal
   fullScreenModal: {
     flex: 1,
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
   },
   modalHeader: {
     backgroundColor: '#22c55e',
@@ -925,18 +1186,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#e5e7eb',
     gap: 12,
+    backgroundColor: '#ffffff',
   },
   cancelModalButton: {
     flex: 1,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#374151',
+    backgroundColor: '#f3f4f6',
   },
   cancelModalButtonText: {
-    color: '#fff',
+    color: '#374151',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -955,7 +1217,7 @@ const styles = StyleSheet.create({
 
   // Add Task Button
   addTaskButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: '#eff6ff',
     borderWidth: 2,
     borderColor: '#3b82f6',
     borderStyle: 'dashed',
@@ -976,24 +1238,29 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   emptyTasksText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 16,
     fontWeight: '600',
   },
   emptyTasksSubtext: {
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 14,
     marginTop: 4,
   },
 
   // Task Card
   taskCard: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   taskHeader: {
     flexDirection: 'row',
@@ -1017,7 +1284,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskTitle: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
@@ -1051,14 +1318,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#e5e7eb',
   },
   subTaskItem: {
     flexDirection: 'row',
     paddingVertical: 6,
   },
   subTaskBullet: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
     marginRight: 8,
   },
@@ -1066,11 +1333,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   subTaskTitle: {
-    color: '#d1d5db',
+    color: '#374151',
     fontSize: 14,
   },
   subTaskNotes: {
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 12,
     fontStyle: 'italic',
     marginTop: 2,
@@ -1078,19 +1345,19 @@ const styles = StyleSheet.create({
 
   // Add Task Form
   inputLabel: {
-    color: '#9ca3af',
+    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 16,
   },
   textInput: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 12,
     padding: 16,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
   },
   priorityOptions: {
@@ -1103,13 +1370,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
   },
   priorityOptionActive: {
     borderColor: 'transparent',
   },
   priorityOptionText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1136,12 +1404,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 12,
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   subTaskIndex: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
     fontWeight: '600',
     marginRight: 8,
@@ -1152,21 +1422,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subTaskTitleInput: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 14,
   },
   subTaskNotesInput: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 14,
   },
   removeSubTaskButton: {
@@ -1182,35 +1452,40 @@ const styles = StyleSheet.create({
   // Location Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalTitle: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 24,
   },
   locationOption: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
   },
   locationOptionText: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
@@ -1221,28 +1496,35 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   cancelButtonText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 16,
   },
 
   // Report Modal
   reportModalContent: {
-    backgroundColor: '#1a2332',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
     maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   reportPreview: {
-    backgroundColor: '#0f1824',
+    backgroundColor: '#f9fafb',
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
     maxHeight: 300,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   reportText: {
-    color: '#fff',
+    color: '#1f2937',
     fontSize: 13,
     lineHeight: 20,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
@@ -1263,7 +1545,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   skipButtonText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 14,
   },
 });

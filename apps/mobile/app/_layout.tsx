@@ -1,28 +1,85 @@
-import { useEffect } from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Image, StyleSheet, Animated } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 
-function RootLayoutNav() {
-  const { isLoading, user } = useAuth();
+function SplashScreen({ onFinish }: { onFinish: () => void }) {
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!isLoading && user) {
+    // Wait a moment then animate out
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        onFinish();
+      });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [fadeAnim, scaleAnim, onFinish]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.loadingContainer,
+        {
+          opacity: fadeAnim,
+        },
+      ]}
+    >
+      <StatusBar style="dark" />
+      <Animated.Image
+        source={require('../assets/logo.png')}
+        style={[
+          styles.loadingLogo,
+          {
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  );
+}
+
+function RootLayoutNav() {
+  const { isLoading, user } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsReady(true);
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (isReady && !showSplash && user) {
       router.replace('/(auth)/dashboard');
     }
-  }, [isLoading, user]);
+  }, [isReady, showSplash, user]);
 
-  if (isLoading) {
+  if (showSplash || isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <StatusBar style="dark" />
-        <Image
-          source={require('../assets/logo.png')}
-          style={styles.loadingLogo}
-          resizeMode="contain"
-        />
-      </View>
+      <SplashScreen
+        onFinish={() => {
+          if (isReady) {
+            setShowSplash(false);
+          }
+        }}
+      />
     );
   }
 
@@ -41,6 +98,8 @@ function RootLayoutNav() {
           contentStyle: {
             backgroundColor: '#ffffff',
           },
+          animation: 'slide_from_right',
+          animationDuration: 300,
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -66,7 +125,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingLogo: {
-    width: 150,
-    height: 150,
+    width: 220,
+    height: 220,
   },
 });
