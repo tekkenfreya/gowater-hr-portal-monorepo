@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ipconfig:*)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Egofoxxx\\\\Documents\\\\Development Area\\\\gowater-monorepo\\\\apps\\\\mobile\\\\metro.config.js\")",
+      "Bash(npm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm type-check:*)",
+      "Bash(pnpm -r type-check:*)"
+    ]
+  }
+}

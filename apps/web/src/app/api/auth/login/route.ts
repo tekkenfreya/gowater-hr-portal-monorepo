@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // Set HTTP-only cookie for the token (for web)
     const response = NextResponse.json({
       user: result.user,
-      token: result.token, // Also include token in body for mobile apps
+      token: result.token,
       message: 'Login successful'
     });
 
