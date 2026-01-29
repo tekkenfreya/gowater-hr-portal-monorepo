@@ -515,9 +515,26 @@ Today's Planned Tasks:`;
 
   const updateTaskStatus = (taskId: string, newStatus: Task['status']) => {
     setCheckOutTasks(prev =>
-      prev.map(task =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
+      prev.map(task => {
+        if (task.id !== taskId) return task;
+        // When marking task as completed, auto-check all subtasks
+        if (newStatus === 'completed' && task.subTasks.length > 0) {
+          return {
+            ...task,
+            status: newStatus,
+            subTasks: task.subTasks.map(st => ({ ...st, completed: true })),
+          };
+        }
+        // When changing away from completed, uncheck all subtasks
+        if (task.status === 'completed' && newStatus !== 'completed' && task.subTasks.length > 0) {
+          return {
+            ...task,
+            status: newStatus,
+            subTasks: task.subTasks.map(st => ({ ...st, completed: false })),
+          };
+        }
+        return { ...task, status: newStatus };
+      })
     );
   };
 
