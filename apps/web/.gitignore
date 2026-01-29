@@ -44,7 +44,7 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 REUSABLE_REFERENCE.md
-tasks/
+/tasks/
 Workflow prompts/
 *TASK_REPORT*.md
 

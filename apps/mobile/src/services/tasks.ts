@@ -34,13 +34,18 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export const tasksService = {
   async getTasks(): Promise<Task[]> {
     try {
+      console.log('Tasks: fetching from', `${API_BASE_URL}/api/tasks`);
       const headers = await getAuthHeaders();
+      console.log('Tasks: headers', JSON.stringify(headers));
       const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'GET',
         headers,
       });
 
+      console.log('Tasks: response status', response.status);
       if (!response.ok) {
+        const text = await response.text();
+        console.log('Tasks: error response', text.substring(0, 200));
         throw new Error('Failed to fetch tasks');
       }
 
