@@ -794,20 +794,26 @@ Break Time: ${formatBreakTime(totalBreakSeconds + (isOnBreak ? breakDuration : 0
 Today's Task Updates:
 ${tasksSection}`;
 
-      // Copy report to clipboard for manual pasting
-      await navigator.clipboard.writeText(report);
+      // Try to copy report to clipboard (may fail on mobile browsers)
+      let clipboardSuccess = false;
+      try {
+        await navigator.clipboard.writeText(report);
+        clipboardSuccess = true;
+      } catch (clipboardError) {
+        logger.warn('Clipboard copy failed (common on mobile browsers)', clipboardError);
+      }
 
-      // Complete check-out
+      // Complete check-out (always proceed even if clipboard failed)
       await handleTimeOut();
 
-      // Close checkout modal and show EOD report copied confirmation
+      // Close checkout modal and show confirmation
       setShowCheckOutModal(false);
       setShowEodReportCopiedModal(true);
 
-      logger.info('Check-out completed and report copied to clipboard');
+      logger.info('Check-out completed' + (clipboardSuccess ? ' and report copied to clipboard' : ''));
     } catch (error) {
       logger.error('Failed to confirm logout', error);
-      alert('Failed to logout. Please try again.');
+      alert('Failed to checkout. Please try again.');
     }
   };
 
