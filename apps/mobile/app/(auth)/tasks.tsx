@@ -235,22 +235,28 @@ export default function TasksScreen() {
               {/* Subtasks */}
               {task.subTasks && task.subTasks.length > 0 && (
                 <View style={styles.subtasksContainer}>
-                  <Text style={styles.subtasksLabel}>Subtasks ({task.subTasks.filter(st => st.completed).length}/{task.subTasks.length})</Text>
-                  {task.subTasks.map((subtask: SubTask) => (
-                    <View key={subtask.id} style={styles.subtaskItem}>
-                      <Text style={[styles.subtaskCheckbox, subtask.completed && styles.subtaskChecked]}>
-                        {subtask.completed ? '✓' : '○'}
-                      </Text>
-                      <View style={styles.subtaskContent}>
-                        <Text style={[styles.subtaskTitle, subtask.completed && styles.subtaskCompleted]}>
-                          {subtask.title}
+                  <Text style={styles.subtasksLabel}>
+                    Subtasks ({task.status === 'completed' ? task.subTasks.length : task.subTasks.filter(st => st.completed).length}/{task.subTasks.length})
+                  </Text>
+                  {task.subTasks.map((subtask: SubTask) => {
+                    // If parent task is completed, treat all subtasks as completed
+                    const isCompleted = task.status === 'completed' || subtask.completed;
+                    return (
+                      <View key={subtask.id} style={styles.subtaskItem}>
+                        <Text style={[styles.subtaskCheckbox, isCompleted && styles.subtaskChecked]}>
+                          {isCompleted ? '✓' : '○'}
                         </Text>
-                        {subtask.notes && (
-                          <Text style={styles.subtaskNotes}>{subtask.notes}</Text>
-                        )}
+                        <View style={styles.subtaskContent}>
+                          <Text style={[styles.subtaskTitle, isCompleted && styles.subtaskCompleted]}>
+                            {subtask.title}
+                          </Text>
+                          {subtask.notes && (
+                            <Text style={styles.subtaskNotes}>{subtask.notes}</Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
 
