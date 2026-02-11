@@ -253,6 +253,14 @@ export default function DashboardScreen() {
 
       if (result.success) {
         await fetchAttendanceStatus();
+
+        // Generate break report and copy to clipboard
+        const report = generateBreakReport(breakAction, breakPhotoUrl, breakLocation);
+        await Clipboard.setStringAsync(report);
+        setReportContent(report);
+        setReportType('start');
+        setShowReportModal(true);
+
         // Reset break photo state
         setBreakPhotoUri(null);
         setBreakPhotoUrl(null);
@@ -265,6 +273,29 @@ export default function DashboardScreen() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const generateBreakReport = (action: 'start' | 'end', photoUrl?: string | null, locationData?: LocationData | null) => {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const title = action === 'start' ? 'GoWater Break Report' : 'GoWater End Break Report';
+    let report = title;
+
+    if (photoUrl) {
+      report += `\n\nBreak Photo: ${photoUrl}`;
+      if (locationData?.address) {
+        report += `\nLocation: ${locationData.address}`;
+      }
+    }
+
+    report += `\n\nDate: ${date}`;
+    report += `\nEmployee: ${user?.employeeName || user?.name || 'N/A'}`;
+    report += `\nTime: ${time}`;
+    report += `\nAction: ${action === 'start' ? 'Break Started' : 'Break Ended'}`;
+
+    return report;
   };
 
   const handleLogout = () => {
