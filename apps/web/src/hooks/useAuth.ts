@@ -17,10 +17,21 @@ export function useAuth() {
     error: null
   });
 
+  const handleExpiredToken = useCallback(() => {
+    setAuthState({
+      user: null,
+      isLoading: false,
+      error: null
+    });
+    if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+      window.location.href = '/auth/login';
+    }
+  }, []);
+
   const verifyAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/verify');
-      
+
       if (response.ok) {
         const data = await response.json();
         setAuthState({
@@ -28,6 +39,8 @@ export function useAuth() {
           isLoading: false,
           error: null
         });
+      } else if (response.status === 401) {
+        handleExpiredToken();
       } else {
         setAuthState({
           user: null,
@@ -43,7 +56,7 @@ export function useAuth() {
         error: 'Failed to verify authentication'
       });
     }
-  }, []);
+  }, [handleExpiredToken]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -110,6 +123,22 @@ export function useAuth() {
   useEffect(() => {
     verifyAuth();
   }, [verifyAuth]);
+
+  // Global fetch interceptor: auto-logout on 401 from any API call
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+      if (response.status === 401 && url.includes('/api/') && !url.includes('/api/auth/login')) {
+        handleExpiredToken();
+      }
+      return response;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [handleExpiredToken]);
 
   return {
     ...authState,

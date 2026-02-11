@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { User } from '@gowater/types';
+import { authEvents } from '../services/authEvents';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -19,10 +20,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleUnauthorized = useCallback(async () => {
+    try {
+      await SecureStore.deleteItemAsync('auth_token');
+      await SecureStore.deleteItemAsync('user_data');
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+    }
+    setToken(null);
+    setUser(null);
+  }, []);
+
   useEffect(() => {
     // Check for existing session on app start
     checkAuth();
   }, []);
+
+  // Listen for 401 events from API services
+  useEffect(() => {
+    authEvents.on('unauthorized', handleUnauthorized);
+    return () => {
+      authEvents.off('unauthorized', handleUnauthorized);
+    };
+  }, [handleUnauthorized]);
 
   const checkAuth = async () => {
     try {
@@ -30,8 +50,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser = await SecureStore.getItemAsync('user_data');
 
       if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        // Verify token is still valid with the server
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${storedToken}`,
+            },
+          });
+
+          if (response.ok) {
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+          } else {
+            // Token expired or invalid - clear auth data
+            console.log('Token expired or invalid, logging out');
+            await SecureStore.deleteItemAsync('auth_token');
+            await SecureStore.deleteItemAsync('user_data');
+          }
+        } catch {
+          // Network error - use cached data (offline support)
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        }
       }
     } catch (error) {
       console.error('Error checking auth:', error);

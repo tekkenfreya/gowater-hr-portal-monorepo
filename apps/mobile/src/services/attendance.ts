@@ -1,6 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
+import { authEvents } from './authEvents';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+function checkUnauthorized(response: Response) {
+  if (response.status === 401) {
+    authEvents.emit('unauthorized');
+  }
+}
 
 type WorkLocation = 'WFH' | 'Onsite' | 'Field';
 
@@ -37,6 +44,7 @@ export const attendanceService = {
         headers,
       });
 
+      checkUnauthorized(response);
       if (!response.ok) {
         throw new Error('Failed to fetch attendance status');
       }
@@ -79,6 +87,7 @@ export const attendanceService = {
         body: JSON.stringify({ workLocation, photoUrl }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
@@ -101,6 +110,7 @@ export const attendanceService = {
         body: JSON.stringify({ photoUrl }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
@@ -123,6 +133,7 @@ export const attendanceService = {
         body: JSON.stringify({ photoUrl }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
@@ -145,6 +156,7 @@ export const attendanceService = {
         body: JSON.stringify({ photoUrl }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {

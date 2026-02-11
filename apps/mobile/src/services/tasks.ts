@@ -1,6 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
+import { authEvents } from './authEvents';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+function checkUnauthorized(response: Response) {
+  if (response.status === 401) {
+    authEvents.emit('unauthorized');
+  }
+}
 
 export interface SubTask {
   id: string;
@@ -43,6 +50,7 @@ export const tasksService = {
       });
 
       console.log('Tasks: response status', response.status);
+      checkUnauthorized(response);
       if (!response.ok) {
         const text = await response.text();
         console.log('Tasks: error response', text.substring(0, 200));
@@ -65,6 +73,7 @@ export const tasksService = {
         headers,
       });
 
+      checkUnauthorized(response);
       if (!response.ok) {
         throw new Error('Failed to fetch task');
       }
@@ -85,6 +94,7 @@ export const tasksService = {
         body: JSON.stringify({ status }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
@@ -119,6 +129,7 @@ export const tasksService = {
         }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
@@ -150,6 +161,7 @@ export const tasksService = {
         }),
       });
 
+      checkUnauthorized(response);
       const data = await response.json();
 
       if (!response.ok) {
