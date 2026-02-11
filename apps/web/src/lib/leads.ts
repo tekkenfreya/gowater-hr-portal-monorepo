@@ -1,6 +1,7 @@
 import { getDb } from './supabase';
 import { Lead, LeadActivity, LeadFormData, ActivityFormData, LeadWithActivities, DashboardStats, LeadCategory } from '@/types/leads';
 import { randomUUID } from 'crypto';
+import { getWebhookService } from './webhooks';
 import { logger } from './logger';
 
 export class LeadService {
@@ -57,6 +58,16 @@ export class LeadService {
     };
 
     await this.db.insert('leads', lead as unknown as Record<string, unknown>);
+
+    // Fire webhook for lead created
+    getWebhookService().fireEvent('lead.created', {
+      leadId: lead.id,
+      category: lead.category,
+      name: lead.company_name || lead.event_name || lead.supplier_name,
+      assignedTo: lead.assigned_to,
+      createdBy: employeeName
+    });
+
     return lead;
   }
 
@@ -126,6 +137,20 @@ export class LeadService {
     if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to || null;
 
     await this.db.update('leads', updateData, { id: leadId });
+
+    // Fire webhook: status_changed if status was updated, otherwise generic update
+    if (updates.status !== undefined) {
+      getWebhookService().fireEvent('lead.status_changed', {
+        leadId,
+        newStatus: updates.status,
+        category: updates.category
+      });
+    } else {
+      getWebhookService().fireEvent('lead.updated', {
+        leadId,
+        updatedFields: Object.keys(updates)
+      });
+    }
   }
 
   async deleteLead(leadId: string): Promise<void> {
@@ -156,6 +181,16 @@ export class LeadService {
     if (activityData.status_update) {
       await this.db.update('leads', { status: activityData.status_update }, { id: leadId });
     }
+
+    // Fire webhook for activity logged
+    getWebhookService().fireEvent('lead.activity_logged', {
+      activityId: activity.id,
+      leadId,
+      employeeName,
+      activityType: activityData.activity_type,
+      description: activityData.activity_description,
+      statusUpdate: activityData.status_update || null
+    });
 
     return activity;
   }

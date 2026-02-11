@@ -1,6 +1,7 @@
 import { getDb } from './supabase';
 import { getAttendanceService } from './attendance';
 import { getNotificationService } from './notifications';
+import { getWebhookService } from './webhooks';
 import { logger } from './logger';
 
 export interface LeaveRequest {
@@ -124,6 +125,16 @@ export class LeaveService {
         });
       }
 
+      // Fire webhook for leave request created
+      getWebhookService().fireEvent('leave.requested', {
+        leaveRequestId: leaveRequest.id,
+        userId: data.user_id,
+        leaveType: data.leave_type,
+        startDate: data.start_date,
+        endDate: data.end_date,
+        reason: data.reason
+      });
+
       return { success: true, leaveRequestId: leaveRequest.id };
     } catch (error) {
       logger.error('Create leave request error', error);
@@ -221,6 +232,16 @@ export class LeaveService {
         });
       }
 
+      // Fire webhook for leave approved
+      getWebhookService().fireEvent('leave.approved', {
+        leaveRequestId,
+        userId: leaveRequest.user_id,
+        approverId,
+        leaveType: leaveRequest.leave_type,
+        startDate: leaveRequest.start_date,
+        endDate: leaveRequest.end_date
+      });
+
       return { success: true };
     } catch (error) {
       logger.error('Approve leave request error', error);
@@ -256,6 +277,15 @@ export class LeaveService {
         title: 'Leave Request Rejected',
         message: `Your ${leaveRequest.leave_type} leave request has been rejected`,
         data: { leave_request_id: leaveRequestId, comments }
+      });
+
+      // Fire webhook for leave rejected
+      getWebhookService().fireEvent('leave.rejected', {
+        leaveRequestId,
+        userId: leaveRequest.user_id,
+        approverId,
+        leaveType: leaveRequest.leave_type,
+        comments
       });
 
       return { success: true };

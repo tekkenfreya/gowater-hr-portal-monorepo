@@ -671,6 +671,88 @@ Common status values across tables:
 
 ---
 
+## Recent Changes (v5.4 - February 2026)
+
+### New Tables Added:
+1. **api_keys** - Long-lived API keys for workflow tool authentication (n8n, Zapier, GHL)
+2. **webhooks** - Webhook subscriptions for event-driven integrations
+3. **webhook_logs** - Delivery attempt logs for webhook debugging
+
+---
+
+## api_keys
+
+**Purpose:** Long-lived API keys for workflow tool authentication *(NEW v5.4)*
+
+**Primary Key:** `id`
+
+**Foreign Keys:**
+- `user_id` → `users.id`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | integer | NO | nextval('...') | API key ID |
+| `user_id` | integer | NO | - | Admin who created the key |
+| `name` | varchar(255) | NO | - | Human label (e.g. "n8n Production") |
+| `key_prefix` | varchar(8) | NO | - | First 8 chars for identification |
+| `key_hash` | text | NO | - | SHA-256 hash of the full key |
+| `scopes` | jsonb | YES | '["read"]' | Allowed actions: read, write, admin |
+| `last_used_at` | timestamp with time zone | YES | - | Last request timestamp |
+| `expires_at` | timestamp with time zone | YES | - | Expiration date (null = never) |
+| `is_active` | boolean | YES | true | Enable/disable key |
+| `created_at` | timestamp with time zone | YES | now() | Creation timestamp |
+| `updated_at` | timestamp with time zone | YES | now() | Last update timestamp |
+
+---
+
+## webhooks
+
+**Purpose:** Webhook subscriptions for event-driven integrations *(NEW v5.4)*
+
+**Primary Key:** `id`
+
+**Foreign Keys:**
+- `user_id` → `users.id`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | integer | NO | nextval('...') | Webhook ID |
+| `user_id` | integer | NO | - | Admin who created it |
+| `name` | varchar(255) | NO | - | Label (e.g. "n8n Attendance") |
+| `url` | text | NO | - | Endpoint URL to POST to |
+| `secret` | text | YES | - | Shared secret for HMAC signature |
+| `events` | jsonb | NO | '[]' | Array of subscribed event names |
+| `headers` | jsonb | YES | '{}' | Custom headers for POST requests |
+| `is_active` | boolean | YES | true | Enable/disable webhook |
+| `created_at` | timestamp with time zone | YES | now() | Creation timestamp |
+| `updated_at` | timestamp with time zone | YES | now() | Last update timestamp |
+
+---
+
+## webhook_logs
+
+**Purpose:** Delivery attempt logs for webhook debugging *(NEW v5.4)*
+
+**Primary Key:** `id`
+
+**Foreign Keys:**
+- `webhook_id` → `webhooks.id` (ON DELETE CASCADE)
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | integer | NO | nextval('...') | Log entry ID |
+| `webhook_id` | integer | NO | - | Associated webhook |
+| `event` | varchar(100) | NO | - | Event name (e.g. "attendance.checked_in") |
+| `payload` | jsonb | NO | - | Data that was sent |
+| `response_status` | integer | YES | - | HTTP status code |
+| `response_body` | text | YES | - | First 1000 chars of response |
+| `success` | boolean | YES | false | Whether delivery succeeded |
+| `error_message` | text | YES | - | Error if delivery failed |
+| `duration_ms` | integer | YES | - | Request duration in milliseconds |
+| `created_at` | timestamp with time zone | YES | now() | Delivery timestamp |
+
+---
+
 ## Recent Changes (v5.3 - January 2026)
 
 ### New Tables Added:

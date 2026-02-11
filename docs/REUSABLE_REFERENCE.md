@@ -3,8 +3,8 @@
 ## 📖 Overview
 This document contains all reusable functions, services, fields, types, and APIs in the GoWater HR codebase to avoid naming conflicts and ensure consistency.
 
-> **Last Updated:** 2026-01-28
-> **Recent Changes:** Migrated to Turborepo monorepo structure
+> **Last Updated:** 2026-02-09
+> **Recent Changes:** Added Webhook Events System, API Key Authentication, Unified Auth Helper (v5.4)
 
 ---
 
@@ -15,7 +15,7 @@ gowater-monorepo/
 ├── apps/
 │   ├── web/                 # Next.js web app (all paths below are relative to this)
 │   │   └── src/
-│   │       ├── lib/         # Services (auth.ts, attendance.ts, leads.ts, etc.)
+│   │       ├── lib/         # Services (auth.ts, attendance.ts, leads.ts, webhooks.ts, apiKeys.ts, authHelper.ts, etc.)
 │   │       ├── types/       # TypeScript types
 │   │       ├── hooks/       # React hooks
 │   │       ├── contexts/    # React contexts
@@ -100,6 +100,15 @@ id, report_id, task_id, task_title, task_status, task_priority, notes, created_a
 
 -- subtask_report_items (NEW - Subtasks in reports)
 id, report_item_id, subtask_id, subtask_title, status, description, created_at
+
+-- api_keys (NEW v5.4 - API key authentication for external integrations)
+id, user_id, name, description, key_hash, key_prefix, scopes, is_active, expires_at, last_used_at, created_at, updated_at
+
+-- webhooks (NEW v5.4 - Webhook event subscriptions)
+id, user_id, name, url, secret, events, is_active, created_at, updated_at
+
+-- webhook_logs (NEW v5.4 - Webhook delivery history)
+id, webhook_id, event, payload, response_status, response_body, success, error_message, delivered_at
 ```
 
 ### Enum Values
@@ -160,6 +169,12 @@ activity_type: 'call', 'email', 'meeting', 'site-visit', 'follow-up', 'remark', 
 
 -- Supplier-specific activity types
 activity_type: 'active-supplier', 'recording', 'checking'
+
+-- Webhook events (NEW v5.4 - 17 event types)
+event: 'attendance.checked_in', 'attendance.checked_out', 'attendance.break_started', 'attendance.break_ended', 'task.created', 'task.updated', 'task.completed', 'task.deleted', 'leave.requested', 'leave.approved', 'leave.rejected', 'lead.created', 'lead.updated', 'lead.status_changed', 'lead.activity_logged', 'user.created', 'user.updated'
+
+-- API key scopes (NEW v5.4 - Granular access control)
+scopes: 'tasks:read', 'tasks:write', 'attendance:read', 'attendance:write', 'leads:read', 'leads:write', 'users:read', 'users:write', 'webhooks:manage', 'all'
 ```
 
 ## 🔧 Services & Classes
@@ -319,6 +334,61 @@ activity_type: 'active-supplier', 'recording', 'checking'
 
 **Singleton Access:** `getNotificationService()`
 
+### WebhookService (`src/lib/webhooks.ts`) (NEW v5.4)
+**Functions:**
+- `createWebhook(userId, data)` - Register a new webhook endpoint with URL, events, and optional secret
+- `getWebhooks(userId?)` - Get all webhooks, optionally filtered by owner
+- `getWebhookById(webhookId)` - Get single webhook by ID
+- `updateWebhook(webhookId, data)` - Update webhook URL, events, name, or active status
+- `deleteWebhook(webhookId)` - Permanently delete a webhook
+- `fireEvent(event, payload)` - **KEY FUNCTION** - Fire webhook event to all matching subscribers (non-blocking, fire-and-forget)
+- `testWebhook(webhookId)` - Send a test ping event to a specific webhook
+- `getWebhookLogs(filters)` - Get paginated webhook delivery logs with optional filters (webhookId, event, success, limit, offset)
+
+**How fireEvent works:**
+1. Queries all active webhooks that subscribe to the given event
+2. Delivers payload to each via HTTP POST in parallel using `Promise.allSettled`
+3. Generates HMAC-SHA256 signature in `X-Webhook-Signature` header if webhook has a secret
+4. Logs every delivery attempt (success or failure) to `webhook_logs` table
+5. Uses 10-second timeout per delivery — never blocks the calling code
+
+**Singleton Access:** `getWebhookService()`
+
+### ApiKeyService (`src/lib/apiKeys.ts`) (NEW v5.4)
+**Functions:**
+- `createApiKey(userId, data)` - Generate a new API key (48 random bytes, base64url, "gw_" prefix). Returns plaintext key ONCE — only the SHA-256 hash is stored
+- `getApiKeys(userId?)` - List API keys with metadata (name, prefix, scopes, dates). Never returns the full key
+- `revokeApiKey(keyId)` - Soft-disable an API key (sets is_active = false)
+- `deleteApiKey(keyId)` - Permanently delete an API key
+- `validateApiKey(apiKey)` - **KEY FUNCTION** - Validate an API key string. Uses indexed prefix lookup + SHA-256 hash comparison + expiry check. Updates last_used_at in background
+
+**Key Format:** `gw_<base64url-encoded-48-random-bytes>` (e.g., `gw_a1b2c3...`)
+
+**Singleton Access:** `getApiKeyService()`
+
+### AuthHelper (`src/lib/authHelper.ts`) (NEW v5.4)
+**Functions:**
+- `authenticateRequest(request)` - **KEY FUNCTION** - Unified authentication that checks 3 methods in order:
+  1. `X-API-Key` header → validates via ApiKeyService
+  2. `Authorization: Bearer <token>` header → validates via JWT
+  3. `auth-token` cookie → validates via JWT
+  Returns `AuthResult` with userId, email, role, authMethod, and scopes
+
+**Helper Functions:**
+- `isAdmin(result)` - Check if authenticated user has admin role
+- `hasScope(result, scope)` - Check if API key has required scope (JWT auth always returns true)
+
+**Usage Pattern:**
+```typescript
+import { authenticateRequest, isAdmin } from '@/lib/authHelper';
+
+const auth = await authenticateRequest(request);
+if (!auth.authenticated) {
+  return NextResponse.json({ error: auth.error }, { status: 401 });
+}
+// auth.userId, auth.role, auth.authMethod available
+```
+
 ## 🔗 API Endpoints
 
 ### Authentication
@@ -439,6 +509,19 @@ activity_type: 'active-supplier', 'recording', 'checking'
 
 ### Lead Dashboard
 - `GET /api/leads/dashboard` - Get dashboard stats (requires 'can_view_analytics' permission)
+
+### Webhooks (NEW v5.4 - Admin only)
+- `GET /api/admin/webhooks` - List all webhooks (optional ?userId= filter)
+- `POST /api/admin/webhooks` - Create webhook (body: { name, url, events[], secret? })
+- `PUT /api/admin/webhooks` - Update webhook (body: { id, name?, url?, events[]?, is_active? })
+- `DELETE /api/admin/webhooks?id=` - Delete webhook permanently
+- `POST /api/admin/webhooks/test` - Send test ping to webhook (body: { webhookId })
+- `GET /api/admin/webhooks/logs` - Get delivery logs (query: ?webhookId=&event=&success=&limit=&offset=)
+
+### API Keys (NEW v5.4 - Admin only)
+- `GET /api/admin/api-keys` - List all API keys with metadata (never returns full key)
+- `POST /api/admin/api-keys` - Create API key (body: { name, description?, scopes[]?, expiresInDays? }). Returns plaintext key ONCE
+- `DELETE /api/admin/api-keys?id=&permanent=` - Revoke (soft) or delete (permanent) API key
 
 ### Database
 - `POST /api/init-db` - Initialize database
@@ -991,6 +1074,67 @@ interface TaskReportWithCounts extends TaskReport {
 }
 ```
 
+### Webhook & API Key Types (NEW v5.4 - `src/lib/webhooks.ts`, `src/lib/apiKeys.ts`, `src/lib/authHelper.ts`)
+```typescript
+// 17 supported webhook event types
+type WebhookEvent =
+  | 'attendance.checked_in' | 'attendance.checked_out'
+  | 'attendance.break_started' | 'attendance.break_ended'
+  | 'task.created' | 'task.updated' | 'task.completed' | 'task.deleted'
+  | 'leave.requested' | 'leave.approved' | 'leave.rejected'
+  | 'lead.created' | 'lead.updated' | 'lead.status_changed' | 'lead.activity_logged'
+  | 'user.created' | 'user.updated';
+
+interface Webhook {
+  id: number;
+  user_id: number;
+  name: string;
+  url: string;
+  secret?: string;
+  events: WebhookEvent[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface WebhookLog {
+  id: number;
+  webhook_id: number;
+  event: string;
+  payload: Record<string, unknown>;
+  response_status: number | null;
+  response_body: string | null;
+  success: boolean;
+  error_message: string | null;
+  delivered_at: string;
+}
+
+interface ApiKey {
+  id: number;
+  user_id: number;
+  name: string;
+  description?: string;
+  key_prefix: string;        // First 8 chars for identification
+  key_hash: string;          // SHA-256 hash (never store plaintext)
+  scopes: string[];          // e.g. ['tasks:read', 'attendance:write']
+  is_active: boolean;
+  expires_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AuthResult {
+  authenticated: boolean;
+  userId?: number;
+  email?: string;
+  role?: string;
+  authMethod?: 'api_key' | 'bearer' | 'cookie';
+  scopes?: string[];
+  error?: string;
+}
+```
+
 ## 🎣 React Hooks
 
 ### useAuth Hook (`src/hooks/useAuth.ts`)
@@ -1130,6 +1274,9 @@ bg-gray-100 text-gray-600 /* archived */
 - Always use `getDb()` singleton for database operations
 - Use `getAuthService()` for user-related operations
 - Use `getAttendanceService()` for attendance operations
+- Use `getWebhookService()` for webhook management and event firing
+- Use `getApiKeyService()` for API key generation and validation
+- Use `authenticateRequest()` for unified auth (API key + JWT + cookie)
 - Database fields use **snake_case** (e.g., `user_id`, `created_at`)
 - TypeScript/JS uses **camelCase** (e.g., `userId`, `createdAt`)
 
@@ -1352,11 +1499,100 @@ const canManageSuppliers = user?.permissions?.some(
 
 ---
 
-**Last Updated:** January 2026
-**Version:** 5.3 (Attendance Edit Requests, Announcements & Export Features)
-**Maintainer:** Claude Development Team
+**Last Updated:** February 2026
+**Version:** 5.4 (Webhook Events System, API Key Authentication, Unified Auth Helper)
+**Maintainer:** GoWater Development Team
 
-## 📝 Version 5.3 Updates (Current)
+## 📝 Version 5.4 Updates (Current)
+
+### Major Changes - Webhook Events System, API Key Authentication & Unified Auth Helper:
+
+#### 1. Webhook Events System (NEW)
+- **17 event types** covering attendance, tasks, leave, leads, and users
+- **Non-blocking delivery**: `fireEvent()` uses `Promise.allSettled` — never slows user actions
+- **HMAC-SHA256 signatures**: Optional secret-based payload signing via `X-Webhook-Signature` header
+- **Delivery logging**: Every attempt logged to `webhook_logs` with status, response, and timing
+- **Test endpoint**: Send test pings to verify webhook URLs before going live
+- **Admin management**: Full CRUD via `/api/admin/webhooks` routes
+
+**Webhook Event Payload Format:**
+```json
+{
+  "event": "task.completed",
+  "timestamp": "2026-02-09T10:30:00.000Z",
+  "data": {
+    "taskId": 123,
+    "userId": 1,
+    "title": "Review proposal",
+    "previousStatus": "in_progress"
+  }
+}
+```
+
+**Integration Points (where fireEvent is called):**
+- `src/lib/attendance.ts` — check-in, check-out, break start, break end
+- `src/lib/leave.ts` — leave requested, approved, rejected
+- `src/app/api/tasks/route.ts` — task created, updated, completed, deleted
+- `src/lib/leads.ts` — lead created, updated, status changed, activity logged
+- `src/lib/auth.ts` — user created
+
+#### 2. API Key Authentication (NEW)
+- **Secure key generation**: 48 random bytes → base64url → "gw_" prefix
+- **Hash-only storage**: SHA-256 hash stored, plaintext shown only once at creation
+- **Prefix-indexed lookup**: Fast validation without scanning all keys
+- **Scope-based access**: Granular permissions per key (e.g., `tasks:read`, `attendance:write`)
+- **Expiry support**: Optional expiration date for time-limited keys
+- **Usage tracking**: `last_used_at` updated in background on each use
+
+#### 3. Unified Auth Helper (NEW)
+- **Three auth methods** in priority order: API Key → Bearer JWT → Cookie
+- **Single function**: `authenticateRequest(request)` returns standardized `AuthResult`
+- **Scope checking**: `hasScope(result, 'tasks:read')` for API key permissions
+- **Backwards compatible**: Existing JWT-based routes work unchanged
+
+**New Database Tables (v5.4):**
+```sql
+-- api_keys
+id, user_id, name, description, key_hash, key_prefix, scopes, is_active, expires_at, last_used_at, created_at, updated_at
+
+-- webhooks
+id, user_id, name, url, secret, events, is_active, created_at, updated_at
+
+-- webhook_logs
+id, webhook_id, event, payload, response_status, response_body, success, error_message, delivered_at
+```
+
+**New API Endpoints (v5.4):**
+- `GET/POST/PUT/DELETE /api/admin/webhooks` — Webhook CRUD (admin only)
+- `POST /api/admin/webhooks/test` — Test webhook delivery
+- `GET /api/admin/webhooks/logs` — Delivery logs with filters
+- `GET/POST/DELETE /api/admin/api-keys` — API key management (admin only)
+
+**New Services (v5.4):**
+- `WebhookService` → `getWebhookService()` — Webhook management and event firing
+- `ApiKeyService` → `getApiKeyService()` — API key generation and validation
+- `authenticateRequest()` — Unified auth helper (not a class, standalone functions)
+
+**New Files (v5.4):**
+- `src/lib/webhooks.ts` — WebhookService
+- `src/lib/apiKeys.ts` — ApiKeyService
+- `src/lib/authHelper.ts` — Unified authentication helper
+- `src/app/api/admin/webhooks/route.ts` — Webhook CRUD routes
+- `src/app/api/admin/webhooks/test/route.ts` — Webhook test route
+- `src/app/api/admin/webhooks/logs/route.ts` — Webhook logs route
+- `src/app/api/admin/api-keys/route.ts` — API key routes
+- `migrations/ADD_WEBHOOKS_AND_API_KEYS.sql` — Database migration (run on Supabase SQL Editor)
+
+**Modified Files (v5.4):**
+- `src/lib/attendance.ts` — Added 4 webhook fireEvent calls
+- `src/lib/leave.ts` — Added 3 webhook fireEvent calls
+- `src/lib/leads.ts` — Added 4 webhook fireEvent calls
+- `src/lib/auth.ts` — Added 1 webhook fireEvent call
+- `src/app/api/tasks/route.ts` — Added 4 webhook fireEvent calls
+
+---
+
+## 📝 Version 5.3 Updates
 
 ### Major Changes - Attendance Edit Requests, Announcements & Export Features:
 
@@ -1980,6 +2216,7 @@ useEffect(() => {
 ---
 
 **Version History:**
+- **v5.4** (Feb 2026) - Webhook Events System, API Key Authentication, Unified Auth Helper
 - **v5.2** (Jan 2026) - Subtask Support, Enhanced Task Management, WhatsApp Report Format Updates
 - **v5.1** (Nov 2025) - Modular 4-Side Layout Architecture, Dark Theme with Neutral Palette, Event-Driven RightPanel
 - **v5.0** (Nov 2025) - Granular Permissions System, Password Expiry, Supplier Category, Route Restructuring

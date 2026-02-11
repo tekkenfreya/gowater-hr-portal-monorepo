@@ -709,6 +709,92 @@ All services use the singleton pattern. Get instances using `get*Service()` func
 
 ---
 
+### WebhookService *(NEW v5.4)*
+
+**File:** `src/lib/webhooks.ts`
+**Singleton:** `getWebhookService()`
+**Purpose:** Manage webhook subscriptions and fire events to external systems (n8n, Zapier, GHL)
+
+#### Webhook Management Methods
+
+- `async createWebhook(userId: number, data: CreateWebhookData): Promise<{success, webhook?, error?}>`
+  - **Purpose:** Create a new webhook subscription
+  - **Params:** `data` - `{name, url, events: string[], secret?, headers?}`
+  - **Returns:** `{success, webhook?, error?}`
+
+- `async getWebhooks(userId?: number): Promise<Webhook[]>`
+  - **Purpose:** Get all webhooks, optionally filtered by creator
+  - **Returns:** Array of Webhook objects
+
+- `async updateWebhook(webhookId: number, data: UpdateWebhookData): Promise<{success, error?}>`
+  - **Purpose:** Update webhook settings (name, url, events, secret, is_active)
+
+- `async deleteWebhook(webhookId: number): Promise<{success, error?}>`
+  - **Purpose:** Delete a webhook and its delivery logs (CASCADE)
+
+#### Event Firing Methods
+
+- `async fireEvent(event: WebhookEvent, payload: Record<string, unknown>): Promise<void>`
+  - **Purpose:** Fire an event to all matching webhooks (runs in background, non-blocking)
+  - **Events:** attendance.checked_in, attendance.checked_out, task.created, task.completed, leave.requested, leave.approved, lead.created, lead.status_changed, user.created, and more
+  - **Example:** `getWebhookService().fireEvent('attendance.checked_in', { userId: 1, workLocation: 'WFH' })`
+
+- `async testWebhook(webhookId: number): Promise<{success, statusCode?, responseBody?, error?}>`
+  - **Purpose:** Send a test event to verify webhook connectivity
+
+#### Logging Methods
+
+- `async getWebhookLogs(filters: WebhookLogFilters): Promise<{logs, total, page, limit, totalPages}>`
+  - **Purpose:** Get paginated delivery logs for debugging
+  - **Params:** `filters` - `{webhookId?, event?, success?, startDate?, endDate?, page?, limit?}`
+
+---
+
+### ApiKeyService *(NEW v5.4)*
+
+**File:** `src/lib/apiKeys.ts`
+**Singleton:** `getApiKeyService()`
+**Purpose:** Manage long-lived API keys for workflow tool authentication
+
+#### Key Management Methods
+
+- `async createApiKey(userId: number, data: CreateApiKeyData): Promise<{success, apiKey?, plaintextKey?, error?}>`
+  - **Purpose:** Generate a new API key (plaintext returned ONCE)
+  - **Params:** `data` - `{name, scopes?: ['read','write','admin'], expiresInDays?}`
+  - **Security:** Key is SHA-256 hashed, only prefix stored for display
+
+- `async getApiKeys(userId?: number): Promise<ApiKey[]>`
+  - **Purpose:** List API keys (metadata only, never returns full key)
+
+- `async revokeApiKey(keyId: number, userId: number): Promise<{success, error?}>`
+  - **Purpose:** Soft-disable an API key (keeps audit trail)
+
+- `async deleteApiKey(keyId: number, userId: number): Promise<{success, error?}>`
+  - **Purpose:** Permanently delete an API key
+
+#### Authentication Methods
+
+- `async validateApiKey(plaintextKey: string): Promise<{valid, userId?, scopes?, keyId?, error?}>`
+  - **Purpose:** Validate an API key on incoming requests (fast indexed lookup)
+  - **Used by:** `authenticateRequest()` helper in `src/lib/authHelper.ts`
+
+---
+
+### Auth Helper *(NEW v5.4)*
+
+**File:** `src/lib/authHelper.ts`
+**Purpose:** Unified authentication that supports JWT cookies, Bearer tokens, AND API keys
+
+- `async authenticateRequest(request: NextRequest): Promise<AuthResult>`
+  - **Purpose:** Authenticate any incoming request using three methods (priority order):
+    1. `X-API-Key` header (for workflow tools)
+    2. `Authorization: Bearer <token>` (for mobile app)
+    3. `auth-token` cookie (for web app)
+  - **Returns:** `{authenticated, userId?, email?, role?, authMethod?, scopes?, error?}`
+  - **Example:** `const auth = await authenticateRequest(request);`
+
+---
+
 ## Hooks
 
 ### useAuth
@@ -1174,6 +1260,50 @@ All API routes are in `src/app/api/`. Authentication required unless noted.
 - `POST /api/cron/attendance-automation`
   - **Purpose:** Manually trigger automated attendance (admin testing)
   - **Returns:** `{success: boolean, results: AutomationExecutionResult[]}`
+
+### Webhook Management Routes *(NEW v5.4)*
+
+- `GET /api/admin/webhooks`
+  - **Purpose:** List all webhook subscriptions (admin only)
+  - **Returns:** `{webhooks: Webhook[], message: string}`
+
+- `POST /api/admin/webhooks`
+  - **Purpose:** Create new webhook subscription (admin only)
+  - **Body:** `{name: string, url: string, events: string[], secret?: string, headers?: Record<string, string>}`
+  - **Returns:** `{webhook: Webhook, message: string}`
+
+- `PUT /api/admin/webhooks`
+  - **Purpose:** Update webhook subscription (admin only)
+  - **Body:** `{id: number, name?, url?, events?, secret?, headers?, is_active?}`
+  - **Returns:** `{message: string}`
+
+- `DELETE /api/admin/webhooks?id=123`
+  - **Purpose:** Delete webhook and its logs (admin only)
+  - **Returns:** `{message: string}`
+
+- `POST /api/admin/webhooks/test`
+  - **Purpose:** Send test event to a webhook (admin only)
+  - **Body:** `{webhookId: number}`
+  - **Returns:** `{success: boolean, statusCode?: number, responseBody?: string}`
+
+- `GET /api/admin/webhooks/logs?webhookId=5&event=attendance.checked_in&success=false&page=1&limit=50`
+  - **Purpose:** Get paginated webhook delivery logs (admin only)
+  - **Returns:** `{logs: WebhookLog[], total, page, limit, totalPages}`
+
+### API Key Management Routes *(NEW v5.4)*
+
+- `GET /api/admin/api-keys`
+  - **Purpose:** List all API keys (admin only, never returns full key)
+  - **Returns:** `{apiKeys: ApiKey[], message: string}`
+
+- `POST /api/admin/api-keys`
+  - **Purpose:** Create new API key (admin only, returns plaintext key ONCE)
+  - **Body:** `{name: string, scopes?: string[], expiresInDays?: number}`
+  - **Returns:** `{apiKey: ApiKey, plaintextKey: string, message: string}`
+
+- `DELETE /api/admin/api-keys?id=123&action=revoke`
+  - **Purpose:** Revoke or delete API key (admin only)
+  - **Returns:** `{message: string}`
 
 ---
 
