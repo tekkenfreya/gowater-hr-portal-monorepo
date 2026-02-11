@@ -225,7 +225,7 @@ export default function DashboardScreen() {
 
     setIsCapturingBreakPhoto(true);
     try {
-      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+      const result = await photoCaptureService.captureCheckInPhoto(user.id, 'break');
 
       if (result.success) {
         setBreakPhotoUri(result.localUri || null);
@@ -256,9 +256,13 @@ export default function DashboardScreen() {
 
         // Generate break report and copy to clipboard
         const report = generateBreakReport(breakAction, breakPhotoUrl, breakLocation);
-        await Clipboard.setStringAsync(report);
         setReportContent(report);
         setReportType('start');
+        try {
+          await Clipboard.setStringAsync(report);
+        } catch (clipboardError) {
+          console.log('Clipboard copy failed:', clipboardError);
+        }
         setShowReportModal(true);
 
         // Reset break photo state
@@ -292,8 +296,9 @@ export default function DashboardScreen() {
 
     report += `\n\nDate: ${date}`;
     report += `\nEmployee: ${user?.employeeName || user?.name || 'N/A'}`;
-    report += `\nTime: ${time}`;
-    report += `\nAction: ${action === 'start' ? 'Break Started' : 'Break Ended'}`;
+    report += `\nPosition: ${user?.role || 'N/A'}`;
+    report += `\nWork Arrangement: ${attendanceStatus.workLocation || 'N/A'}`;
+    report += `\nStart Break: ${time}`;
 
     return report;
   };

@@ -30,6 +30,7 @@ export async function uploadToCloudinary(
     folder?: string;
     publicId?: string;
     watermark?: WatermarkOptions;
+    photoType?: string;
   }
 ): Promise<CloudinaryUploadResult> {
   try {
@@ -47,74 +48,170 @@ export async function uploadToCloudinary(
 
     // Add watermark overlay if location text is provided
     if (options?.watermark?.locationText || options?.watermark?.timestamp) {
-      // Add GoWater text overlay at bottom-left (stroke layer for outline)
-      transformations.push({
-        overlay: {
-          font_family: 'Arial',
-          font_size: 40,
-          font_weight: 'bold',
-          text: 'GoWater',
-          stroke: 'stroke',
-        },
-        color: '#00000040',
-        border: '1px_solid_black',
-        gravity: 'south_west',
-        x: 20,
-        y: 70,
-      } as TransformationOptions);
+      const isBreakPhoto = options?.photoType === 'break';
 
-      // Add GoWater text overlay at bottom-left (main text)
-      transformations.push({
-        overlay: {
-          font_family: 'Arial',
-          font_size: 40,
-          font_weight: 'bold',
-          text: 'GoWater'
-        },
-        color: '#FFFFFFEE',
-        gravity: 'south_west',
-        x: 20,
-        y: 70,
-        effect: 'shadow:60'
-      });
+      if (isBreakPhoto) {
+        // === BREAK PHOTO: Large centered "BREAK" + time ===
 
-      // Add location and timestamp text below logo
-      const watermarkText = [
-        options.watermark.locationText || '',
-        options.watermark.timestamp || ''
-      ].filter(Boolean).join(' | ');
-
-      if (watermarkText) {
-        // Stroke layer for outline
+        // "BREAK" label - stroke outline
         transformations.push({
           overlay: {
             font_family: 'Arial',
-            font_size: 28,
+            font_size: 72,
             font_weight: 'bold',
-            text: watermarkText.replace(/,/g, '%2C'),
+            text: 'BREAK',
+            stroke: 'stroke',
+          },
+          color: '#00000050',
+          border: '2px_solid_black',
+          gravity: 'center',
+          y: -40,
+        } as TransformationOptions);
+
+        // "BREAK" label - main text
+        transformations.push({
+          overlay: {
+            font_family: 'Arial',
+            font_size: 72,
+            font_weight: 'bold',
+            text: 'BREAK'
+          },
+          color: '#FFFFFFEE',
+          gravity: 'center',
+          y: -40,
+          effect: 'shadow:80'
+        });
+
+        // Time - stroke outline
+        if (options.watermark.timestamp) {
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 48,
+              font_weight: 'bold',
+              text: options.watermark.timestamp.replace(/,/g, '%2C'),
+              stroke: 'stroke',
+            },
+            color: '#00000050',
+            border: '2px_solid_black',
+            gravity: 'center',
+            y: 40,
+          } as TransformationOptions);
+
+          // Time - main text
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 48,
+              font_weight: 'bold',
+              text: options.watermark.timestamp.replace(/,/g, '%2C')
+            },
+            color: '#FFFFFFEE',
+            gravity: 'center',
+            y: 40,
+            effect: 'shadow:80'
+          });
+        }
+
+        // Location at bottom
+        if (options.watermark.locationText) {
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 24,
+              font_weight: 'bold',
+              text: options.watermark.locationText.replace(/,/g, '%2C'),
+              stroke: 'stroke',
+            },
+            color: '#00000040',
+            border: '1px_solid_black',
+            gravity: 'south',
+            y: 20,
+          } as TransformationOptions);
+
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 24,
+              font_weight: 'bold',
+              text: options.watermark.locationText.replace(/,/g, '%2C')
+            },
+            color: '#FFFFFFEE',
+            gravity: 'south',
+            y: 20,
+            effect: 'shadow:60'
+          });
+        }
+      } else {
+        // === CHECK-IN / CHECK-OUT: Bottom-left watermark ===
+
+        // GoWater text overlay (stroke)
+        transformations.push({
+          overlay: {
+            font_family: 'Arial',
+            font_size: 40,
+            font_weight: 'bold',
+            text: 'GoWater',
             stroke: 'stroke',
           },
           color: '#00000040',
           border: '1px_solid_black',
           gravity: 'south_west',
           x: 20,
-          y: 24,
+          y: 70,
         } as TransformationOptions);
 
-        // Main text layer
+        // GoWater text overlay (main)
         transformations.push({
           overlay: {
             font_family: 'Arial',
-            font_size: 28,
+            font_size: 40,
             font_weight: 'bold',
-            text: watermarkText.replace(/,/g, '%2C')
+            text: 'GoWater'
           },
           color: '#FFFFFFEE',
           gravity: 'south_west',
           x: 20,
-          y: 24,
+          y: 70,
           effect: 'shadow:60'
         });
+
+        // Location and timestamp text
+        const watermarkText = [
+          options.watermark.locationText || '',
+          options.watermark.timestamp || ''
+        ].filter(Boolean).join(' | ');
+
+        if (watermarkText) {
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 28,
+              font_weight: 'bold',
+              text: watermarkText.replace(/,/g, '%2C'),
+              stroke: 'stroke',
+            },
+            color: '#00000040',
+            border: '1px_solid_black',
+            gravity: 'south_west',
+            x: 20,
+            y: 24,
+          } as TransformationOptions);
+
+          transformations.push({
+            overlay: {
+              font_family: 'Arial',
+              font_size: 28,
+              font_weight: 'bold',
+              text: watermarkText.replace(/,/g, '%2C')
+            },
+            color: '#FFFFFFEE',
+            gravity: 'south_west',
+            x: 20,
+            y: 24,
+            effect: 'shadow:60'
+          });
+        }
       }
     }
 

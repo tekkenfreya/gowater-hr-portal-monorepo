@@ -175,7 +175,8 @@ export const photoCaptureService = {
   async uploadPhoto(
     imageUri: string,
     location: LocationData | null,
-    userId: number
+    userId: number,
+    photoType?: 'checkin' | 'checkout' | 'break'
   ): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
       const headers = await getAuthHeaders();
@@ -202,6 +203,9 @@ export const photoCaptureService = {
       }
 
       formData.append('userId', userId.toString());
+      if (photoType) {
+        formData.append('photoType', photoType);
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/attendance/upload-photo`, {
         method: 'POST',
@@ -228,7 +232,7 @@ export const photoCaptureService = {
   /**
    * Complete check-in photo capture flow
    */
-  async captureCheckInPhoto(userId: number): Promise<PhotoCaptureResult> {
+  async captureCheckInPhoto(userId: number, photoType?: 'checkin' | 'checkout' | 'break'): Promise<PhotoCaptureResult> {
     try {
       // Request permissions
       const permissions = await this.requestPermissions();
@@ -254,7 +258,7 @@ export const photoCaptureService = {
       );
 
       // Upload to server
-      const uploadResult = await this.uploadPhoto(processedUri, location, userId);
+      const uploadResult = await this.uploadPhoto(processedUri, location, userId, photoType);
 
       if (!uploadResult.success) {
         return {

@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const longitude = formData.get('longitude') as string | null;
     const address = formData.get('address') as string | null;
     const timestamp = formData.get('timestamp') as string | null;
+    const photoType = formData.get('photoType') as string | null;
 
     if (!photo) {
       return NextResponse.json(
@@ -81,11 +82,12 @@ export async function POST(request: NextRequest) {
     // Upload to Cloudinary with watermark
     const result = await uploadToCloudinary(buffer, {
       folder: `gowater/checkin-photos/${user.id}`,
-      publicId: `checkin_${Date.now()}`,
+      publicId: `${photoType || 'checkin'}_${Date.now()}`,
       watermark: {
         locationText,
         timestamp: watermarkTimestamp
-      }
+      },
+      photoType: photoType || 'checkin'
     });
 
     if (!result.success) {
