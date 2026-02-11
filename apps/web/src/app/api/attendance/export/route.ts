@@ -181,25 +181,30 @@ export async function GET(request: NextRequest) {
     // Row 1: Name (logo on left, info on right)
     const nameRow = worksheet.addRow(['', `Name: ${user.name || 'N/A'}`]);
     nameRow.getCell(2).font = { bold: true, size: 11 };
+    nameRow.height = 20;
 
     // Row 2: Position
     const posRow = worksheet.addRow(['', `Position: ${user.position || 'Software Developer / System Admin'}`]);
     posRow.getCell(2).font = { bold: true, size: 11 };
+    posRow.height = 20;
 
     // Row 3: Department
     const deptRow = worksheet.addRow(['', `Department: ${user.department || 'Technical'}`]);
     deptRow.getCell(2).font = { bold: true, size: 11 };
+    deptRow.height = 20;
 
     // Row 4: Total Hours (bold, big font)
     const totalHoursValue = allRecords.records.reduce((sum, record) => {
       return sum + (record.totalHours || 0);
     }, 0);
     const totalHoursRow = worksheet.addRow(['', `Total Hours: ${totalHoursValue.toFixed(2)} hrs`]);
-    totalHoursRow.getCell(2).font = { bold: true, size: 16 };
-    totalHoursRow.height = 28;
+    totalHoursRow.getCell(2).font = { bold: true, size: 16, color: { argb: '000000' } };
+    totalHoursRow.getCell(2).alignment = { vertical: 'middle' };
+    totalHoursRow.height = 60;
 
     // Row 5: Empty separator
-    worksheet.addRow([]);
+    const separatorRow = worksheet.addRow([]);
+    separatorRow.height = 10;
 
     // Row 5: Main header row - explicitly set each cell value
     const headerRow = worksheet.addRow([]);
@@ -352,14 +357,9 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Set row heights
-    worksheet.getRow(1).height = 18;  // Name
-    worksheet.getRow(2).height = 18;  // Position
-    worksheet.getRow(3).height = 18;  // Department
-    worksheet.getRow(4).height = 28;  // Total Hours
-    worksheet.getRow(5).height = 10;  // Empty separator
-    worksheet.getRow(6).height = 25;  // Main header
-    worksheet.getRow(7).height = 20;  // Sub header
+    // Header/sub-header row heights (rows 6-7)
+    worksheet.getRow(6).height = 25;
+    worksheet.getRow(7).height = 20;
 
     // Auto-fit column widths based on content
     worksheet.columns.forEach((column, index) => {
