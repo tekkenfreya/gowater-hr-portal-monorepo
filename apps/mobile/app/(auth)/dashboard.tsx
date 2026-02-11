@@ -74,6 +74,14 @@ export default function DashboardScreen() {
   const [checkOutLocation, setCheckOutLocation] = useState<LocationData | null>(null);
   const [isCapturingCheckOutPhoto, setIsCapturingCheckOutPhoto] = useState(false);
 
+  // Photo capture state (break)
+  const [showBreakPhotoModal, setShowBreakPhotoModal] = useState(false);
+  const [breakPhotoUri, setBreakPhotoUri] = useState<string | null>(null);
+  const [breakPhotoUrl, setBreakPhotoUrl] = useState<string | null>(null);
+  const [breakLocation, setBreakLocation] = useState<LocationData | null>(null);
+  const [isCapturingBreakPhoto, setIsCapturingBreakPhoto] = useState(false);
+  const [breakAction, setBreakAction] = useState<'start' | 'end'>('start');
+
   // Tasks for check-out (with editable status)
   const [checkOutTasks, setCheckOutTasks] = useState<CheckInTask[]>([]);
 
@@ -204,15 +212,51 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  const handleBreakToggle = async () => {
+  const handleBreakToggle = () => {
+    setBreakAction(attendanceStatus.isOnBreak ? 'end' : 'start');
+    setBreakPhotoUri(null);
+    setBreakPhotoUrl(null);
+    setBreakLocation(null);
+    setShowBreakPhotoModal(true);
+  };
+
+  const handleCaptureBreakPhoto = async () => {
+    if (!user) return;
+
+    setIsCapturingBreakPhoto(true);
+    try {
+      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+
+      if (result.success) {
+        setBreakPhotoUri(result.localUri || null);
+        setBreakPhotoUrl(result.photoUrl || null);
+        setBreakLocation(result.location || null);
+      } else if (result.error === 'Photo capture was cancelled') {
+        Alert.alert('Photo Required', 'Please take a photo to continue.');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to capture photo');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred while capturing photo');
+    } finally {
+      setIsCapturingBreakPhoto(false);
+    }
+  };
+
+  const handleConfirmBreak = async () => {
+    setShowBreakPhotoModal(false);
     setIsProcessing(true);
     try {
-      const result = attendanceStatus.isOnBreak
-        ? await attendanceService.endBreak()
-        : await attendanceService.startBreak();
+      const result = breakAction === 'end'
+        ? await attendanceService.endBreak(breakPhotoUrl || undefined)
+        : await attendanceService.startBreak(breakPhotoUrl || undefined);
 
       if (result.success) {
         await fetchAttendanceStatus();
+        // Reset break photo state
+        setBreakPhotoUri(null);
+        setBreakPhotoUrl(null);
+        setBreakLocation(null);
       } else {
         Alert.alert('Error', result.error || 'Failed to toggle break');
       }
@@ -427,18 +471,26 @@ Today's Planned Tasks:`;
     try {
       const tasks = await tasksService.getTasks();
       const incompleteTasks = tasks.filter(task =>
-        task.status !== 'archived'
+        task.status !== 'archived' &&
+        task.status !== 'completed' &&
+        (task.status === 'pending' || task.status === 'in_progress' || task.status === 'cancel')
       ).map(task => ({
         id: task.id,
         title: task.title,
         description: task.description,
         status: task.status,
         priority: task.priority,
-        subTasks: (task.subTasks || []).map(st => ({
+        subTasks: (task.subTasks || []).filter(st => !st.completed).map(st => ({
           ...st,
           status: st.completed ? 'completed' : 'pending',
         })),
-      }));
+      })).filter(task => {
+        // Hide tasks where all subtasks were already completed
+        if (task.subTasks && task.subTasks.length === 0) {
+          return false;
+        }
+        return true;
+      });
       setCheckOutTasks(incompleteTasks as CheckInTask[]);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
@@ -1478,6 +1530,101 @@ Today's Task Updates:`;
           </View>
         </View>
       </Modal>
+
+      {/* Break Photo Modal */}
+      <Modal
+        visible={showBreakPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBreakPhotoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoModalContent}>
+            <View style={styles.breakTitleContainer}>
+              <Text style={styles.breakTitleText}>
+                {breakAction === 'start' ? 'BREAK' : 'END BREAK'}
+              </Text>
+            </View>
+
+            {breakPhotoUri ? (
+              <View style={styles.photoPreviewContainer}>
+                <Image
+                  source={{ uri: breakPhotoUri }}
+                  style={styles.photoPreview}
+                  resizeMode="cover"
+                />
+                {breakLocation?.address && (
+                  <Text style={styles.photoLocationText} numberOfLines={2}>
+                    {breakLocation.address}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.retakeButton}
+                  onPress={handleCaptureBreakPhoto}
+                  disabled={isCapturingBreakPhoto}
+                >
+                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.photoCaptureContainer}>
+                <View style={styles.cameraPlaceholder}>
+                  <Text style={styles.cameraIcon}>📷</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.captureButton, styles.breakCaptureButton, isCapturingBreakPhoto && styles.buttonDisabled]}
+                  onPress={handleCaptureBreakPhoto}
+                  disabled={isCapturingBreakPhoto}
+                >
+                  {isCapturingBreakPhoto ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.captureButtonText}>Take Photo</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {breakPhotoUri && (
+              <View style={styles.photoModalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelPhotoButton}
+                  onPress={() => {
+                    setBreakPhotoUri(null);
+                    setBreakPhotoUrl(null);
+                    setBreakLocation(null);
+                    setShowBreakPhotoModal(false);
+                  }}
+                >
+                  <Text style={styles.cancelPhotoButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.continueButton, styles.breakContinueButton, isProcessing && styles.buttonDisabled]}
+                  onPress={handleConfirmBreak}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.continueButtonText}>
+                      {breakAction === 'start' ? 'Start Break' : 'End Break'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!breakPhotoUri && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowBreakPhotoModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
       </ScrollView>
     </View>
   );
@@ -2437,5 +2584,29 @@ const styles = StyleSheet.create({
   checkOutSubTaskCompleted: {
     textDecorationLine: 'line-through',
     color: '#9ca3af',
+  },
+
+  // Break Photo Modal
+  breakTitleContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+  },
+  breakTitleText: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#f59e0b',
+    letterSpacing: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  breakCaptureButton: {
+    backgroundColor: '#f59e0b',
+  },
+  breakContinueButton: {
+    backgroundColor: '#f59e0b',
   },
 });

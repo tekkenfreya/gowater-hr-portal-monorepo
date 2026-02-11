@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
 
     const body = await request.json().catch(() => ({}));
-    const { userId: requestedUserId } = body;
+    const { userId: requestedUserId, photoUrl } = body;
 
     // Determine target userId (support admin override)
     let targetUserId = decoded.userId; // Default to authenticated user
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const attendanceService = getAttendanceService();
-    const result = await attendanceService.endBreak(targetUserId);
+    const result = await attendanceService.endBreak(targetUserId, photoUrl);
 
     if (result.success) {
       return NextResponse.json({ 

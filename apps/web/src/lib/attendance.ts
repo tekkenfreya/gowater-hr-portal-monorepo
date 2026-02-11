@@ -1,6 +1,7 @@
 import { getDb } from './supabase';
 import { logger } from './logger';
-import { getPhilippineHour, getPhilippineDateString } from './timezone';
+import { getPhilippineDateString } from './timezone';
+import { getWebhookService } from './webhooks';
 import {
   AttendanceManagementFilters,
   AttendanceRecordWithUser,
@@ -23,7 +24,7 @@ export interface AttendanceRecord {
   breakEndTime?: string;
   breakDuration: number;
   totalHours: number;
-  status: 'present' | 'absent' | 'late' | 'on_duty';
+  status: 'present' | 'absent';
   workLocation?: 'WFH' | 'Onsite' | 'Field';
   notes?: string;
 }
@@ -32,7 +33,6 @@ export interface AttendanceSummary {
   totalDays: number;
   presentDays: number;
   absentDays: number;
-  lateDays: number;
   totalHours: number;
 }
 
@@ -51,8 +51,7 @@ export class AttendanceService {
       }
 
       const checkInTime = new Date().toISOString();
-      const currentHour = getPhilippineHour(checkInTime);
-      const status = currentHour >= 10 ? 'late' : 'present'; // 10 AM Philippine Time is the standard time
+      const status = 'present';
 
       // IMPORTANT: Check for BOTH check_in_time AND check_out_time for completed session
       // This prevents incorrectly treating records with only check_out_time as completed sessions
@@ -127,6 +126,14 @@ export class AttendanceService {
         }
       }
 
+      // Fire webhook event so n8n/Zapier/GHL can react to check-ins
+      getWebhookService().fireEvent('attendance.checked_in', {
+        userId,
+        date: today,
+        workLocation: workLocation || 'WFH',
+        notes: notes || null
+      });
+
       return { success: true };
     } catch (error) {
       let errorMessage = 'Unknown error';
@@ -177,6 +184,14 @@ export class AttendanceService {
         checkout_photo_url: photoUrl || record.checkout_photo_url,
         updated_at: new Date()
       }, { id: record.id });
+
+      // Fire webhook event so workflow tools can react to check-outs
+      getWebhookService().fireEvent('attendance.checked_out', {
+        userId,
+        date: today,
+        totalHours: newTotalHours,
+        checkOutTime
+      });
 
       return { success: true, totalHours: newTotalHours };
     } catch (error) {
@@ -246,13 +261,12 @@ export class AttendanceService {
   async getAttendanceSummary(userId: number, startDate: string, endDate: string): Promise<AttendanceSummary> {
     try {
       const summaryResult = await this.db.executeRawSQL(`
-        SELECT 
+        SELECT
           COUNT(*) as totalDays,
-          SUM(CASE WHEN status IN ('present', 'late', 'on_duty') THEN 1 ELSE 0 END) as presentDays,
+          SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as presentDays,
           SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absentDays,
-          SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as lateDays,
           SUM(total_hours) as totalHours
-        FROM attendance 
+        FROM attendance
         WHERE user_id = $1 AND date BETWEEN $2 AND $3
       `, [userId, startDate, endDate]);
 
@@ -262,7 +276,6 @@ export class AttendanceService {
         totalDays: parseInt(summary?.totaldays) || 0,
         presentDays: parseInt(summary?.presentdays) || 0,
         absentDays: parseInt(summary?.absentdays) || 0,
-        lateDays: parseInt(summary?.latedays) || 0,
         totalHours: parseFloat(summary?.totalhours) || 0
       };
     } catch (error) {
@@ -271,7 +284,6 @@ export class AttendanceService {
         totalDays: 0,
         presentDays: 0,
         absentDays: 0,
-        lateDays: 0,
         totalHours: 0
       };
     }
@@ -296,12 +308,12 @@ export class AttendanceService {
     }
   }
 
-  async startBreak(userId: number): Promise<{ success: boolean; error?: string }> {
+  async startBreak(userId: number, photoUrl?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const today = getPhilippineDateString();
-      
+
       const record = await this.db.get('attendance', { user_id: userId, date: today });
-      
+
       if (!record) {
         return { success: false, error: 'No attendance record found for today' };
       }
@@ -315,12 +327,23 @@ export class AttendanceService {
       }
 
       const breakStartTime = new Date().toISOString();
-      
-      await this.db.update('attendance', {
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: any = {
         break_start_time: breakStartTime,
         break_end_time: null,
         updated_at: new Date()
-      }, { id: record.id });
+      };
+      if (photoUrl) updateData.break_start_photo_url = photoUrl;
+
+      await this.db.update('attendance', updateData, { id: record.id });
+
+      // Fire webhook for break started
+      getWebhookService().fireEvent('attendance.break_started', {
+        userId,
+        date: today,
+        breakStartTime
+      });
 
       return { success: true };
     } catch (error) {
@@ -329,7 +352,7 @@ export class AttendanceService {
     }
   }
 
-  async endBreak(userId: number): Promise<{ success: boolean; error?: string; breakDuration?: number }> {
+  async endBreak(userId: number, photoUrl?: string): Promise<{ success: boolean; error?: string; breakDuration?: number }> {
     try {
       const today = getPhilippineDateString();
 
@@ -348,11 +371,23 @@ export class AttendanceService {
       const breakDurationSeconds = Math.floor((new Date(breakEndTime).getTime() - breakStartTime.getTime()) / 1000);
       const totalBreakDuration = (record.break_duration || 0) + breakDurationSeconds;
 
-      await this.db.update('attendance', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: any = {
         break_end_time: breakEndTime,
         break_duration: totalBreakDuration,
         updated_at: new Date()
-      }, { id: record.id });
+      };
+      if (photoUrl) updateData.break_end_photo_url = photoUrl;
+
+      await this.db.update('attendance', updateData, { id: record.id });
+
+      // Fire webhook for break ended
+      getWebhookService().fireEvent('attendance.break_ended', {
+        userId,
+        date: today,
+        breakDurationSeconds,
+        totalBreakDuration
+      });
 
       return { success: true, breakDuration: breakDurationSeconds };
     } catch (error) {
@@ -461,7 +496,7 @@ export class AttendanceService {
         break_end_time?: string;
         break_duration?: number;
         total_hours: number;
-        status: 'present' | 'absent' | 'late' | 'on_duty' | 'leave';
+        status: 'present' | 'absent';
         work_location?: 'WFH' | 'Onsite' | 'Field';
         notes?: string;
         is_automated: boolean;
@@ -580,7 +615,6 @@ export class AttendanceService {
     totalRecords: number;
     presentCount: number;
     absentCount: number;
-    lateCount: number;
     averageHours: number;
     automatedCount: number;
   }> {
@@ -606,7 +640,6 @@ export class AttendanceService {
           COUNT(*) as total_records,
           SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
           SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent_count,
-          SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late_count,
           AVG(total_hours) as average_hours,
           SUM(CASE WHEN notes LIKE '%Automated%' THEN 1 ELSE 0 END) as automated_count
         FROM attendance
@@ -620,7 +653,6 @@ export class AttendanceService {
         totalRecords: parseInt(stats.total_records) || 0,
         presentCount: parseInt(stats.present_count) || 0,
         absentCount: parseInt(stats.absent_count) || 0,
-        lateCount: parseInt(stats.late_count) || 0,
         averageHours: parseFloat(stats.average_hours) || 0,
         automatedCount: parseInt(stats.automated_count) || 0
       };
@@ -630,7 +662,6 @@ export class AttendanceService {
         totalRecords: 0,
         presentCount: 0,
         absentCount: 0,
-        lateCount: 0,
         averageHours: 0,
         automatedCount: 0
       };
@@ -706,7 +737,7 @@ export class AttendanceService {
     data: {
       checkInTime?: string;
       checkOutTime?: string;
-      status?: 'present' | 'absent' | 'late' | 'on_duty';
+      status?: 'present' | 'absent';
       workLocation?: 'WFH' | 'Onsite' | 'Field';
       notes?: string;
     }
@@ -785,6 +816,16 @@ export class AttendanceService {
         updateData.break_end_time = updates.breakEndTime;
       }
 
+      // Recalculate break_duration if break times were updated
+      const newBreakStart = updates.breakStartTime !== undefined ? updates.breakStartTime : attendance.break_start_time;
+      const newBreakEnd = updates.breakEndTime !== undefined ? updates.breakEndTime : attendance.break_end_time;
+      let breakDurationSeconds = attendance.break_duration || 0;
+
+      if (newBreakStart && newBreakEnd) {
+        breakDurationSeconds = Math.max(0, Math.floor((new Date(newBreakEnd).getTime() - new Date(newBreakStart).getTime()) / 1000));
+        updateData.break_duration = breakDurationSeconds;
+      }
+
       // Recalculate total hours if check-in or check-out times changed
       const newCheckIn = updates.checkInTime || attendance.check_in_time;
       const newCheckOut = updates.checkOutTime || attendance.check_out_time;
@@ -793,7 +834,7 @@ export class AttendanceService {
         const checkInDate = new Date(newCheckIn);
         const checkOutDate = new Date(newCheckOut);
         const sessionHours = (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60);
-        const breakDurationHours = (attendance.break_duration || 0) / 3600;
+        const breakDurationHours = breakDurationSeconds / 3600;
         updateData.total_hours = Math.max(0, sessionHours - breakDurationHours);
       }
 
@@ -1051,6 +1092,16 @@ export class AttendanceService {
       const attendance = await this.db.get('attendance', { id: request.attendance_id });
 
       if (attendance) {
+        // Recalculate break_duration if break times changed
+        const newBreakStart = request.requested_break_start_time || attendance.break_start_time;
+        const newBreakEnd = request.requested_break_end_time || attendance.break_end_time;
+        let breakDurationSeconds = attendance.break_duration || 0;
+
+        if (newBreakStart && newBreakEnd) {
+          breakDurationSeconds = Math.max(0, Math.floor((new Date(newBreakEnd).getTime() - new Date(newBreakStart).getTime()) / 1000));
+          updateData.break_duration = breakDurationSeconds;
+        }
+
         // Recalculate total hours
         const newCheckIn = request.requested_check_in_time || attendance.check_in_time;
         const newCheckOut = request.requested_check_out_time || attendance.check_out_time;
@@ -1059,7 +1110,7 @@ export class AttendanceService {
           const checkInDate = new Date(newCheckIn);
           const checkOutDate = new Date(newCheckOut);
           const sessionHours = (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60);
-          const breakDurationHours = (attendance.break_duration || 0) / 3600;
+          const breakDurationHours = breakDurationSeconds / 3600;
           updateData.total_hours = Math.max(0, sessionHours - breakDurationHours);
         }
 

@@ -35,7 +35,7 @@ export interface AttendanceRecord {
   breaks: BreakRecord[];
   totalWorkHours: number;
   totalBreakHours: number;
-  status: 'present' | 'absent' | 'late' | 'early-leave' | 'holiday' | 'leave';
+  status: 'present' | 'absent';
   location?: string;
   tasks: Task[];
   notes?: string;
@@ -164,8 +164,6 @@ export interface AttendanceSummary {
   totalWorkDays: number;
   presentDays: number;
   absentDays: number;
-  lateDays: number;
-  earlyLeaveDays: number;
   leaveDays: number;
   holidayDays: number;
   totalWorkHours: number;
@@ -188,7 +186,6 @@ export interface SupervisorDashboard {
   teamAttendance: AttendanceSummary[];
   todayPresent: number;
   todayAbsent: number;
-  todayLate: number;
   teamProductivity: number;
 }
 
@@ -282,7 +279,7 @@ export interface AttendanceManagementFilters {
   userId?: number;
   startDate?: string;
   endDate?: string;
-  status?: 'present' | 'absent' | 'late' | 'on_duty' | 'leave';
+  status?: 'present' | 'absent';
   workLocation?: 'WFH' | 'Onsite' | 'Field';
   page?: number;
   limit?: number;
@@ -301,7 +298,7 @@ export interface AttendanceRecordWithUser {
   breakEndTime?: string;
   breakDuration?: number;
   totalHours: number;
-  status: 'present' | 'absent' | 'late' | 'on_duty' | 'leave';
+  status: 'present' | 'absent';
   workLocation?: 'WFH' | 'Onsite' | 'Field';
   notes?: string;
   isAutomated?: boolean; // whether this was created by automation
@@ -311,7 +308,7 @@ export interface BulkAttendanceOperation {
   type: 'update' | 'delete';
   attendanceIds: number[];
   updates?: Partial<{
-    status: 'present' | 'absent' | 'late' | 'on_duty' | 'leave';
+    status: 'present' | 'absent';
     workLocation: 'WFH' | 'Onsite' | 'Field';
     notes: string;
   }>;

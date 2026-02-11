@@ -114,12 +114,13 @@ export const attendanceService = {
     }
   },
 
-  async startBreak(): Promise<ApiResponse> {
+  async startBreak(photoUrl?: string): Promise<ApiResponse> {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/attendance/break/start`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ photoUrl }),
       });
 
       const data = await response.json();
@@ -135,12 +136,13 @@ export const attendanceService = {
     }
   },
 
-  async endBreak(): Promise<ApiResponse> {
+  async endBreak(photoUrl?: string): Promise<ApiResponse> {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/attendance/break/end`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ photoUrl }),
       });
 
       const data = await response.json();

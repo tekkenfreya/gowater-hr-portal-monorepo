@@ -3,6 +3,7 @@ import { getAuthService } from '@/lib/auth';
 import { getAttendanceService } from '@/lib/attendance';
 import { getDb } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { formatPhilippineTime } from '@/lib/timezone';
 import ExcelJS from 'exceljs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -189,7 +190,15 @@ export async function GET(request: NextRequest) {
     const deptRow = worksheet.addRow(['', `Department: ${user.department || 'Technical'}`]);
     deptRow.getCell(2).font = { bold: true, size: 11 };
 
-    // Row 4: Empty separator
+    // Row 4: Total Hours (bold, big font)
+    const totalHoursValue = allRecords.records.reduce((sum, record) => {
+      return sum + (record.totalHours || 0);
+    }, 0);
+    const totalHoursRow = worksheet.addRow(['', `Total Hours: ${totalHoursValue.toFixed(2)} hrs`]);
+    totalHoursRow.getCell(2).font = { bold: true, size: 16 };
+    totalHoursRow.height = 28;
+
+    // Row 5: Empty separator
     worksheet.addRow([]);
 
     // Row 5: Main header row - explicitly set each cell value
@@ -254,33 +263,29 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Merge cells for header (header is on row 5, sub-header on row 6)
+    // Merge cells for header (header is on row 6, sub-header on row 7)
     // AM Time spans columns C-D
-    worksheet.mergeCells('C5:D5');
+    worksheet.mergeCells('C6:D6');
     // PM Time spans columns E-F
-    worksheet.mergeCells('E5:F5');
+    worksheet.mergeCells('E6:F6');
     // Overtime spans columns G-H
-    worksheet.mergeCells('G5:H5');
-    // DATE vertical merge (rows 5-6)
-    worksheet.mergeCells('A5:A6');
-    // SITE SCHEDULE vertical merge (rows 5-6)
-    worksheet.mergeCells('B5:B6');
-    // TASK / PURPOSE vertical merge (rows 5-6)
-    worksheet.mergeCells('I5:I6');
-    // REMARKS vertical merge (rows 5-6)
-    worksheet.mergeCells('J5:J6');
+    worksheet.mergeCells('G6:H6');
+    // DATE vertical merge (rows 6-7)
+    worksheet.mergeCells('A6:A7');
+    // SITE SCHEDULE vertical merge (rows 6-7)
+    worksheet.mergeCells('B6:B7');
+    // TASK / PURPOSE vertical merge (rows 6-7)
+    worksheet.mergeCells('I6:I7');
+    // REMARKS vertical merge (rows 6-7)
+    worksheet.mergeCells('J6:J7');
 
-    // Helper function to format time as "h:mm am/pm"
+    // Helper function to format time in Philippine timezone
     const formatTime = (timeString?: string): string => {
       if (!timeString) return '';
       try {
         const date = new Date(timeString);
         if (isNaN(date.getTime())) return '';
-        const hours = date.getHours();
-        const minutes = date.getMinutes();
-        const ampm = hours >= 12 ? 'pm' : 'am';
-        const hour12 = hours % 12 || 12;
-        return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        return formatPhilippineTime(date);
       } catch {
         return '';
       }
@@ -351,9 +356,10 @@ export async function GET(request: NextRequest) {
     worksheet.getRow(1).height = 18;  // Name
     worksheet.getRow(2).height = 18;  // Position
     worksheet.getRow(3).height = 18;  // Department
-    worksheet.getRow(4).height = 10;  // Empty separator
-    worksheet.getRow(5).height = 25;  // Main header
-    worksheet.getRow(6).height = 20;  // Sub header
+    worksheet.getRow(4).height = 28;  // Total Hours
+    worksheet.getRow(5).height = 10;  // Empty separator
+    worksheet.getRow(6).height = 25;  // Main header
+    worksheet.getRow(7).height = 20;  // Sub header
 
     // Auto-fit column widths based on content
     worksheet.columns.forEach((column, index) => {

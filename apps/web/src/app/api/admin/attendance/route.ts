@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       userId: searchParams.get('userId') ? parseInt(searchParams.get('userId')!) : undefined,
       startDate: searchParams.get('startDate') || undefined,
       endDate: searchParams.get('endDate') || undefined,
-      status: (searchParams.get('status') as 'present' | 'absent' | 'late' | 'on_duty' | 'leave') || undefined,
+      status: (searchParams.get('status') as 'present' | 'absent') || undefined,
       workLocation: (searchParams.get('workLocation') as 'WFH' | 'Onsite') || undefined,
       page: searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1,
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 50

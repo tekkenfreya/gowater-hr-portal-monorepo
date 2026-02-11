@@ -17,7 +17,7 @@ interface WeeklyAttendanceData {
   breakStartTime?: string;
   breakEndTime?: string;
   totalHours: number;
-  status: 'present' | 'absent' | 'late' | 'on_duty';
+  status: 'present' | 'absent';
   isWeekend?: boolean;
   sessions?: Array<{ checkIn: string; checkOut: string }>;
 }
@@ -50,6 +50,9 @@ export default function AttendancePage() {
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingAttendance, setEditingAttendance] = useState<WeeklyAttendanceData | null>(null);
+
+  // Export scope modal state
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     // Initialize to current week's Sunday
@@ -347,12 +350,26 @@ export default function AttendancePage() {
 
   // Export attendance to Excel
   const handleExportExcel = () => {
-    const startDateStr = currentWeekStart.toISOString().split('T')[0];
-    const endDate = new Date(currentWeekStart);
-    endDate.setDate(currentWeekStart.getDate() + 6);
+    setShowExportModal(true);
+  };
+
+  const handleExportWithScope = (scope: '1week' | '2weeks' | '1month') => {
+    const endDate = new Date();
+    const startDate = new Date();
+
+    if (scope === '1week') {
+      startDate.setDate(endDate.getDate() - 7);
+    } else if (scope === '2weeks') {
+      startDate.setDate(endDate.getDate() - 14);
+    } else {
+      startDate.setMonth(endDate.getMonth() - 1);
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
     window.location.href = `/api/attendance/export?startDate=${startDateStr}&endDate=${endDateStr}`;
+    setShowExportModal(false);
   };
 
   if (!user) {
@@ -832,14 +849,8 @@ export default function AttendancePage() {
                                   Rest Day
                                 </span>
                               ) : hasAttendance ? (
-                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                  savedAttendance.status === 'present'
-                                    ? 'bg-green-100 text-green-700'
-                                    : savedAttendance.status === 'late'
-                                    ? 'bg-orange-100 text-orange-700'
-                                    : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                  {savedAttendance.status === 'present' ? 'Present' : savedAttendance.status === 'late' ? 'Late' : 'On Duty'}
+                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                  Present
                                 </span>
                               ) : (
                                 <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
@@ -1042,14 +1053,8 @@ export default function AttendancePage() {
                                     Rest Day
                                   </span>
                                 ) : hasAttendance ? (
-                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                    attendance.status === 'present'
-                                      ? 'bg-green-100 text-green-700'
-                                      : attendance.status === 'late'
-                                      ? 'bg-orange-100 text-orange-700'
-                                      : 'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    {attendance.status === 'present' ? 'Present' : attendance.status === 'late' ? 'Late' : 'On Duty'}
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                    Present
                                   </span>
                                 ) : (
                                   <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
@@ -1112,6 +1117,42 @@ export default function AttendancePage() {
           isAdmin={isAdmin}
           onSuccess={handleEditSuccess}
         />
+      )}
+
+      {/* Export Scope Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Export Attendance</h3>
+            <p className="text-sm text-gray-500 mb-4">Select the date range to export</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleExportWithScope('1week')}
+                className="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 border border-gray-200 rounded-lg transition-colors"
+              >
+                Last 1 Week
+              </button>
+              <button
+                onClick={() => handleExportWithScope('2weeks')}
+                className="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 border border-gray-200 rounded-lg transition-colors"
+              >
+                Last 2 Weeks
+              </button>
+              <button
+                onClick={() => handleExportWithScope('1month')}
+                className="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 border border-gray-200 rounded-lg transition-colors"
+              >
+                Last 1 Month
+              </button>
+            </div>
+            <button
+              onClick={() => setShowExportModal(false)}
+              className="w-full mt-3 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

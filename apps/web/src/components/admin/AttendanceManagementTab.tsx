@@ -9,7 +9,6 @@ interface AttendanceStats {
   totalRecords: number;
   presentCount: number;
   absentCount: number;
-  lateCount: number;
   averageHours: number;
   automatedCount: number;
 }
@@ -431,9 +430,6 @@ export default function AttendanceManagementTab() {
                 <option value="">All</option>
                 <option value="present">Present</option>
                 <option value="absent">Absent</option>
-                <option value="late">Late</option>
-                <option value="on_duty">On Duty</option>
-                <option value="leave">Leave</option>
               </select>
             </div>
 
@@ -543,13 +539,9 @@ export default function AttendanceManagementTab() {
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                             record.status === 'present'
                               ? 'bg-green-100 text-green-800'
-                              : record.status === 'late'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : record.status === 'absent'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-800'
+                              : 'bg-red-100 text-red-800'
                           }`}>
-                            {record.status}
+                            {record.status === 'present' ? 'Present' : 'Absent'}
                           </span>
                           {record.isAutomated && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700" title="Automated">

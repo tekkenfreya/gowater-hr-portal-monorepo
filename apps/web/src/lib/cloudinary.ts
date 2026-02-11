@@ -47,19 +47,35 @@ export async function uploadToCloudinary(
 
     // Add watermark overlay if location text is provided
     if (options?.watermark?.locationText || options?.watermark?.timestamp) {
-      // Add GoWater logo overlay at bottom-left
+      // Add GoWater text overlay at bottom-left (stroke layer for outline)
       transformations.push({
         overlay: {
           font_family: 'Arial',
-          font_size: 24,
+          font_size: 40,
+          font_weight: 'bold',
+          text: 'GoWater',
+          stroke: 'stroke',
+        },
+        color: '#00000040',
+        border: '1px_solid_black',
+        gravity: 'south_west',
+        x: 20,
+        y: 70,
+      } as TransformationOptions);
+
+      // Add GoWater text overlay at bottom-left (main text)
+      transformations.push({
+        overlay: {
+          font_family: 'Arial',
+          font_size: 40,
           font_weight: 'bold',
           text: 'GoWater'
         },
-        color: '#FFFFFF',
+        color: '#FFFFFFEE',
         gravity: 'south_west',
         x: 20,
-        y: 60,
-        effect: 'shadow:40'
+        y: 70,
+        effect: 'shadow:60'
       });
 
       // Add location and timestamp text below logo
@@ -69,17 +85,35 @@ export async function uploadToCloudinary(
       ].filter(Boolean).join(' | ');
 
       if (watermarkText) {
+        // Stroke layer for outline
         transformations.push({
           overlay: {
             font_family: 'Arial',
-            font_size: 16,
-            text: watermarkText.replace(/,/g, '%2C') // Escape commas for Cloudinary
+            font_size: 28,
+            font_weight: 'bold',
+            text: watermarkText.replace(/,/g, '%2C'),
+            stroke: 'stroke',
           },
-          color: '#FFFFFF',
+          color: '#00000040',
+          border: '1px_solid_black',
           gravity: 'south_west',
           x: 20,
-          y: 20,
-          effect: 'shadow:40'
+          y: 24,
+        } as TransformationOptions);
+
+        // Main text layer
+        transformations.push({
+          overlay: {
+            font_family: 'Arial',
+            font_size: 28,
+            font_weight: 'bold',
+            text: watermarkText.replace(/,/g, '%2C')
+          },
+          color: '#FFFFFFEE',
+          gravity: 'south_west',
+          x: 20,
+          y: 24,
+          effect: 'shadow:60'
         });
       }
     }

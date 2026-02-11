@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { getAttendanceService } from '@/lib/attendance';
 import { getPermissionsService } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
+import { formatPhilippineTime } from '@/lib/timezone';
 
 interface JWTPayload {
   userId: number;
@@ -91,8 +92,8 @@ export async function GET(request: NextRequest) {
       record.userName,
       record.userEmail,
       record.userDepartment || 'N/A',
-      record.checkInTime ? new Date(record.checkInTime).toLocaleTimeString() : 'N/A',
-      record.checkOutTime ? new Date(record.checkOutTime).toLocaleTimeString() : 'N/A',
+      record.checkInTime ? formatPhilippineTime(record.checkInTime) : 'N/A',
+      record.checkOutTime ? formatPhilippineTime(record.checkOutTime) : 'N/A',
       record.breakDuration ? Math.round(record.breakDuration / 60).toString() : '0',
       record.totalHours.toFixed(2),
       record.status,

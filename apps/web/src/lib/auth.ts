@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { getDb } from './supabase';
 import { logger } from './logger';
 import { getPermissionsService } from './permissions';
+import { getWebhookService } from './webhooks';
 
 // Enforce JWT_SECRET environment variable - no fallback for security
 const JWT_SECRET = (() => {
@@ -16,7 +17,7 @@ const JWT_SECRET = (() => {
   return secret;
 })();
 
-const JWT_EXPIRES_IN = '7d';
+const JWT_EXPIRES_IN = '365d';
 
 export interface AuthUser {
   id: number;
@@ -186,7 +187,16 @@ export class AuthService {
         employee_name: userData.employeeName,
         status: 'active'
       });
-      
+
+      // Fire webhook for user created
+      getWebhookService().fireEvent('user.created', {
+        userId: newUser?.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role || 'employee',
+        department: userData.department
+      });
+
       return { success: true, userId: newUser?.id };
     } catch (error) {
       logger.error('Create user error', error);

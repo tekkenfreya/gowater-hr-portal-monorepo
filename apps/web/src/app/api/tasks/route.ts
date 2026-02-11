@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getDb } from '@/lib/supabase';
+import { getWebhookService } from '@/lib/webhooks';
 import { logger } from '@/lib/logger';
 
 interface JWTPayload {
@@ -43,7 +44,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    let decoded: JWTPayload;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    } catch {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
     const userId = decoded.userId;
 
     // Get tasks for the current user
@@ -116,7 +122,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    let decoded: JWTPayload;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    } catch {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
     const userId = decoded.userId;
 
     const body = await request.json();
@@ -140,6 +151,15 @@ export async function POST(request: NextRequest) {
     };
 
     const task = await database.insert('tasks', taskData);
+
+    // Fire webhook for task created
+    getWebhookService().fireEvent('task.created', {
+      taskId: task.id,
+      userId,
+      title: title.trim(),
+      priority: priority || 'medium',
+      status: status || 'pending'
+    });
 
     // Return task with parsed subTasks
     return NextResponse.json({
@@ -171,7 +191,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    let decoded: JWTPayload;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    } catch {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
     const userId = decoded.userId;
 
     const body = await request.json();
@@ -232,6 +257,25 @@ export async function PUT(request: NextRequest) {
       logger.error('Error parsing existing sub_tasks', error);
     }
 
+    // Fire webhook: task.completed if status changed to completed, otherwise task.updated
+    const newStatus = status ? mapStatusToDb(status) : existingTask.status;
+    if (newStatus === 'completed' && existingTask.status !== 'completed') {
+      getWebhookService().fireEvent('task.completed', {
+        taskId: id,
+        userId,
+        title: title?.trim() || existingTask.title,
+        previousStatus: existingTask.status
+      });
+    } else {
+      getWebhookService().fireEvent('task.updated', {
+        taskId: id,
+        userId,
+        title: title?.trim() || existingTask.title,
+        status: newStatus,
+        previousStatus: existingTask.status
+      });
+    }
+
     // Return task with parsed subTasks
     return NextResponse.json({
       task: {
@@ -262,7 +306,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    let decoded: JWTPayload;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    } catch {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
     const userId = decoded.userId;
 
     const url = new URL(request.url);
@@ -282,8 +331,15 @@ export async function DELETE(request: NextRequest) {
     // Delete task
     await database.delete('tasks', { id: taskId, user_id: userId });
 
-    return NextResponse.json({ 
-      message: 'Task deleted successfully' 
+    // Fire webhook for task deleted
+    getWebhookService().fireEvent('task.deleted', {
+      taskId,
+      userId,
+      title: existingTask.title
+    });
+
+    return NextResponse.json({
+      message: 'Task deleted successfully'
     });
 
   } catch (error) {

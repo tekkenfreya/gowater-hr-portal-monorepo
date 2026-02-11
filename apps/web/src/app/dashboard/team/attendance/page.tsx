@@ -11,7 +11,7 @@ interface TeamAttendanceData {
   todayAttendance: AttendanceRecord | null;
   weeklyHours: number;
   monthlyAttendance: number;
-  status: 'present' | 'absent' | 'late' | 'early-leave' | 'on-leave';
+  status: 'present' | 'absent';
 }
 
 export default function TeamAttendancePage() {
@@ -39,12 +39,9 @@ export default function TeamAttendancePage() {
   }, [selectedDate, selectedDepartment, user, router]);
 
   const getStatusBadge = (status: string) => {
-    const statusColors = {
+    const statusColors: Record<string, string> = {
       present: 'bg-green-100 text-green-800',
       absent: 'bg-red-100 text-red-800',
-      late: 'bg-yellow-100 text-yellow-800',
-      'early-leave': 'bg-orange-100 text-orange-800',
-      'on-leave': 'bg-blue-100 text-blue-800'
     };
 
     return (

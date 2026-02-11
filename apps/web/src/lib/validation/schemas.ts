@@ -246,7 +246,7 @@ export const attendanceUpdateSchema = z.object({
   check_out_time: z.string().datetime().optional(),
   break_start_time: z.string().datetime().optional(),
   break_end_time: z.string().datetime().optional(),
-  status: z.enum(['present', 'absent', 'late', 'on_duty']).optional(),
+  status: z.enum(['present', 'absent']).optional(),
   notes: z.string().max(500).optional(),
 });
 
