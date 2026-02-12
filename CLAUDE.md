@@ -504,6 +504,32 @@ Before marking a feature complete:
 
 ---
 
+## Cloudinary Photo Watermark Rules
+
+The app uses Cloudinary's `upload_stream` with the `transformation` option to apply text overlay watermarks on check-in/break/checkout photos. **These rules are critical — violating them causes silent upload failures.**
+
+### Working Pattern (DO NOT CHANGE THE APPROACH)
+```
+transformations array = [
+  { raw_transformation: "label with b_rgb colored bg" },   // 1st raw_transformation
+  { overlay: { ... }, color, gravity, ... },                // SDK overlay object(s)
+  { raw_transformation: "stats bar with b_rgb black bg" },  // 2nd raw_transformation (optional)
+]
+```
+
+### Hard Rules
+1. **Max 2 `raw_transformation` elements** in the transformations array. More than 2 causes Cloudinary to reject the upload silently. The upload API returns an error and the photo fails.
+2. **Use `raw_transformation` ONLY for overlays that need `b_rgb:` background color** (colored label, dark stats bar). The SDK's `background` property applies to the base image, not text overlays.
+3. **Use SDK overlay objects** (with `overlay`, `color`, `gravity`, `effect`) for plain text overlays (date, address, branding). These are reliable with `upload_stream`.
+4. **Encode special chars in `raw_transformation` text**: spaces→`%20`, commas→`%2C`, colons→`%3A`, slashes→`%2F`, pipes→`%7C`, hash→`%23`, percent→`%25` (encode `%` first).
+5. **Never change the upload approach** (e.g., URL-based transformations, eager transformations). The `transformation` option on `upload_stream` is the only approach that works and returns a clean Cloudinary URL.
+6. **For multi-line info with background**, combine lines using `%0A` (newline) within a single `raw_transformation` instead of creating multiple raw_transformation elements.
+7. **Philippines timezone (UTC+8)**: Always use manual offset `new Date(now.getTime() + (8 * 60 * 60 * 1000))` with `getUTCHours()`/`getUTCMinutes()`. Do NOT use `toLocaleTimeString` — it's unreliable on Vercel.
+
+### File: `apps/web/src/lib/cloudinary.ts`
+
+---
+
 ## Common Pitfalls to Avoid
 
 1. **Don't create duplicate components** - Check `REUSABLE_REFERENCE.md` first
@@ -514,6 +540,7 @@ Before marking a feature complete:
 6. **Don't forget pull-to-refresh** - Add to all scrollable screens
 7. **Don't nest modals on iOS** - Close one before opening another
 8. **Don't forget type safety** - Always define proper TypeScript types
+9. **Don't use more than 2 `raw_transformation` elements in Cloudinary uploads** - See Cloudinary rules above
 
 ---
 
