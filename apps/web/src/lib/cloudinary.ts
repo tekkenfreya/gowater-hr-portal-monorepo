@@ -90,7 +90,7 @@ export async function uploadToCloudinary(
       // Determine base Y offset (stats bar shifts everything up)
       const hasStats = (photoType === 'break' || photoType === 'checkout') &&
         watermark.checkInTime && watermark.totalHours !== undefined;
-      const baseY = hasStats ? 70 : 20;
+      const baseY = hasStats ? 90 : 20;
 
       // Cloudinary text encoding helper: encode special chars for text overlay
       const encodeText = (text: string) =>
@@ -102,7 +102,7 @@ export async function uploadToCloudinary(
       // control over the Cloudinary URL where b_rgb: is part of the overlay layer.
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
       transformations.push({
-        raw_transformation: `l_text:Arial_48_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 130}`,
+        raw_transformation: `l_text:Arial_48_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 170}`,
       });
 
       // --- Layer 2: Date ---
@@ -116,7 +116,7 @@ export async function uploadToCloudinary(
         color: '#FFFFFFDD',
         gravity: 'south_west',
         x: 20,
-        y: baseY + 90,
+        y: baseY + 120,
         effect: 'shadow:40',
       } as TransformationOptions);
 
@@ -135,7 +135,7 @@ export async function uploadToCloudinary(
           color: '#FFFFFFCC',
           gravity: 'south_west',
           x: 20,
-          y: baseY + 58,
+          y: baseY + 75,
           effect: 'shadow:40',
         } as TransformationOptions);
       }
@@ -170,7 +170,7 @@ export async function uploadToCloudinary(
         // Stats bar also uses raw_transformation for the dark background
         const statsBarText = encodeText(`  On duty ${checkInFormatted}-${timeOnly}  |  Work ${workText}  |  Break ${breakText}  `);
         transformations.push({
-          raw_transformation: `l_text:Arial_20_bold:${statsBarText},co_white,b_rgb:000000/fl_layer_apply,g_south,y_10`,
+          raw_transformation: `l_text:Arial_28_bold:${statsBarText},co_white,b_rgb:000000/fl_layer_apply,g_south,y_10`,
         });
       }
     }
