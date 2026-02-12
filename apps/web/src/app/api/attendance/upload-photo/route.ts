@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     const totalHoursStr = formData.get('totalHours') as string | null;
     const breakDurationStr = formData.get('breakDuration') as string | null;
     const workLocation = formData.get('workLocation') as string | null;
+    const breakPhase = formData.get('breakPhase') as string | null;
 
     if (!photo) {
       return NextResponse.json(
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
         totalHours: totalHoursStr ? parseFloat(totalHoursStr) : undefined,
         breakDuration: breakDurationStr ? parseInt(breakDurationStr) : undefined,
         workLocation: workLocation || undefined,
+        breakPhase: breakPhase as 'start' | 'end' | undefined,
       },
       photoType: photoType || 'checkin'
     });

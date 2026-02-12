@@ -29,6 +29,7 @@ export interface PhotoMetadata {
   totalHours?: number;
   breakDuration?: number;
   workLocation?: string;
+  breakPhase?: 'start' | 'end';
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -234,6 +235,9 @@ export const photoCaptureService = {
       }
       if (metadata?.workLocation) {
         formData.append('workLocation', metadata.workLocation);
+      }
+      if (metadata?.breakPhase) {
+        formData.append('breakPhase', metadata.breakPhase);
       }
 
       const response = await fetch(`${API_BASE_URL}/api/attendance/upload-photo`, {

@@ -235,6 +235,7 @@ export default function DashboardScreen() {
         totalHours: attendanceStatus.totalHours,
         breakDuration: attendanceStatus.breakDuration,
         workLocation: attendanceStatus.workLocation,
+        breakPhase: breakAction,
       });
 
       if (result.success) {
