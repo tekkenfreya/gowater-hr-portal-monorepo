@@ -26,6 +26,8 @@ interface WebhookLog {
   success: boolean;
   error_message: string | null;
   duration_ms: number | null;
+  attempt: number | null;
+  max_attempts: number | null;
   created_at: string;
 }
 
@@ -89,6 +91,8 @@ export default function WebhooksTab() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [retryingLogId, setRetryingLogId] = useState<number | null>(null);
+  const [retryResult, setRetryResult] = useState<{ logId: number; success: boolean; statusCode?: number; error?: string } | null>(null);
 
   const fetchWebhooks = useCallback(async () => {
     try {
@@ -270,6 +274,28 @@ export default function WebhooksTab() {
     }
   };
 
+  const handleRetry = async (logId: number) => {
+    setRetryingLogId(logId);
+    setRetryResult(null);
+    try {
+      const response = await fetch('/api/admin/webhooks/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ logId }),
+      });
+      const data = await response.json();
+      setRetryResult({ logId, success: data.success, statusCode: data.statusCode, error: data.error });
+      // Refresh logs to show the new retry entry
+      if (logsWebhookId !== null) {
+        fetchLogs(logsWebhookId);
+      }
+    } catch {
+      setRetryResult({ logId, success: false, error: 'Network error' });
+    }
+    setRetryingLogId(null);
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString();
   };
@@ -447,9 +473,11 @@ export default function WebhooksTab() {
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Event</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Attempt</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">HTTP</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Duration</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Timestamp</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -458,14 +486,38 @@ export default function WebhooksTab() {
                       <td className="px-4 py-2 text-sm text-gray-800">{formatEventName(log.event)}</td>
                       <td className="px-4 py-2">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          log.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          log.success ? 'bg-green-100 text-green-800'
+                            : log.event.startsWith('webhook.') ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {log.success ? 'OK' : 'Failed'}
+                          {log.success ? 'OK' : log.event.startsWith('webhook.') ? 'System' : 'Failed'}
                         </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-600">
+                        {log.attempt != null && log.max_attempts != null
+                          ? `${log.attempt}/${log.max_attempts}`
+                          : '—'}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-600">{log.response_status ?? '—'}</td>
                       <td className="px-4 py-2 text-sm text-gray-600">{log.duration_ms != null ? `${log.duration_ms}ms` : '—'}</td>
                       <td className="px-4 py-2 text-xs text-gray-500">{formatDate(log.created_at)}</td>
+                      <td className="px-4 py-2 text-right">
+                        {!log.success && !log.event.startsWith('webhook.') && (
+                          <button
+                            onClick={() => handleRetry(log.id)}
+                            disabled={retryingLogId === log.id}
+                            className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50"
+                            title="Retry this delivery"
+                          >
+                            {retryingLogId === log.id ? <SpinnerIcon /> : <RetryIcon />}
+                          </button>
+                        )}
+                        {retryResult && retryResult.logId === log.id && (
+                          <span className={`ml-2 text-xs ${retryResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                            {retryResult.success ? 'Retried OK' : retryResult.error || 'Failed'}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -658,6 +710,14 @@ function XIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function RetryIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
   );
 }

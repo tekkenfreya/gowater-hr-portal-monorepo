@@ -73,7 +73,15 @@ export interface WebhookLog {
   success: boolean;
   error_message: string | null;
   duration_ms: number | null;
+  attempt: number | null;
+  max_attempts: number | null;
   created_at: string;
+}
+
+// Circuit breaker state per webhook
+interface CircuitState {
+  failures: number;
+  openUntil: number | null;
 }
 
 // Filters for querying webhook logs
@@ -98,6 +106,16 @@ export interface WebhookLogFilters {
 
 export class WebhookService {
   private db = getDb();
+
+  // Circuit breaker: track consecutive failures per webhook
+  private circuitState = new Map<number, CircuitState>();
+
+  // Constants
+  private static readonly MAX_ATTEMPTS = 3;
+  private static readonly BASE_DELAY_MS = 1000;
+  private static readonly CIRCUIT_THRESHOLD = 5;
+  private static readonly CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly AUTO_DISABLE_THRESHOLD = 20;
 
   // ----------------------------------------------------------
   // CRUD: Create a new webhook subscription
@@ -305,49 +323,281 @@ export class WebhookService {
   // DELIVERY: Send HTTP POST to a single webhook URL
   // ----------------------------------------------------------
   // Handles:
+  // - Circuit breaker check (skip if open)
+  // - Retry loop with exponential backoff (3 attempts)
   // - HMAC signature generation (if secret is set)
   // - Custom headers
-  // - Timeout (10 seconds max)
-  // - Response logging
+  // - Timeout (10 seconds max per attempt)
+  // - Logs only the final result (includes attempt number)
+  // - Auto-disables webhook after 20 consecutive failures
   private async deliverWebhook(
     webhook: Webhook,
     event: string,
     payload: Record<string, unknown>
   ): Promise<void> {
+    // Check circuit breaker — skip delivery if circuit is open
+    if (this.isCircuitOpen(webhook.id)) {
+      await this.logDelivery({
+        webhook_id: webhook.id,
+        event,
+        payload,
+        response_status: null,
+        response_body: null,
+        success: false,
+        error_message: 'Circuit open — skipped (too many consecutive failures)',
+        duration_ms: 0,
+        attempt: 0,
+        max_attempts: WebhookService.MAX_ATTEMPTS
+      });
+      return;
+    }
+
+    const maxAttempts = WebhookService.MAX_ATTEMPTS;
     const startTime = Date.now();
     const body = JSON.stringify(payload);
 
+    // Build request headers (same for all attempts)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'GoWater-Webhooks/1.0',
+      'X-Webhook-Event': event,
+      'X-Webhook-Id': String(webhook.id)
+    };
+
+    if (webhook.secret) {
+      const signature = crypto
+        .createHmac('sha256', webhook.secret)
+        .update(body)
+        .digest('hex');
+      headers['X-Webhook-Signature'] = `sha256=${signature}`;
+    }
+
+    const customHeaders = typeof webhook.headers === 'string'
+      ? JSON.parse(webhook.headers)
+      : (webhook.headers || {});
+    Object.assign(headers, customHeaders);
+
+    // Retry loop with exponential backoff
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(webhook.url, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        const responseText = await response.text();
+        const truncatedResponse = responseText.substring(0, 1000);
+        const durationMs = Date.now() - startTime;
+
+        if (response.ok) {
+          // Success — reset circuit breaker and log
+          this.resetCircuit(webhook.id);
+          await this.logDelivery({
+            webhook_id: webhook.id,
+            event,
+            payload,
+            response_status: response.status,
+            response_body: truncatedResponse,
+            success: true,
+            error_message: null,
+            duration_ms: durationMs,
+            attempt,
+            max_attempts: maxAttempts
+          });
+          return;
+        }
+
+        // Non-2xx response — retry if attempts remain
+        if (attempt < maxAttempts) {
+          await this.sleep(this.getBackoffDelay(attempt));
+          continue;
+        }
+
+        // Final attempt failed with non-2xx
+        this.recordFailure(webhook.id);
+        await this.logDelivery({
+          webhook_id: webhook.id,
+          event,
+          payload,
+          response_status: response.status,
+          response_body: truncatedResponse,
+          success: false,
+          error_message: `HTTP ${response.status} after ${maxAttempts} attempts`,
+          duration_ms: durationMs,
+          attempt,
+          max_attempts: maxAttempts
+        });
+        return;
+      } catch (error) {
+        // Network/timeout error — retry if attempts remain
+        if (attempt < maxAttempts) {
+          await this.sleep(this.getBackoffDelay(attempt));
+          continue;
+        }
+
+        // Final attempt failed with exception
+        const durationMs = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        this.recordFailure(webhook.id);
+        await this.logDelivery({
+          webhook_id: webhook.id,
+          event,
+          payload,
+          response_status: null,
+          response_body: null,
+          success: false,
+          error_message: `${errorMessage} after ${maxAttempts} attempts`,
+          duration_ms: durationMs,
+          attempt,
+          max_attempts: maxAttempts
+        });
+        return;
+      }
+    }
+  }
+
+  // ----------------------------------------------------------
+  // CIRCUIT BREAKER: Check if a webhook's circuit is open
+  // ----------------------------------------------------------
+  private isCircuitOpen(webhookId: number): boolean {
+    const state = this.circuitState.get(webhookId);
+    if (!state || !state.openUntil) return false;
+
+    if (Date.now() >= state.openUntil) {
+      // Cooldown expired — half-open: allow one attempt
+      state.openUntil = null;
+      return false;
+    }
+
+    return true;
+  }
+
+  // ----------------------------------------------------------
+  // CIRCUIT BREAKER: Record a delivery failure
+  // ----------------------------------------------------------
+  private recordFailure(webhookId: number): void {
+    const state = this.circuitState.get(webhookId) || { failures: 0, openUntil: null };
+    state.failures += 1;
+
+    // Open circuit after threshold consecutive failures
+    if (state.failures >= WebhookService.CIRCUIT_THRESHOLD) {
+      state.openUntil = Date.now() + WebhookService.CIRCUIT_COOLDOWN_MS;
+
+      // Log circuit opened event (fire-and-forget)
+      this.logDelivery({
+        webhook_id: webhookId,
+        event: 'webhook.circuit_opened',
+        payload: { consecutiveFailures: state.failures, cooldownMinutes: 5 },
+        response_status: null,
+        response_body: null,
+        success: false,
+        error_message: `Circuit opened after ${state.failures} consecutive failures — cooling down for 5 minutes`,
+        duration_ms: 0,
+        attempt: null,
+        max_attempts: null
+      }).catch(() => {});
+    }
+
+    // Auto-disable after 20 consecutive failures
+    if (state.failures >= WebhookService.AUTO_DISABLE_THRESHOLD) {
+      this.autoDisableWebhook(webhookId, state.failures);
+    }
+
+    this.circuitState.set(webhookId, state);
+  }
+
+  // ----------------------------------------------------------
+  // CIRCUIT BREAKER: Reset on successful delivery
+  // ----------------------------------------------------------
+  private resetCircuit(webhookId: number): void {
+    this.circuitState.delete(webhookId);
+  }
+
+  // ----------------------------------------------------------
+  // AUTO-DISABLE: Deactivate webhook after too many failures
+  // ----------------------------------------------------------
+  private async autoDisableWebhook(webhookId: number, failures: number): Promise<void> {
     try {
-      // Build request headers
+      await this.db.update('webhooks', { is_active: false, updated_at: new Date() }, { id: webhookId });
+
+      await this.logDelivery({
+        webhook_id: webhookId,
+        event: 'webhook.auto_disabled',
+        payload: { consecutiveFailures: failures, reason: 'Auto-disabled after repeated delivery failures' },
+        response_status: null,
+        response_body: null,
+        success: false,
+        error_message: `Auto-disabled after ${failures} consecutive failures`,
+        duration_ms: 0,
+        attempt: null,
+        max_attempts: null
+      });
+    } catch (error) {
+      logger.error('Failed to auto-disable webhook', error);
+    }
+  }
+
+  // ----------------------------------------------------------
+  // RETRY: Re-deliver a failed webhook from its log entry
+  // ----------------------------------------------------------
+  async retryDelivery(logId: number): Promise<{ success: boolean; statusCode?: number; error?: string }> {
+    try {
+      // Fetch the original log entry
+      const logs = await this.db.executeRawSQL<WebhookLog & { webhook_url?: string; webhook_secret?: string; webhook_headers?: string }>(
+        `SELECT wl.*, w.url as webhook_url, w.secret as webhook_secret, w.headers as webhook_headers
+         FROM webhook_logs wl
+         LEFT JOIN webhooks w ON w.id = wl.webhook_id
+         WHERE wl.id = $1`,
+        [logId]
+      );
+
+      const log = logs?.[0];
+      if (!log) {
+        return { success: false, error: 'Log entry not found' };
+      }
+      if (!log.webhook_url) {
+        return { success: false, error: 'Webhook has been deleted' };
+      }
+
+      // Parse payload
+      const payload = typeof log.payload === 'string' ? JSON.parse(log.payload) : log.payload;
+      const body = JSON.stringify(payload);
+
+      // Build headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'User-Agent': 'GoWater-Webhooks/1.0',
-        'X-Webhook-Event': event,
-        'X-Webhook-Id': String(webhook.id)
+        'X-Webhook-Event': log.event,
+        'X-Webhook-Id': String(log.webhook_id),
+        'X-Webhook-Retry': 'true'
       };
 
-      // If the webhook has a shared secret, generate an HMAC signature.
-      // The receiving end (n8n/Zapier) can verify this to ensure the
-      // request actually came from GoWater and wasn't spoofed.
-      if (webhook.secret) {
+      if (log.webhook_secret) {
         const signature = crypto
-          .createHmac('sha256', webhook.secret)
+          .createHmac('sha256', log.webhook_secret)
           .update(body)
           .digest('hex');
         headers['X-Webhook-Signature'] = `sha256=${signature}`;
       }
 
-      // Merge any custom headers the admin configured
-      const customHeaders = typeof webhook.headers === 'string'
-        ? JSON.parse(webhook.headers)
-        : (webhook.headers || {});
+      const customHeaders = typeof log.webhook_headers === 'string'
+        ? JSON.parse(log.webhook_headers)
+        : (log.webhook_headers || {});
       Object.assign(headers, customHeaders);
 
-      // Send the request with a 10-second timeout
+      const startTime = Date.now();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(webhook.url, {
+      const response = await fetch(log.webhook_url, {
         method: 'POST',
         headers,
         body,
@@ -356,38 +606,49 @@ export class WebhookService {
 
       clearTimeout(timeout);
 
-      // Read response (truncate to 1000 chars to avoid storing huge responses)
       const responseText = await response.text();
-      const truncatedResponse = responseText.substring(0, 1000);
       const durationMs = Date.now() - startTime;
 
-      // Log the delivery attempt
+      // Log the retry attempt
       await this.logDelivery({
-        webhook_id: webhook.id,
-        event,
+        webhook_id: log.webhook_id,
+        event: log.event,
         payload,
         response_status: response.status,
-        response_body: truncatedResponse,
+        response_body: responseText.substring(0, 1000),
         success: response.ok,
-        error_message: response.ok ? null : `HTTP ${response.status}`,
-        duration_ms: durationMs
+        error_message: response.ok ? null : `HTTP ${response.status} (manual retry)`,
+        duration_ms: durationMs,
+        attempt: 1,
+        max_attempts: 1
       });
-    } catch (error) {
-      const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-      // Log the failed delivery
-      await this.logDelivery({
-        webhook_id: webhook.id,
-        event,
-        payload,
-        response_status: null,
-        response_body: null,
-        success: false,
-        error_message: errorMessage,
-        duration_ms: durationMs
-      });
+      if (response.ok) {
+        this.resetCircuit(log.webhook_id);
+      }
+
+      return {
+        success: response.ok,
+        statusCode: response.status,
+        error: response.ok ? undefined : `HTTP ${response.status}`
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
     }
+  }
+
+  // ----------------------------------------------------------
+  // HELPERS: Backoff delay and sleep
+  // ----------------------------------------------------------
+  private getBackoffDelay(attempt: number): number {
+    const baseDelay = WebhookService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
+    const jitter = Math.random() * 500;
+    return baseDelay + jitter;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // ----------------------------------------------------------
@@ -402,11 +663,15 @@ export class WebhookService {
     success: boolean;
     error_message: string | null;
     duration_ms: number;
+    attempt?: number | null;
+    max_attempts?: number | null;
   }): Promise<void> {
     try {
       await this.db.insert('webhook_logs', {
         ...logData,
-        payload: JSON.stringify(logData.payload)
+        payload: JSON.stringify(logData.payload),
+        attempt: logData.attempt ?? null,
+        max_attempts: logData.max_attempts ?? null
       });
     } catch {
       // Don't let logging errors cascade - table may not exist yet
