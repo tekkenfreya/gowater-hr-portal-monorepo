@@ -87,10 +87,7 @@ export async function uploadToCloudinary(
           break;
       }
 
-      // Determine base Y offset (stats bar shifts everything up)
-      const hasStats = (photoType === 'break' || photoType === 'checkout') &&
-        watermark.checkInTime && watermark.totalHours !== undefined;
-      const baseY = hasStats ? 90 : 20;
+      const baseY = 20;
 
       // Cloudinary text encoding helper: encode special chars for text overlay
       const encodeText = (text: string) =>
@@ -140,39 +137,6 @@ export async function uploadToCloudinary(
         } as TransformationOptions);
       }
 
-      // --- Layer 4: Stats bar (break + checkout only) ---
-      if (hasStats) {
-        const checkInTimeStr = watermark.checkInTime || '';
-        let checkInFormatted = '';
-        try {
-          const ciDate = new Date(checkInTimeStr);
-          if (!isNaN(ciDate.getTime())) {
-            // Convert check-in time to Philippines timezone (UTC+8)
-            const ciPh = new Date(ciDate.getTime() + (8 * 60 * 60 * 1000));
-            checkInFormatted = `${ciPh.getUTCHours().toString().padStart(2, '0')}:${ciPh.getUTCMinutes().toString().padStart(2, '0')}`;
-          } else {
-            checkInFormatted = checkInTimeStr;
-          }
-        } catch {
-          checkInFormatted = checkInTimeStr;
-        }
-
-        const totalHrs = watermark.totalHours || 0;
-        const workHours = Math.floor(totalHrs);
-        const workMins = Math.round((totalHrs - workHours) * 60);
-        const workText = workHours > 0 ? `${workHours}h${workMins}m` : `${workMins}m`;
-
-        const breakSecs = watermark.breakDuration || 0;
-        const breakHrs = Math.floor(breakSecs / 3600);
-        const breakMins = Math.floor((breakSecs % 3600) / 60);
-        const breakText = breakHrs > 0 ? `${breakHrs}h${breakMins}m` : `${breakMins}m`;
-
-        // Stats bar also uses raw_transformation for the dark background
-        const statsBarText = encodeText(`  On duty ${checkInFormatted}-${timeOnly}  |  Work ${workText}  |  Break ${breakText}  `);
-        transformations.push({
-          raw_transformation: `l_text:Arial_28_bold:${statsBarText},co_white,b_rgb:000000/fl_layer_apply,g_south,y_10`,
-        });
-      }
     }
 
     // Prepare upload options

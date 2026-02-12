@@ -696,15 +696,41 @@ Today's Planned Tasks:`;
       }
     }
 
+    // Format check-in time from ISO string to readable time
+    let loginTimeFormatted = 'N/A';
+    if (attendanceStatus.checkInTime) {
+      try {
+        const ciDate = new Date(attendanceStatus.checkInTime);
+        if (!isNaN(ciDate.getTime())) {
+          loginTimeFormatted = ciDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch {
+        loginTimeFormatted = 'N/A';
+      }
+    }
+
+    // Calculate hours from check-in to now if totalHours is 0
+    let hoursWorked = attendanceStatus.totalHours;
+    if (hoursWorked <= 0 && attendanceStatus.checkInTime) {
+      try {
+        const ciDate = new Date(attendanceStatus.checkInTime);
+        if (!isNaN(ciDate.getTime())) {
+          hoursWorked = (now.getTime() - ciDate.getTime()) / (1000 * 60 * 60);
+        }
+      } catch {
+        hoursWorked = 0;
+      }
+    }
+
     report += `
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
 Position: ${user?.role || 'N/A'}
 Work Arrangement: ${attendanceStatus.workLocation || 'N/A'}
-Login Time: ${attendanceStatus.checkInTime || 'N/A'}
+Login Time: ${loginTimeFormatted}
 Logout Time: ${time}
-Hours Worked: ${attendanceStatus.totalHours.toFixed(2)} hours
+Hours Worked: ${hoursWorked.toFixed(2)} hours
 Break Time: ${formatBreakTime(attendanceStatus.breakDuration || 0)}
 
 Today's Task Updates:`;
