@@ -102,14 +102,14 @@ export async function uploadToCloudinary(
       // control over the Cloudinary URL where b_rgb: is part of the overlay layer.
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
       transformations.push({
-        raw_transformation: `l_text:Arial_36_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 130}`,
+        raw_transformation: `l_text:Arial_48_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 130}`,
       });
 
       // --- Layer 2: Date ---
       transformations.push({
         overlay: {
           font_family: 'Arial',
-          font_size: 24,
+          font_size: 32,
           font_weight: 'bold',
           text: dateText,
         },
@@ -129,7 +129,7 @@ export async function uploadToCloudinary(
         transformations.push({
           overlay: {
             font_family: 'Arial',
-            font_size: 20,
+            font_size: 28,
             text: encodeText(addressText),
           },
           color: '#FFFFFFCC',
@@ -140,22 +140,7 @@ export async function uploadToCloudinary(
         } as TransformationOptions);
       }
 
-      // --- Layer 4: GoWater branding (bottom-right) ---
-      transformations.push({
-        overlay: {
-          font_family: 'Arial',
-          font_size: 28,
-          font_weight: 'bold',
-          text: 'GoWater',
-        },
-        color: '#FFFFFFDD',
-        gravity: 'south_east',
-        x: 20,
-        y: baseY + 58,
-        effect: 'shadow:40',
-      } as TransformationOptions);
-
-      // --- Layer 5: Stats bar (break + checkout only) ---
+      // --- Layer 4: Stats bar (break + checkout only) ---
       if (hasStats) {
         const checkInTimeStr = watermark.checkInTime || '';
         let checkInFormatted = '';
