@@ -1,0 +1,276 @@
+{
+  "name": "GoWater Attendance → Slack Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gowater-attendance",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-receiver",
+      "name": "Webhook Receiver",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "gowater-attendance"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-in",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "attendance.checked_in",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-checkin",
+      "name": "Check In?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "checkout",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "attendance.checked_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-checkout",
+      "name": "Check Out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "break-start",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "attendance.break_started",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-break-start",
+      "name": "Break Started?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "break-end",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "attendance.break_ended",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-break-end",
+      "name": "Break Ended?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 820]
+    },
+    {
+      "parameters": {
+        "channel": "#attendance",
+        "text": "=:white_check_mark: *Check In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Location:* {{ $json.data.workLocation }}\n*Time:* {{ new Date($json.timestamp).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}{{ $json.data.notes ? '\\n*Notes:* ' + $json.data.notes : '' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-checkin",
+      "name": "Slack: Check In",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [930, 100],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#attendance",
+        "text": "=:door: *Check Out*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Total Hours:* {{ Number($json.data.totalHours).toFixed(2) }}h\n*Check Out:* {{ new Date($json.data.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-checkout",
+      "name": "Slack: Check Out",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [930, 320],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#attendance",
+        "text": "=:coffee: *Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date($json.data.breakStartTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-break-start",
+      "name": "Slack: Break Start",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [930, 540],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#attendance",
+        "text": "=:arrow_forward: *Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ Math.floor($json.data.breakDurationSeconds / 60) }} min\n*Total Break Today:* {{ Math.floor($json.data.totalBreakDuration / 60) }} min",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-break-end",
+      "name": "Slack: Break End",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [930, 760],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Receiver": {
+      "main": [
+        [
+          { "node": "Respond OK", "type": "main", "index": 0 },
+          { "node": "Check In?", "type": "main", "index": 0 },
+          { "node": "Check Out?", "type": "main", "index": 0 },
+          { "node": "Break Started?", "type": "main", "index": 0 },
+          { "node": "Break Ended?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check In?": {
+      "main": [
+        [{ "node": "Slack: Check In", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Check Out?": {
+      "main": [
+        [{ "node": "Slack: Check Out", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Break Started?": {
+      "main": [
+        [{ "node": "Slack: Break Start", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Break Ended?": {
+      "main": [
+        [{ "node": "Slack: Break End", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "gowater-hr-portal"
+  },
+  "tags": [
+    { "name": "GoWater" },
+    { "name": "Attendance" },
+    { "name": "Slack" }
+  ]
+}

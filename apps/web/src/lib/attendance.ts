@@ -127,8 +127,11 @@ export class AttendanceService {
       }
 
       // Fire webhook event so n8n/Zapier/GHL can react to check-ins
+      const webhookUser = await this.db.get('users', { id: userId });
       getWebhookService().fireEvent('attendance.checked_in', {
         userId,
+        employeeId: webhookUser?.employee_id || null,
+        employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         workLocation: workLocation || 'WFH',
         notes: notes || null
@@ -186,8 +189,11 @@ export class AttendanceService {
       }, { id: record.id });
 
       // Fire webhook event so workflow tools can react to check-outs
+      const webhookUser = await this.db.get('users', { id: userId });
       getWebhookService().fireEvent('attendance.checked_out', {
         userId,
+        employeeId: webhookUser?.employee_id || null,
+        employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         totalHours: newTotalHours,
         checkOutTime
@@ -339,8 +345,11 @@ export class AttendanceService {
       await this.db.update('attendance', updateData, { id: record.id });
 
       // Fire webhook for break started
+      const webhookUser = await this.db.get('users', { id: userId });
       getWebhookService().fireEvent('attendance.break_started', {
         userId,
+        employeeId: webhookUser?.employee_id || null,
+        employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         breakStartTime
       });
@@ -382,8 +391,11 @@ export class AttendanceService {
       await this.db.update('attendance', updateData, { id: record.id });
 
       // Fire webhook for break ended
+      const webhookUser = await this.db.get('users', { id: userId });
       getWebhookService().fireEvent('attendance.break_ended', {
         userId,
+        employeeId: webhookUser?.employee_id || null,
+        employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         breakDurationSeconds,
         totalBreakDuration
