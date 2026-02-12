@@ -132,33 +132,25 @@ export async function uploadToCloudinary(
         infoLines.push(`Break: ${breakText}`);
       }
 
-      // Layout constants — all layers same x for alignment
-      const x = 20;
-      const lineHeight = 60;
-      const labelGap = 15;
+      // Layout: same x=20 for alignment, stacked from bottom
+      const baseY = 20;
+      const lineHeight = 48;
 
-      // Build ALL overlays as a single raw_transformation string
-      // (single raw_transformation is most reliable with upload_stream)
-      const layers: string[] = [];
-
-      // --- Colored label at the top of the stack ---
+      // --- Layer 1: Colored label with background (raw_transformation) ---
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
-      const labelY = (infoLines.length * lineHeight) + labelGap + 30;
-      layers.push(`l_text:Arial_64_bold:${labelText},co_white,b_rgb:${labelColorHex}`);
-      layers.push(`fl_layer_apply,g_south_west,x_${x},y_${labelY}`);
-
-      // --- Info lines with black background, stacked below label ---
-      for (let i = 0; i < infoLines.length; i++) {
-        const lineY = ((infoLines.length - 1 - i) * lineHeight) + 30;
-        const lineText = encodeText(`  ${infoLines[i]}  `);
-        layers.push(`l_text:Arial_44_bold:${lineText},co_white,b_rgb:000000`);
-        layers.push(`fl_layer_apply,g_south_west,x_${x},y_${lineY}`);
-      }
-
-      // Single raw_transformation with all layers joined
+      const labelY = baseY + (infoLines.length * lineHeight) + 60;
       transformations.push({
-        raw_transformation: layers.join('/'),
+        raw_transformation: `l_text:Arial_48_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${labelY}`,
       });
+
+      // --- Info lines with black background (raw_transformation) ---
+      for (let i = 0; i < infoLines.length; i++) {
+        const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 10;
+        const lineText = encodeText(`  ${infoLines[i]}  `);
+        transformations.push({
+          raw_transformation: `l_text:Arial_36_bold:${lineText},co_white,b_rgb:000000/fl_layer_apply,g_south_west,x_20,y_${lineY}`,
+        });
+      }
     }
 
     // Prepare upload options
