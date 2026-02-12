@@ -6,6 +6,8 @@ import { User } from '@/types/auth';
 import UserPermissionsModal from '@/components/admin/UserPermissionsModal';
 import AttendanceManagementTab from '@/components/admin/AttendanceManagementTab';
 import AutomationSettingsTab from '@/components/admin/AutomationSettingsTab';
+import WebhooksTab from '@/components/admin/WebhooksTab';
+import ApiKeysTab from '@/components/admin/ApiKeysTab';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 
@@ -33,7 +35,7 @@ interface EditUserForm {
 export default function AdminPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'users' | 'attendance' | 'automation'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'attendance' | 'automation' | 'webhooks' | 'apikeys'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -261,6 +263,26 @@ export default function AdminPage() {
               >
                 Automation Settings
               </button>
+              <button
+                onClick={() => setActiveTab('webhooks')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'webhooks'
+                    ? 'border-p3-cyan text-p3-cyan'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Webhooks
+              </button>
+              <button
+                onClick={() => setActiveTab('apikeys')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'apikeys'
+                    ? 'border-p3-cyan text-p3-cyan'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                API Keys
+              </button>
             </nav>
           </div>
 
@@ -373,6 +395,14 @@ export default function AdminPage() {
 
           {activeTab === 'automation' && (
             <AutomationSettingsTab />
+          )}
+
+          {activeTab === 'webhooks' && (
+            <WebhooksTab />
+          )}
+
+          {activeTab === 'apikeys' && (
+            <ApiKeysTab />
           )}
 
           {/* Create User Modal */}
