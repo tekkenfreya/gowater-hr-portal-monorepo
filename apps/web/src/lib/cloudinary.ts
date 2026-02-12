@@ -125,30 +125,49 @@ export async function uploadToCloudinary(
       }
 
       // Layout constants
-      const lineHeight = 50;
-      const labelHeight = 70;
+      const lineHeight = 55;
+      const labelHeight = 75;
       const baseY = 30;
 
-      // --- Layer 1: Big colored label (e.g. "Log In  15:06") ---
+      // --- Layer 1: Big colored label (raw_transformation for b_rgb background) ---
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
       const labelY = baseY + (infoLines.length * lineHeight) + labelHeight;
       transformations.push({
         raw_transformation: `l_text:Arial_52_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${labelY}`,
       });
 
-      // --- Layers 2+: Info lines stacked below label ---
+      // --- Layers 2+: Info lines stacked below label (SDK overlay objects) ---
       for (let i = 0; i < infoLines.length; i++) {
-        const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 40;
-        const lineText = encodeText(infoLines[i]);
+        const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 45;
         transformations.push({
-          raw_transformation: `l_text:Arial_38_bold:${lineText},co_white/fl_layer_apply,g_south_west,x_25,y_${lineY}`,
-        });
+          overlay: {
+            font_family: 'Arial',
+            font_size: 38,
+            font_weight: 'bold',
+            text: encodeText(infoLines[i]),
+          },
+          color: '#FFFFFF',
+          gravity: 'south_west',
+          x: 25,
+          y: lineY,
+          effect: 'shadow:40',
+        } as TransformationOptions);
       }
 
-      // --- GoWater branding (bottom-right) ---
+      // --- GoWater branding (bottom-right, SDK overlay object) ---
       transformations.push({
-        raw_transformation: `l_text:Arial_36_bold:${encodeText('GoWater')},co_white/fl_layer_apply,g_south_east,x_25,y_${baseY + 40}`,
-      });
+        overlay: {
+          font_family: 'Arial',
+          font_size: 36,
+          font_weight: 'bold',
+          text: 'GoWater',
+        },
+        color: '#FFFFFFDD',
+        gravity: 'south_east',
+        x: 25,
+        y: baseY + 45,
+        effect: 'shadow:40',
+      } as TransformationOptions);
     }
 
     // Prepare upload options
