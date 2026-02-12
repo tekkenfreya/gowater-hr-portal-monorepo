@@ -2,6 +2,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as SecureStore from 'expo-secure-store';
+import * as MediaLibrary from 'expo-media-library';
+import { Paths, File as ExpoFile } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -18,6 +21,14 @@ export interface PhotoCaptureResult {
   localUri?: string;
   location?: LocationData;
   error?: string;
+}
+
+export interface PhotoMetadata {
+  employeeName?: string;
+  checkInTime?: string;
+  totalHours?: number;
+  breakDuration?: number;
+  workLocation?: string;
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -176,7 +187,8 @@ export const photoCaptureService = {
     imageUri: string,
     location: LocationData | null,
     userId: number,
-    photoType?: 'checkin' | 'checkout' | 'break'
+    photoType?: 'checkin' | 'checkout' | 'break',
+    metadata?: PhotoMetadata
   ): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
       const headers = await getAuthHeaders();
@@ -207,6 +219,23 @@ export const photoCaptureService = {
         formData.append('photoType', photoType);
       }
 
+      // Append watermark metadata
+      if (metadata?.employeeName) {
+        formData.append('employeeName', metadata.employeeName);
+      }
+      if (metadata?.checkInTime) {
+        formData.append('checkInTime', metadata.checkInTime);
+      }
+      if (metadata?.totalHours !== undefined) {
+        formData.append('totalHours', metadata.totalHours.toString());
+      }
+      if (metadata?.breakDuration !== undefined) {
+        formData.append('breakDuration', metadata.breakDuration.toString());
+      }
+      if (metadata?.workLocation) {
+        formData.append('workLocation', metadata.workLocation);
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/attendance/upload-photo`, {
         method: 'POST',
         headers: {
@@ -232,7 +261,7 @@ export const photoCaptureService = {
   /**
    * Complete check-in photo capture flow
    */
-  async captureCheckInPhoto(userId: number, photoType?: 'checkin' | 'checkout' | 'break'): Promise<PhotoCaptureResult> {
+  async captureCheckInPhoto(userId: number, photoType?: 'checkin' | 'checkout' | 'break', metadata?: PhotoMetadata): Promise<PhotoCaptureResult> {
     try {
       // Request permissions
       const permissions = await this.requestPermissions();
@@ -258,7 +287,7 @@ export const photoCaptureService = {
       );
 
       // Upload to server
-      const uploadResult = await this.uploadPhoto(processedUri, location, userId, photoType);
+      const uploadResult = await this.uploadPhoto(processedUri, location, userId, photoType, metadata);
 
       if (!uploadResult.success) {
         return {
@@ -278,6 +307,58 @@ export const photoCaptureService = {
     } catch (error) {
       console.error('Error in check-in photo capture:', error);
       return { success: false, error: 'Failed to capture check-in photo' };
+    }
+  },
+
+  /**
+   * Download watermarked photo from Cloudinary URL and save to device gallery
+   */
+  async saveToGallery(photoUrl: string): Promise<{ success: boolean; localUri?: string; error?: string }> {
+    try {
+      // Request media library permissions
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        return { success: false, error: 'Gallery permission is required to save photos' };
+      }
+
+      // Download the watermarked photo from Cloudinary using new expo-file-system API
+      const destination = new ExpoFile(Paths.cache, `gowater_${Date.now()}.jpg`);
+      const file = await ExpoFile.downloadFileAsync(photoUrl, destination);
+
+      // Save to gallery
+      const asset = await MediaLibrary.createAssetAsync(file.uri);
+
+      return { success: true, localUri: asset.uri };
+    } catch (error) {
+      console.error('Error saving to gallery:', error);
+      return { success: false, error: 'Failed to save photo to gallery' };
+    }
+  },
+
+  /**
+   * Share a photo using the native share sheet
+   */
+  async sharePhoto(photoUrl: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Download the photo first to share as a file
+      const destination = new ExpoFile(Paths.cache, `gowater_share_${Date.now()}.jpg`);
+      const file = await ExpoFile.downloadFileAsync(photoUrl, destination);
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        return { success: false, error: 'Sharing is not available on this device' };
+      }
+
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'image/jpeg',
+        dialogTitle: 'Share Photo',
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error sharing photo:', error);
+      return { success: false, error: 'Failed to share photo' };
     }
   },
 };

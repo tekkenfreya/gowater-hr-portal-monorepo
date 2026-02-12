@@ -56,10 +56,14 @@ export default function DashboardScreen() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
   const [reportContent, setReportContent] = useState('');
   const [reportType, setReportType] = useState<'start' | 'end'>('start');
+  const [showPhotoSavedModal, setShowPhotoSavedModal] = useState(false);
+  const [savedPhotoUrl, setSavedPhotoUrl] = useState<string | null>(null);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [isSharingPhoto, setIsSharingPhoto] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
 
   // Photo capture state (check-in)
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
@@ -225,7 +229,13 @@ export default function DashboardScreen() {
 
     setIsCapturingBreakPhoto(true);
     try {
-      const result = await photoCaptureService.captureCheckInPhoto(user.id, 'break');
+      const result = await photoCaptureService.captureCheckInPhoto(user.id, 'break', {
+        employeeName: user?.employeeName || user?.name,
+        checkInTime: attendanceStatus.checkInTime,
+        totalHours: attendanceStatus.totalHours,
+        breakDuration: attendanceStatus.breakDuration,
+        workLocation: attendanceStatus.workLocation,
+      });
 
       if (result.success) {
         setBreakPhotoUri(result.localUri || null);
@@ -254,16 +264,17 @@ export default function DashboardScreen() {
       if (result.success) {
         await fetchAttendanceStatus();
 
-        // Generate break report and copy to clipboard
-        const report = generateBreakReport(breakAction, breakPhotoUrl, breakLocation);
-        setReportContent(report);
-        setReportType('start');
-        try {
-          await Clipboard.setStringAsync(report);
-        } catch (clipboardError) {
-          console.log('Clipboard copy failed:', clipboardError);
+        // Save watermarked photo to gallery and show share modal
+        if (breakPhotoUrl) {
+          setSavedPhotoUrl(breakPhotoUrl);
+          setIsSavingPhoto(true);
+          setShowPhotoSavedModal(true);
+          const saveResult = await photoCaptureService.saveToGallery(breakPhotoUrl);
+          setIsSavingPhoto(false);
+          if (!saveResult.success) {
+            console.log('Failed to save to gallery:', saveResult.error);
+          }
         }
-        setShowReportModal(true);
 
         // Reset break photo state
         setBreakPhotoUri(null);
@@ -277,30 +288,6 @@ export default function DashboardScreen() {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const generateBreakReport = (action: 'start' | 'end', photoUrl?: string | null, locationData?: LocationData | null) => {
-    const now = new Date();
-    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-    const title = action === 'start' ? 'GoWater Break Report' : 'GoWater End Break Report';
-    let report = title;
-
-    if (photoUrl) {
-      report += `\n\nBreak Photo: ${photoUrl}`;
-      if (locationData?.address) {
-        report += `\nLocation: ${locationData.address}`;
-      }
-    }
-
-    report += `\n\nDate: ${date}`;
-    report += `\nEmployee: ${user?.employeeName || user?.name || 'N/A'}`;
-    report += `\nPosition: ${user?.role || 'N/A'}`;
-    report += `\nWork Arrangement: ${attendanceStatus.workLocation || 'N/A'}`;
-    report += `\nStart Break: ${time}`;
-
-    return report;
   };
 
   const handleLogout = () => {
@@ -380,7 +367,9 @@ const openCheckInModal = () => {
 
     setIsCapturingPhoto(true);
     try {
-      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+      const result = await photoCaptureService.captureCheckInPhoto(user.id, 'checkin', {
+        employeeName: user?.employeeName || user?.name,
+      });
 
       if (result.success) {
         setCapturedPhotoUri(result.localUri || null);
@@ -413,6 +402,7 @@ const openCheckInModal = () => {
         await fetchAttendanceStatus();
         const report = generateStartReport(location, capturedPhotoUrl, capturedLocation);
         setReportContent(report);
+        setReportType('start');
         setShowReportModal(true);
         // Reset photo state after successful check-in
         setCapturedPhotoUri(null);
@@ -450,7 +440,6 @@ const openCheckInModal = () => {
 
     let report = `GoWater Start of Day Report`;
 
-    // Add photo URL at the very top if available
     if (photoUrl) {
       report += `\n\nCheck-in Photo: ${photoUrl}`;
       if (locationData?.address) {
@@ -494,6 +483,21 @@ Today's Planned Tasks:`;
     await Clipboard.setStringAsync(reportContent);
     Alert.alert('Copied!', 'Report copied to clipboard. Paste it in WhatsApp.');
     setShowReportModal(false);
+  };
+
+  const handleSharePhoto = async () => {
+    if (!savedPhotoUrl) return;
+    setIsSharingPhoto(true);
+    try {
+      const result = await photoCaptureService.sharePhoto(savedPhotoUrl);
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to share photo');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred while sharing');
+    } finally {
+      setIsSharingPhoto(false);
+    }
   };
 
   // Check-out flow
@@ -545,7 +549,13 @@ Today's Planned Tasks:`;
 
     setIsCapturingCheckOutPhoto(true);
     try {
-      const result = await photoCaptureService.captureCheckInPhoto(user.id);
+      const result = await photoCaptureService.captureCheckInPhoto(user.id, 'checkout', {
+        employeeName: user?.employeeName || user?.name,
+        checkInTime: attendanceStatus.checkInTime,
+        totalHours: attendanceStatus.totalHours,
+        breakDuration: attendanceStatus.breakDuration,
+        workLocation: attendanceStatus.workLocation,
+      });
 
       if (result.success) {
         setCheckOutPhotoUri(result.localUri || null);
@@ -678,7 +688,6 @@ Today's Planned Tasks:`;
 
     let report = `GoWater End of Day Report`;
 
-    // Add photo URL at the very top if available
     if (photoUrl) {
       report += `\n\nCheck-out Photo: ${photoUrl}`;
       if (locationData?.address) {
@@ -717,7 +726,6 @@ Today's Task Updates:`;
 
     return report;
   };
-
 
   // Add new task
   const handleAddTask = async () => {
@@ -1324,7 +1332,7 @@ Today's Task Updates:`;
         </View>
       </Modal>
 
-      {/* Report Modal */}
+      {/* Report Modal (check-in / check-out) */}
       <Modal
         visible={showReportModal}
         transparent
@@ -1354,6 +1362,62 @@ Today's Task Updates:`;
             >
               <Text style={styles.skipButtonText}>Skip</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Photo Saved / Share Modal (break only) */}
+      <Modal
+        visible={showPhotoSavedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPhotoSavedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoSavedModalContent}>
+            <View style={styles.photoSavedIconContainer}>
+              <Text style={styles.photoSavedIcon}>
+                {isSavingPhoto ? '' : ''}
+              </Text>
+            </View>
+            <Text style={styles.photoSavedTitle}>
+              {isSavingPhoto ? 'Saving Photo...' : 'Photo Saved!'}
+            </Text>
+            <Text style={styles.photoSavedSubtitle}>
+              {isSavingPhoto
+                ? 'Saving watermarked photo to your gallery'
+                : 'Watermarked photo has been saved to your gallery'}
+            </Text>
+
+            {isSavingPhoto && (
+              <ActivityIndicator size="large" color="#3b82f6" style={{ marginVertical: 16 }} />
+            )}
+
+            {!isSavingPhoto && (
+              <>
+                <TouchableOpacity
+                  style={styles.shareButton}
+                  onPress={handleSharePhoto}
+                  disabled={isSharingPhoto}
+                >
+                  {isSharingPhoto ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.shareButtonText}>Share Photo</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.doneButton}
+                  onPress={() => {
+                    setShowPhotoSavedModal(false);
+                    setSavedPhotoUrl(null);
+                  }}
+                >
+                  <Text style={styles.doneButtonText}>Done</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -2376,6 +2440,71 @@ const styles = StyleSheet.create({
   skipButtonText: {
     color: '#6b7280',
     fontSize: 14,
+  },
+
+  // Photo Saved / Share Modal
+  photoSavedModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  photoSavedIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  photoSavedIcon: {
+    fontSize: 36,
+  },
+  photoSavedTitle: {
+    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  photoSavedSubtitle: {
+    color: '#6b7280',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  shareButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  doneButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    width: '100%',
+  },
+  doneButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '500',
   },
 
   // Photo Capture Modal Styles

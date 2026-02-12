@@ -40,6 +40,11 @@ export async function POST(request: NextRequest) {
     const address = formData.get('address') as string | null;
     const timestamp = formData.get('timestamp') as string | null;
     const photoType = formData.get('photoType') as string | null;
+    const employeeName = formData.get('employeeName') as string | null;
+    const checkInTime = formData.get('checkInTime') as string | null;
+    const totalHoursStr = formData.get('totalHours') as string | null;
+    const breakDurationStr = formData.get('breakDuration') as string | null;
+    const workLocation = formData.get('workLocation') as string | null;
 
     if (!photo) {
       return NextResponse.json(
@@ -52,24 +57,22 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await photo.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Format timestamp for watermark
+    // Format timestamp for watermark (Philippines timezone UTC+8)
+    const formatPhilippinesTime = (date: Date) => {
+      const phDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[phDate.getUTCMonth()];
+      const day = phDate.getUTCDate();
+      const year = phDate.getUTCFullYear();
+      let hours = phDate.getUTCHours();
+      const minutes = phDate.getUTCMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      return `${month} ${day}, ${year}, ${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+    };
     const watermarkTimestamp = timestamp
-      ? new Date(timestamp).toLocaleString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        })
-      : new Date().toLocaleString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        });
+      ? formatPhilippinesTime(new Date(timestamp))
+      : formatPhilippinesTime(new Date());
 
     // Prepare location text
     let locationText = '';
@@ -85,7 +88,12 @@ export async function POST(request: NextRequest) {
       publicId: `${photoType || 'checkin'}_${Date.now()}`,
       watermark: {
         locationText,
-        timestamp: watermarkTimestamp
+        timestamp: watermarkTimestamp,
+        employeeName: employeeName || undefined,
+        checkInTime: checkInTime || undefined,
+        totalHours: totalHoursStr ? parseFloat(totalHoursStr) : undefined,
+        breakDuration: breakDurationStr ? parseInt(breakDurationStr) : undefined,
+        workLocation: workLocation || undefined,
       },
       photoType: photoType || 'checkin'
     });
