@@ -101,12 +101,20 @@ export async function uploadToCloudinary(
       }
 
       // Build info lines vertically stacked below the label:
-      //   Log In:      Date
-      //   Start Break: Date
-      //   End Break:   Date, Break Duration
+      //   Log In:      Date, Location
+      //   Start Break: Date, Location
+      //   End Break:   Date, Location, Break Duration
       //   Log Out:     Date, Total Work Hours, Break Duration
       const infoLines: string[] = [];
       infoLines.push(dateFormatted);
+
+      // Location for all photo types
+      if (watermark.locationText) {
+        const loc = watermark.locationText.length > 40
+          ? watermark.locationText.substring(0, 40) + '...'
+          : watermark.locationText;
+        infoLines.push(loc);
+      }
 
       if (photoType === 'checkout') {
         const totalHrs = watermark.totalHours || 0;
@@ -124,50 +132,33 @@ export async function uploadToCloudinary(
         infoLines.push(`Break: ${breakText}`);
       }
 
-      // Layout constants
-      const lineHeight = 55;
-      const labelHeight = 75;
-      const baseY = 30;
+      // Layout constants — all layers same x for alignment
+      const x = 20;
+      const lineHeight = 60;
+      const labelGap = 15;
 
-      // --- Layer 1: Big colored label (raw_transformation for b_rgb background) ---
+      // Build ALL overlays as a single raw_transformation string
+      // (single raw_transformation is most reliable with upload_stream)
+      const layers: string[] = [];
+
+      // --- Colored label at the top of the stack ---
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
-      const labelY = baseY + (infoLines.length * lineHeight) + labelHeight;
-      transformations.push({
-        raw_transformation: `l_text:Arial_52_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${labelY}`,
-      });
+      const labelY = (infoLines.length * lineHeight) + labelGap + 30;
+      layers.push(`l_text:Arial_64_bold:${labelText},co_white,b_rgb:${labelColorHex}`);
+      layers.push(`fl_layer_apply,g_south_west,x_${x},y_${labelY}`);
 
-      // --- Layers 2+: Info lines stacked below label (SDK overlay objects) ---
+      // --- Info lines with black background, stacked below label ---
       for (let i = 0; i < infoLines.length; i++) {
-        const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 45;
-        transformations.push({
-          overlay: {
-            font_family: 'Arial',
-            font_size: 38,
-            font_weight: 'bold',
-            text: encodeText(infoLines[i]),
-          },
-          color: '#FFFFFF',
-          gravity: 'south_west',
-          x: 25,
-          y: lineY,
-          effect: 'shadow:40',
-        } as TransformationOptions);
+        const lineY = ((infoLines.length - 1 - i) * lineHeight) + 30;
+        const lineText = encodeText(`  ${infoLines[i]}  `);
+        layers.push(`l_text:Arial_44_bold:${lineText},co_white,b_rgb:000000`);
+        layers.push(`fl_layer_apply,g_south_west,x_${x},y_${lineY}`);
       }
 
-      // --- GoWater branding (bottom-right, SDK overlay object) ---
+      // Single raw_transformation with all layers joined
       transformations.push({
-        overlay: {
-          font_family: 'Arial',
-          font_size: 36,
-          font_weight: 'bold',
-          text: 'GoWater',
-        },
-        color: '#FFFFFFDD',
-        gravity: 'south_east',
-        x: 25,
-        y: baseY + 45,
-        effect: 'shadow:40',
-      } as TransformationOptions);
+        raw_transformation: layers.join('/'),
+      });
     }
 
     // Prepare upload options
