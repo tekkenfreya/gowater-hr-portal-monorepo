@@ -1,4 +1,4 @@
-import { v2 as cloudinary, UploadApiOptions, UploadApiResponse } from 'cloudinary';
+import { v2 as cloudinary, TransformationOptions, UploadApiOptions, UploadApiResponse } from 'cloudinary';
 import { logger } from './logger';
 
 // Configure Cloudinary
@@ -28,10 +28,9 @@ export interface WatermarkOptions {
 }
 
 /**
- * Encode text for Cloudinary raw URL transformations.
- * Must encode characters that conflict with Cloudinary URL syntax.
+ * Encode text for Cloudinary raw_transformation overlay.
  */
-function encodeCloudinaryText(text: string): string {
+function encodeText(text: string): string {
   return text
     .replace(/%/g, '%25')
     .replace(/ /g, '%20')
@@ -40,95 +39,6 @@ function encodeCloudinaryText(text: string): string {
     .replace(/:/g, '%3A')
     .replace(/\|/g, '%7C')
     .replace(/#/g, '%23');
-}
-
-/**
- * Build Cloudinary transformation URL segments for watermark overlays.
- * Returns an array of raw transformation strings to be joined with '/'.
- */
-function buildWatermarkTransformations(
-  watermark: WatermarkOptions,
-  photoType: string
-): string[] {
-  const segments: string[] = [];
-
-  // Philippines time (UTC+8) - manual offset for reliability across all server environments
-  const now = new Date();
-  const phNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const phHours = phNow.getUTCHours().toString().padStart(2, '0');
-  const phMinutes = phNow.getUTCMinutes().toString().padStart(2, '0');
-  const timeOnly = `${phHours}:${phMinutes}`;
-
-  // Format date in Philippines time: "Feb 12, 2026"
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dateFormatted = `${monthNames[phNow.getUTCMonth()]} ${phNow.getUTCDate()}, ${phNow.getUTCFullYear()}`;
-
-  // Determine label text and color based on photo type
-  let labelName: string;
-  let labelColorHex: string;
-  switch (photoType) {
-    case 'break':
-      labelName = watermark.breakPhase === 'end' ? 'End Break' : 'Start Break';
-      labelColorHex = 'f59e0b';
-      break;
-    case 'checkout':
-      labelName = 'Log Out';
-      labelColorHex = 'ef4444';
-      break;
-    default:
-      labelName = 'Log In';
-      labelColorHex = '22c55e';
-      break;
-  }
-
-  // Build info lines vertically stacked below the label:
-  //   Log In:      Date
-  //   Start Break: Date
-  //   End Break:   Date, Break Duration
-  //   Log Out:     Date, Total Work Hours, Break Duration
-  const infoLines: string[] = [];
-  infoLines.push(dateFormatted);
-
-  if (photoType === 'checkout') {
-    const totalHrs = watermark.totalHours || 0;
-    const workHours = Math.floor(totalHrs);
-    const workMins = Math.round((totalHrs - workHours) * 60);
-    const workText = workHours > 0 ? `${workHours}h ${workMins}m` : `${workMins}m`;
-    infoLines.push(`Total Work: ${workText}`);
-  }
-
-  if (photoType === 'checkout' || (photoType === 'break' && watermark.breakPhase === 'end')) {
-    const breakSecs = watermark.breakDuration || 0;
-    const breakHrs = Math.floor(breakSecs / 3600);
-    const breakMins = Math.floor((breakSecs % 3600) / 60);
-    const breakText = breakHrs > 0 ? `${breakHrs}h ${breakMins}m` : `${breakMins}m`;
-    infoLines.push(`Break: ${breakText}`);
-  }
-
-  // Layout constants
-  const lineHeight = 50;
-  const labelHeight = 70;
-  const baseY = 30;
-
-  // --- Layer 1: Big colored label (e.g. "Log In  15:06") ---
-  const labelText = encodeCloudinaryText(`  ${labelName}  ${timeOnly}  `);
-  const labelY = baseY + (infoLines.length * lineHeight) + labelHeight;
-  segments.push(`l_text:Arial_52_bold:${labelText},co_white,b_rgb:${labelColorHex}`);
-  segments.push(`fl_layer_apply,g_south_west,x_20,y_${labelY}`);
-
-  // --- Layers 2+: Info lines stacked below label ---
-  for (let i = 0; i < infoLines.length; i++) {
-    const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 40;
-    const lineText = encodeCloudinaryText(infoLines[i]);
-    segments.push(`l_text:Arial_38_bold:${lineText},co_white`);
-    segments.push(`fl_layer_apply,g_south_west,x_25,y_${lineY}`);
-  }
-
-  // --- GoWater branding (bottom-right) ---
-  segments.push(`l_text:Arial_36_bold:${encodeCloudinaryText('GoWater')},co_white`);
-  segments.push(`fl_layer_apply,g_south_east,x_25,y_${baseY + 40}`);
-
-  return segments;
 }
 
 /**
@@ -153,11 +63,100 @@ export async function uploadToCloudinary(
     const folder = options?.folder || 'gowater/checkin-photos';
     const publicId = options?.publicId || `checkin_${Date.now()}`;
 
-    // Upload the raw image first (no transformations during upload)
+    // Build transformation array for watermark
+    const transformations: TransformationOptions[] = [];
+
+    // Add Timemark-style watermark overlays
+    if (options?.watermark?.locationText || options?.watermark?.timestamp) {
+      const photoType = options?.photoType || 'checkin';
+      const watermark = options.watermark;
+
+      // Philippines time (UTC+8) - manual offset for reliability across all server environments
+      const now = new Date();
+      const phNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+      const phHours = phNow.getUTCHours().toString().padStart(2, '0');
+      const phMinutes = phNow.getUTCMinutes().toString().padStart(2, '0');
+      const timeOnly = `${phHours}:${phMinutes}`;
+
+      // Format date in Philippines time: "Feb 12, 2026"
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const dateFormatted = `${monthNames[phNow.getUTCMonth()]} ${phNow.getUTCDate()}, ${phNow.getUTCFullYear()}`;
+
+      // Determine label text and color based on photo type
+      let labelName: string;
+      let labelColorHex: string;
+      switch (photoType) {
+        case 'break':
+          labelName = watermark.breakPhase === 'end' ? 'End Break' : 'Start Break';
+          labelColorHex = 'f59e0b';
+          break;
+        case 'checkout':
+          labelName = 'Log Out';
+          labelColorHex = 'ef4444';
+          break;
+        default:
+          labelName = 'Log In';
+          labelColorHex = '22c55e';
+          break;
+      }
+
+      // Build info lines vertically stacked below the label:
+      //   Log In:      Date
+      //   Start Break: Date
+      //   End Break:   Date, Break Duration
+      //   Log Out:     Date, Total Work Hours, Break Duration
+      const infoLines: string[] = [];
+      infoLines.push(dateFormatted);
+
+      if (photoType === 'checkout') {
+        const totalHrs = watermark.totalHours || 0;
+        const workHours = Math.floor(totalHrs);
+        const workMins = Math.round((totalHrs - workHours) * 60);
+        const workText = workHours > 0 ? `${workHours}h ${workMins}m` : `${workMins}m`;
+        infoLines.push(`Total Work: ${workText}`);
+      }
+
+      if (photoType === 'checkout' || (photoType === 'break' && watermark.breakPhase === 'end')) {
+        const breakSecs = watermark.breakDuration || 0;
+        const breakHrs = Math.floor(breakSecs / 3600);
+        const breakMins = Math.floor((breakSecs % 3600) / 60);
+        const breakText = breakHrs > 0 ? `${breakHrs}h ${breakMins}m` : `${breakMins}m`;
+        infoLines.push(`Break: ${breakText}`);
+      }
+
+      // Layout constants
+      const lineHeight = 50;
+      const labelHeight = 70;
+      const baseY = 30;
+
+      // --- Layer 1: Big colored label (e.g. "Log In  15:06") ---
+      const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
+      const labelY = baseY + (infoLines.length * lineHeight) + labelHeight;
+      transformations.push({
+        raw_transformation: `l_text:Arial_52_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${labelY}`,
+      });
+
+      // --- Layers 2+: Info lines stacked below label ---
+      for (let i = 0; i < infoLines.length; i++) {
+        const lineY = baseY + ((infoLines.length - 1 - i) * lineHeight) + 40;
+        const lineText = encodeText(infoLines[i]);
+        transformations.push({
+          raw_transformation: `l_text:Arial_38_bold:${lineText},co_white/fl_layer_apply,g_south_west,x_25,y_${lineY}`,
+        });
+      }
+
+      // --- GoWater branding (bottom-right) ---
+      transformations.push({
+        raw_transformation: `l_text:Arial_36_bold:${encodeText('GoWater')},co_white/fl_layer_apply,g_south_east,x_25,y_${baseY + 40}`,
+      });
+    }
+
+    // Prepare upload options
     const uploadOptions: UploadApiOptions = {
       folder,
       public_id: publicId,
       resource_type: 'image',
+      transformation: transformations.length > 0 ? transformations : undefined,
     };
 
     let result: UploadApiResponse;
@@ -178,27 +177,14 @@ export async function uploadToCloudinary(
       result = await cloudinary.uploader.upload(imageData, uploadOptions);
     }
 
-    // Build watermarked URL using on-the-fly transformations
-    let finalUrl = result.secure_url;
-
-    if (options?.watermark && (options.watermark.locationText || options.watermark.timestamp)) {
-      const photoType = options.photoType || 'checkin';
-      const transformationSegments = buildWatermarkTransformations(options.watermark, photoType);
-
-      // Build the transformation URL: insert transformation segments into the Cloudinary URL
-      // Cloudinary URL format: https://res.cloudinary.com/cloud/image/upload/[transformations]/v123/folder/file.jpg
-      const transformationStr = transformationSegments.join('/');
-      finalUrl = result.secure_url.replace('/upload/', `/upload/${transformationStr}/`);
-    }
-
     logger.info('Cloudinary upload successful', {
       publicId: result.public_id,
-      url: finalUrl
+      url: result.secure_url
     });
 
     return {
       success: true,
-      url: finalUrl,
+      url: result.secure_url,
       publicId: result.public_id
     };
   } catch (error) {
