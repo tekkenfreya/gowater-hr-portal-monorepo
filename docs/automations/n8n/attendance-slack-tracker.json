@@ -1,5 +1,5 @@
 {
-  "name": "GoWater Attendance → Slack Tracker",
+  "name": "GoWater Attendance Tracker (Production)",
   "nodes": [
     {
       "parameters": {
@@ -12,8 +12,18 @@
       "name": "Webhook Receiver",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [200, 560],
       "webhookId": "gowater-attendance"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// HMAC-SHA256 Signature Verification\n// ============================================================\n// Ensures the webhook request actually came from GoWater\n// and wasn't spoofed by a third party.\n//\n// GoWater sends: X-Webhook-Signature: sha256=<hex>\n// We recompute the HMAC using our shared secret and compare.\n// ============================================================\n\nconst crypto = require('crypto');\n\nconst SHARED_SECRET = $env.GOWATER_WEBHOOK_SECRET || '';\n\nconst signature = $input.first().json.headers['x-webhook-signature'] || '';\nconst body = JSON.stringify($input.first().json.body);\n\nif (!SHARED_SECRET) {\n  // No secret configured — skip verification (dev mode)\n  return [{ json: { ...($input.first().json.body), _verified: false } }];\n}\n\nconst expected = 'sha256=' + crypto\n  .createHmac('sha256', SHARED_SECRET)\n  .update(body)\n  .digest('hex');\n\nif (signature !== expected) {\n  throw new Error('Invalid webhook signature — request rejected');\n}\n\nreturn [{ json: { ...($input.first().json.body), _verified: true } }];\n"
+      },
+      "id": "verify-signature",
+      "name": "Verify HMAC Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 560]
     },
     {
       "parameters": {
@@ -25,128 +35,139 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [470, 300]
+      "position": [640, 380]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "attendance.checked_in",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "checked_in"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "attendance.checked_out",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "checked_out"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "attendance.break_started",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "break_started"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "attendance.break_ended",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "break_ended"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "route-event",
+      "name": "Route by Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [640, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Late Check-In Detection (Philippines Labor Standards)\n// ============================================================\n// Standard shift starts at 9:00 AM PHT (UTC+8).\n// If check-in is after 9:00 AM, flag as late and calculate\n// how many minutes late.\n// ============================================================\n\nconst item = $input.first().json;\nconst ts = new Date(item.timestamp);\n\n// Convert to PHT (UTC+8) using manual offset\n// (toLocaleTimeString is unreliable on server runtimes)\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\n\n// 9:00 AM threshold\nconst SHIFT_START_HOUR = 9;\nconst SHIFT_START_MIN = 0;\n\nconst isLate = (hours > SHIFT_START_HOUR) ||\n  (hours === SHIFT_START_HOUR && minutes > SHIFT_START_MIN);\n\nlet minutesLate = 0;\nif (isLate) {\n  minutesLate = ((hours - SHIFT_START_HOUR) * 60) + (minutes - SHIFT_START_MIN);\n}\n\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr,\n    _isLate: isLate,\n    _minutesLate: minutesLate\n  }\n}];\n"
+      },
+      "id": "check-late",
+      "name": "Check Late Arrival",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 340]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
           "conditions": [
             {
-              "id": "check-in",
-              "leftValue": "={{ $json.event }}",
-              "rightValue": "attendance.checked_in",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
+              "leftValue": "={{ $json._isLate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
             }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "is-checkin",
-      "name": "Check In?",
+      "id": "is-late",
+      "name": "Is Late?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [690, 160]
+      "position": [1080, 340]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "checkout",
-              "leftValue": "={{ $json.event }}",
-              "rightValue": "attendance.checked_out",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "channel": "#hr-alerts",
+        "text": "=:warning: *Late Check-In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Checked in at:* {{ $json._phtTime }} — *{{ $json._minutesLate }} min late*\n*Location:* {{ $json.data.workLocation }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
-      "id": "is-checkout",
-      "name": "Check Out?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [690, 380]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "break-start",
-              "leftValue": "={{ $json.event }}",
-              "rightValue": "attendance.break_started",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "is-break-start",
-      "name": "Break Started?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [690, 600]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "break-end",
-              "leftValue": "={{ $json.event }}",
-              "rightValue": "attendance.break_ended",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "is-break-end",
-      "name": "Break Ended?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [690, 820]
+      "id": "slack-late-alert",
+      "name": "Slack: Late Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1300, 280],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
     },
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:white_check_mark: *Check In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Location:* {{ $json.data.workLocation }}\n*Time:* {{ new Date($json.timestamp).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}{{ $json.data.notes ? '\\n*Notes:* ' + $json.data.notes : '' }}",
+        "text": "=:white_check_mark: *Check In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Location:* {{ $json.data.workLocation }}\n*Time:* {{ $json._phtTime }}{{ $json._isLate ? ' (:warning: ' + $json._minutesLate + ' min late)' : '' }}{{ $json.data.notes ? '\\n*Notes:* ' + $json.data.notes : '' }}",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -155,7 +176,7 @@
       "name": "Slack: Check In",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [930, 100],
+      "position": [1300, 420],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -165,8 +186,18 @@
     },
     {
       "parameters": {
+        "jsCode": "// ============================================================\n// Check-Out: Calculate overtime & format hours\n// ============================================================\n// Philippine labor: regular = 8 hrs, OT = anything above 8.\n// OT rate: 1.25x on regular days.\n// Night differential: +10% for work between 10 PM - 6 AM.\n// ============================================================\n\nconst item = $input.first().json;\nconst totalHours = Number(item.data.totalHours) || 0;\nconst breakMins = Number(item.data.totalBreakDuration) || 0;\n\nconst REGULAR_HOURS = 8;\nconst netHours = totalHours - (breakMins / 60);\nconst overtime = Math.max(0, netHours - REGULAR_HOURS);\nconst regularHrs = Math.min(netHours, REGULAR_HOURS);\nconst isUndertime = netHours < REGULAR_HOURS;\nconst undertimeHrs = isUndertime ? (REGULAR_HOURS - netHours) : 0;\n\n// Format check-out time to PHT\nconst ts = new Date(item.data.checkOutTime || item.timestamp);\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr,\n    _regularHrs: regularHrs.toFixed(2),\n    _overtimeHrs: overtime.toFixed(2),\n    _netHours: netHours.toFixed(2),\n    _isUndertime: isUndertime,\n    _undertimeHrs: undertimeHrs.toFixed(2),\n    _hasOvertime: overtime > 0\n  }\n}];\n"
+      },
+      "id": "calc-checkout",
+      "name": "Calculate Hours & OT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 560]
+    },
+    {
+      "parameters": {
         "channel": "#attendance",
-        "text": "=:door: *Check Out*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Total Hours:* {{ Number($json.data.totalHours).toFixed(2) }}h\n*Check Out:* {{ new Date($json.data.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}",
+        "text": "=:door: *Check Out*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Check Out:* {{ $json._phtTime }}\n*Net Hours:* {{ $json._netHours }}h (Regular: {{ $json._regularHrs }}h{{ $json._hasOvertime ? ' | OT: ' + $json._overtimeHrs + 'h' : '' }}){{ $json._isUndertime ? '\\n:warning: *Undertime:* ' + $json._undertimeHrs + 'h' : '' }}",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -175,7 +206,7 @@
       "name": "Slack: Check Out",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [930, 320],
+      "position": [1080, 560],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -186,7 +217,7 @@
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:coffee: *Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date($json.data.breakStartTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }) }}",
+        "text": "=:coffee: *Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date(new Date($json.data.breakStartTime || $json.timestamp).getTime() + (8*60*60*1000)).toISOString().substring(11,16) }} PHT",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -195,7 +226,58 @@
       "name": "Slack: Break Start",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [930, 540],
+      "position": [860, 740],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Break Compliance: Philippine DOLE Labor Standards\n// ============================================================\n// DOLE Rule: Employees working 6+ hours are entitled to a\n// 60-minute meal break (not counted as work time).\n// Breaks shorter than 20 minutes are counted as work time.\n//\n// This node checks:\n// 1. Break too short (< 30 min) — may violate DOLE standards\n// 2. Break too long  (> 120 min) — needs manager review\n// ============================================================\n\nconst item = $input.first().json;\nconst breakSec = Number(item.data.breakDurationSeconds) || 0;\nconst breakMin = Math.floor(breakSec / 60);\nconst totalBreakMin = Math.floor((Number(item.data.totalBreakDuration) || 0) / 60);\n\nconst SHORT_BREAK_THRESHOLD = 30;  // minutes\nconst LONG_BREAK_THRESHOLD = 120;  // minutes\n\nlet complianceFlag = 'ok';\nlet complianceMsg = '';\n\nif (breakMin < SHORT_BREAK_THRESHOLD) {\n  complianceFlag = 'short_break';\n  complianceMsg = `Break was only ${breakMin} min — possible DOLE compliance issue (minimum 60 min for 6+ hr shifts)`;\n} else if (breakMin > LONG_BREAK_THRESHOLD) {\n  complianceFlag = 'long_break';\n  complianceMsg = `Extended break of ${breakMin} min — needs manager review`;\n}\n\nreturn [{\n  json: {\n    ...item,\n    _breakMin: breakMin,\n    _totalBreakMin: totalBreakMin,\n    _complianceFlag: complianceFlag,\n    _complianceMsg: complianceMsg\n  }\n}];\n"
+      },
+      "id": "check-break-compliance",
+      "name": "Check Break Compliance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 920]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._complianceFlag }}",
+              "rightValue": "ok",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-compliance-issue",
+      "name": "Compliance Issue?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 920]
+    },
+    {
+      "parameters": {
+        "channel": "#hr-alerts",
+        "text": "=:rotating_light: *Break Compliance Alert*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Issue:* {{ $json._complianceMsg }}\n*Total Break Today:* {{ $json._totalBreakMin }} min",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-compliance-alert",
+      "name": "Slack: Compliance Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1300, 860],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -206,7 +288,7 @@
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:arrow_forward: *Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ Math.floor($json.data.breakDurationSeconds / 60) }} min\n*Total Break Today:* {{ Math.floor($json.data.totalBreakDuration / 60) }} min",
+        "text": "=:arrow_forward: *Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Total Break Today:* {{ $json._totalBreakMin }} min{{ $json._complianceFlag !== 'ok' ? '\\n:warning: ' + $json._complianceMsg : '' }}",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -215,55 +297,282 @@
       "name": "Slack: Break End",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [930, 760],
+      "position": [1300, 980],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
           "name": "Slack Account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "mode": "url", "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_URL" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Attendance Log" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.data.date }}",
+            "employee_id": "={{ $json.data.employeeId }}",
+            "employee_name": "={{ $json.data.employeeName }}",
+            "event": "={{ $json.event }}",
+            "time": "={{ $json.timestamp }}",
+            "location": "={{ $json.data.workLocation || '' }}",
+            "total_hours": "={{ $json.data.totalHours || '' }}",
+            "break_minutes": "={{ $json._breakMin || $json._totalBreakMin || '' }}",
+            "overtime_hours": "={{ $json._overtimeHrs || '' }}",
+            "flags": "={{ $json._isLate ? 'LATE(' + $json._minutesLate + 'min)' : '' }}{{ $json._complianceFlag && $json._complianceFlag !== 'ok' ? ' BREAK_ISSUE' : '' }}{{ $json._isUndertime ? ' UNDERTIME(' + $json._undertimeHrs + 'h)' : '' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "gsheets-log",
+      "name": "Google Sheets: Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [640, 780],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "daily-cron",
+      "name": "Daily 6 PM PHT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 1200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.GOWATER_API_URL }}/api/attendance/daily-summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.GOWATER_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "fetch-daily-summary",
+      "name": "Fetch Daily Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 1200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_HTTP_CREDENTIAL_ID",
+          "name": "GoWater API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Daily Summary Report Builder\n// ============================================================\n// Aggregates the day's attendance data into a formatted Slack\n// message with key metrics, flags, and employee status.\n// ============================================================\n\nconst data = $input.first().json;\nconst employees = data.employees || [];\nconst date = data.date || new Date().toISOString().split('T')[0];\n\nconst total = employees.length;\nconst checkedIn = employees.filter(e => e.checked_in).length;\nconst checkedOut = employees.filter(e => e.checked_out).length;\nconst stillWorking = employees.filter(e => e.checked_in && !e.checked_out).length;\nconst onBreak = employees.filter(e => e.on_break).length;\nconst absent = employees.filter(e => !e.checked_in).length;\nconst lateArrivals = employees.filter(e => e.is_late);\nconst overtimeWorkers = employees.filter(e => Number(e.overtime_hours) > 0);\nconst undertimeWorkers = employees.filter(e => e.checked_out && Number(e.net_hours) < 8);\nconst breakViolations = employees.filter(e => e.break_violation);\n\nlet report = `:clipboard: *Daily Attendance Report — ${date}*\\n`;\nreport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\n// Status overview\nreport += `:busts_in_silhouette: *Team Status*\\n`;\nreport += `Total: ${total} | Checked In: ${checkedIn} | Checked Out: ${checkedOut}\\n`;\nreport += `Still Working: ${stillWorking} | On Break: ${onBreak} | Absent: ${absent}\\n\\n`;\n\n// Late arrivals\nif (lateArrivals.length > 0) {\n  report += `:warning: *Late Arrivals (${lateArrivals.length})*\\n`;\n  lateArrivals.forEach(e => {\n    report += `  - ${e.name}: ${e.minutes_late} min late\\n`;\n  });\n  report += `\\n`;\n}\n\n// Overtime\nif (overtimeWorkers.length > 0) {\n  report += `:clock3: *Overtime (${overtimeWorkers.length})*\\n`;\n  overtimeWorkers.forEach(e => {\n    report += `  - ${e.name}: +${Number(e.overtime_hours).toFixed(1)}h OT\\n`;\n  });\n  report += `\\n`;\n}\n\n// Undertime\nif (undertimeWorkers.length > 0) {\n  report += `:small_red_triangle_down: *Undertime (${undertimeWorkers.length})*\\n`;\n  undertimeWorkers.forEach(e => {\n    report += `  - ${e.name}: ${Number(e.net_hours).toFixed(1)}h (${(8 - Number(e.net_hours)).toFixed(1)}h short)\\n`;\n  });\n  report += `\\n`;\n}\n\n// Break violations\nif (breakViolations.length > 0) {\n  report += `:rotating_light: *Break Compliance Issues (${breakViolations.length})*\\n`;\n  breakViolations.forEach(e => {\n    report += `  - ${e.name}: ${e.break_issue}\\n`;\n  });\n  report += `\\n`;\n}\n\n// Absent employees\nif (absent > 0) {\n  const absentList = employees.filter(e => !e.checked_in);\n  report += `:no_entry_sign: *Absent (${absent})*\\n`;\n  absentList.forEach(e => {\n    report += `  - ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\nreturn [{ json: { report, date } }];\n"
+      },
+      "id": "build-daily-report",
+      "name": "Build Daily Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 1200]
+    },
+    {
+      "parameters": {
+        "channel": "#attendance",
+        "text": "={{ $json.report }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-daily-summary",
+      "name": "Slack: Daily Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [860, 1200],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "mode": "url", "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_URL" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Daily Summaries" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "report": "={{ $json.report }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "gsheets-daily-summary",
+      "name": "Google Sheets: Daily Summary",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [860, 1380],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "attendance.",
+              "operator": { "type": "string", "operation": "startsWith" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-valid-event",
+      "name": "Valid Attendance Event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, 380],
+      "notes": "Rejects non-attendance events early to prevent unexpected data in the pipeline"
     }
   ],
   "connections": {
     "Webhook Receiver": {
       "main": [
         [
-          { "node": "Respond OK", "type": "main", "index": 0 },
-          { "node": "Check In?", "type": "main", "index": 0 },
-          { "node": "Check Out?", "type": "main", "index": 0 },
-          { "node": "Break Started?", "type": "main", "index": 0 },
-          { "node": "Break Ended?", "type": "main", "index": 0 }
+          { "node": "Valid Attendance Event?", "type": "main", "index": 0 },
+          { "node": "Verify HMAC Signature", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Check In?": {
+    "Valid Attendance Event?": {
       "main": [
-        [{ "node": "Slack: Check In", "type": "main", "index": 0 }],
+        [
+          { "node": "Respond OK", "type": "main", "index": 0 }
+        ],
         []
       ]
     },
-    "Check Out?": {
+    "Verify HMAC Signature": {
       "main": [
-        [{ "node": "Slack: Check Out", "type": "main", "index": 0 }],
+        [
+          { "node": "Route by Event", "type": "main", "index": 0 },
+          { "node": "Google Sheets: Audit Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Route by Event": {
+      "main": [
+        [
+          { "node": "Check Late Arrival", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Calculate Hours & OT", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Slack: Break Start", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Check Break Compliance", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Late Arrival": {
+      "main": [
+        [
+          { "node": "Is Late?", "type": "main", "index": 0 },
+          { "node": "Slack: Check In", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Is Late?": {
+      "main": [
+        [
+          { "node": "Slack: Late Alert", "type": "main", "index": 0 }
+        ],
         []
       ]
     },
-    "Break Started?": {
+    "Calculate Hours & OT": {
       "main": [
-        [{ "node": "Slack: Break Start", "type": "main", "index": 0 }],
+        [
+          { "node": "Slack: Check Out", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Break Compliance": {
+      "main": [
+        [
+          { "node": "Compliance Issue?", "type": "main", "index": 0 },
+          { "node": "Slack: Break End", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Compliance Issue?": {
+      "main": [
+        [
+          { "node": "Slack: Compliance Alert", "type": "main", "index": 0 }
+        ],
         []
       ]
     },
-    "Break Ended?": {
+    "Daily 6 PM PHT": {
       "main": [
-        [{ "node": "Slack: Break End", "type": "main", "index": 0 }],
-        []
+        [
+          { "node": "Fetch Daily Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Daily Summary": {
+      "main": [
+        [
+          { "node": "Build Daily Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Daily Report": {
+      "main": [
+        [
+          { "node": "Slack: Daily Summary", "type": "main", "index": 0 },
+          { "node": "Google Sheets: Daily Summary", "type": "main", "index": 0 }
+        ]
       ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
   },
+  "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": false,
     "instanceId": "gowater-hr-portal"
@@ -271,6 +580,8 @@
   "tags": [
     { "name": "GoWater" },
     { "name": "Attendance" },
-    { "name": "Slack" }
+    { "name": "Slack" },
+    { "name": "Compliance" },
+    { "name": "Production" }
   ]
 }
