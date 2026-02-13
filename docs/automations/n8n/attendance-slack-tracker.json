@@ -23,7 +23,8 @@
       "name": "Verify HMAC Signature",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 560]
+      "position": [420, 560],
+      "notes": "Verifies HMAC-SHA256 signature from GoWater. Skips verification in dev mode (no secret configured). Throws error on invalid signature to halt the pipeline."
     },
     {
       "parameters": {
@@ -35,7 +36,7 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [640, 380]
+      "position": [420, 400]
     },
     {
       "parameters": {
@@ -111,7 +112,7 @@
       "name": "Route by Event",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [640, 560]
+      "position": [860, 560]
     },
     {
       "parameters": {
@@ -121,7 +122,7 @@
       "name": "Check Late Arrival",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 340]
+      "position": [1080, 340]
     },
     {
       "parameters": {
@@ -142,7 +143,7 @@
       "name": "Is Late?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1080, 340]
+      "position": [1300, 340]
     },
     {
       "parameters": {
@@ -156,7 +157,7 @@
       "name": "Slack: Late Alert",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1300, 280],
+      "position": [1520, 280],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -176,7 +177,7 @@
       "name": "Slack: Check In",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1300, 420],
+      "position": [1520, 420],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -192,7 +193,7 @@
       "name": "Calculate Hours & OT",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 560]
+      "position": [1080, 560]
     },
     {
       "parameters": {
@@ -206,7 +207,7 @@
       "name": "Slack: Check Out",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1080, 560],
+      "position": [1300, 560],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -226,7 +227,7 @@
       "name": "Slack: Break Start",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [860, 740],
+      "position": [1080, 740],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -242,7 +243,7 @@
       "name": "Check Break Compliance",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 920]
+      "position": [1080, 920]
     },
     {
       "parameters": {
@@ -263,7 +264,7 @@
       "name": "Compliance Issue?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1080, 920]
+      "position": [1300, 920]
     },
     {
       "parameters": {
@@ -277,7 +278,7 @@
       "name": "Slack: Compliance Alert",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1300, 860],
+      "position": [1520, 860],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -297,7 +298,7 @@
       "name": "Slack: Break End",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1300, 980],
+      "position": [1520, 980],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -331,7 +332,7 @@
       "name": "Google Sheets: Audit Log",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [640, 780],
+      "position": [860, 780],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
@@ -461,7 +462,7 @@
       "name": "Valid Attendance Event?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [420, 380],
+      "position": [640, 560],
       "notes": "Rejects non-attendance events early to prevent unexpected data in the pipeline"
     }
   ],
@@ -469,25 +470,25 @@
     "Webhook Receiver": {
       "main": [
         [
-          { "node": "Valid Attendance Event?", "type": "main", "index": 0 },
+          { "node": "Respond OK", "type": "main", "index": 0 },
           { "node": "Verify HMAC Signature", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Verify HMAC Signature": {
+      "main": [
+        [
+          { "node": "Valid Attendance Event?", "type": "main", "index": 0 }
         ]
       ]
     },
     "Valid Attendance Event?": {
       "main": [
         [
-          { "node": "Respond OK", "type": "main", "index": 0 }
-        ],
-        []
-      ]
-    },
-    "Verify HMAC Signature": {
-      "main": [
-        [
           { "node": "Route by Event", "type": "main", "index": 0 },
           { "node": "Google Sheets: Audit Log", "type": "main", "index": 0 }
-        ]
+        ],
+        []
       ]
     },
     "Route by Event": {
