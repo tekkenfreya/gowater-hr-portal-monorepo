@@ -62,6 +62,8 @@ export default function DashboardScreen() {
   const [savedPhotoUrl, setSavedPhotoUrl] = useState<string | null>(null);
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
   const [isSharingPhoto, setIsSharingPhoto] = useState(false);
+  const [isSharingReport, setIsSharingReport] = useState(false);
+  const [reportPhotoUrl, setReportPhotoUrl] = useState<string | null>(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
 
@@ -404,6 +406,7 @@ const openCheckInModal = () => {
         const report = generateStartReport(location, capturedPhotoUrl, capturedLocation);
         setReportContent(report);
         setReportType('start');
+        setReportPhotoUrl(capturedPhotoUrl);
         setShowReportModal(true);
         // Reset photo state after successful check-in
         setCapturedPhotoUri(null);
@@ -439,16 +442,7 @@ const openCheckInModal = () => {
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    let report = `GoWater Start of Day Report`;
-
-    if (photoUrl) {
-      report += `\n\nCheck-in Photo: ${photoUrl}`;
-      if (locationData?.address) {
-        report += `\nLocation: ${locationData.address}`;
-      }
-    }
-
-    report += `
+    let report = `GoWater Start of Day Report
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -484,6 +478,26 @@ Today's Planned Tasks:`;
     await Clipboard.setStringAsync(reportContent);
     Alert.alert('Copied!', 'Report copied to clipboard. Paste it in WhatsApp.');
     setShowReportModal(false);
+    setReportPhotoUrl(null);
+  };
+
+  const handleShareReportPhoto = async () => {
+    if (!reportPhotoUrl) return;
+    setIsSharingReport(true);
+    try {
+      await Clipboard.setStringAsync(reportContent);
+      const result = await photoCaptureService.sharePhoto(reportPhotoUrl);
+      if (result.success) {
+        setShowReportModal(false);
+        setReportPhotoUrl(null);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to share photo');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred while sharing');
+    } finally {
+      setIsSharingReport(false);
+    }
   };
 
   const handleSharePhoto = async () => {
@@ -594,13 +608,14 @@ Today's Planned Tasks:`;
       const result = await attendanceService.checkOut(checkOutPhotoUrl || undefined);
       if (result.success) {
         await fetchAttendanceStatus();
+        setReportContent(report);
+        setReportType('end');
+        setReportPhotoUrl(checkOutPhotoUrl);
+        setShowReportModal(true);
         // Reset checkout photo state
         setCheckOutPhotoUri(null);
         setCheckOutPhotoUrl(null);
         setCheckOutLocation(null);
-        setReportContent(report);
-        setReportType('end');
-        setShowReportModal(true);
       } else {
         Alert.alert('Error', result.error || 'Failed to check out');
       }
@@ -687,15 +702,6 @@ Today's Planned Tasks:`;
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    let report = `GoWater End of Day Report`;
-
-    if (photoUrl) {
-      report += `\n\nCheck-out Photo: ${photoUrl}`;
-      if (locationData?.address) {
-        report += `\nLocation: ${locationData.address}`;
-      }
-    }
-
     // Format check-in time from ISO string to readable time
     let loginTimeFormatted = 'N/A';
     if (attendanceStatus.checkInTime) {
@@ -722,7 +728,7 @@ Today's Planned Tasks:`;
       }
     }
 
-    report += `
+    let report = `GoWater End of Day Report
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -1376,19 +1382,35 @@ Today's Task Updates:`;
               <Text style={styles.reportText}>{reportContent}</Text>
             </ScrollView>
 
-            <TouchableOpacity
-              style={styles.copyButton}
-              onPress={copyReportToClipboard}
-            >
-              <Text style={styles.copyButtonText}>COPY TO CLIPBOARD</Text>
-            </TouchableOpacity>
+            {reportPhotoUrl ? (
+              <TouchableOpacity
+                style={styles.shareReportPhotoButton}
+                onPress={handleShareReportPhoto}
+                disabled={isSharingReport}
+              >
+                {isSharingReport ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.shareReportPhotoButtonText}>SHARE REPORT TO WHATSAPP</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={copyReportToClipboard}
+                >
+                  <Text style={styles.copyButtonText}>COPY TO CLIPBOARD</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={() => setShowReportModal(false)}
-            >
-              <Text style={styles.skipButtonText}>Skip</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.skipButton}
+                  onPress={() => setShowReportModal(false)}
+                >
+                  <Text style={styles.skipButtonText}>Skip</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -2448,6 +2470,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  shareReportPhotoButton: {
+    backgroundColor: '#25D366',
+    padding: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  shareReportPhotoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   copyButton: {
     backgroundColor: '#3b82f6',

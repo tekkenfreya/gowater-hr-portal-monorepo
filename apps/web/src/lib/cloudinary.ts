@@ -99,21 +99,21 @@ export async function uploadToCloudinary(
       // control over the Cloudinary URL where b_rgb: is part of the overlay layer.
       const labelText = encodeText(`  ${labelName}  ${timeOnly}  `);
       transformations.push({
-        raw_transformation: `l_text:Arial_48_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 170}`,
+        raw_transformation: `l_text:Arial_60_bold:${labelText},co_white,b_rgb:${labelColorHex}/fl_layer_apply,g_south_west,x_20,y_${baseY + 210}`,
       });
 
       // --- Layer 2: Date ---
       transformations.push({
         overlay: {
           font_family: 'Arial',
-          font_size: 32,
+          font_size: 42,
           font_weight: 'bold',
           text: dateText,
         },
         color: '#FFFFFFDD',
         gravity: 'south_west',
         x: 20,
-        y: baseY + 120,
+        y: baseY + 145,
         effect: 'shadow:40',
       } as TransformationOptions);
 
@@ -126,13 +126,13 @@ export async function uploadToCloudinary(
         transformations.push({
           overlay: {
             font_family: 'Arial',
-            font_size: 28,
+            font_size: 36,
             text: encodeText(addressText),
           },
           color: '#FFFFFFCC',
           gravity: 'south_west',
           x: 20,
-          y: baseY + 75,
+          y: baseY + 90,
           effect: 'shadow:40',
         } as TransformationOptions);
       }

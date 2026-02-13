@@ -16,6 +16,7 @@
   "dependencies": {
     "@gowater/types": "workspace:*",
     "@supabase/supabase-js": "^2.57.2",
+    "@vercel/og": "^0.8.6",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.9.0",
     "exceljs": "^4.4.0",

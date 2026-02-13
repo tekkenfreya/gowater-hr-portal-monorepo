@@ -51,5 +51,5 @@ Workflow prompts/
 # Temporary files
 nul
 
-# Reports (may contain sensitive data)
-Reports/
+# Reports (may contain sensitive data - top-level Reports folder only)
+/Reports/
