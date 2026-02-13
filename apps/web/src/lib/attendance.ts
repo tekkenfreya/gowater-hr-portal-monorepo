@@ -128,13 +128,20 @@ export class AttendanceService {
 
       // Fire webhook event so n8n/Zapier/GHL can react to check-ins
       const webhookUser = await this.db.get('users', { id: userId });
+      const userTasks = await this.db.all('tasks', { user_id: userId });
       getWebhookService().fireEvent('attendance.checked_in', {
         userId,
         employeeId: webhookUser?.employee_id || null,
         employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         workLocation: workLocation || 'WFH',
-        notes: notes || null
+        notes: notes || null,
+        photoUrl: photoUrl || null,
+        tasks: (userTasks || []).map((t: { title: string; status: string; sub_tasks?: string | unknown[] }) => ({
+          title: t.title,
+          status: t.status,
+          subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
+        }))
       });
 
       return { success: true };
@@ -190,13 +197,22 @@ export class AttendanceService {
 
       // Fire webhook event so workflow tools can react to check-outs
       const webhookUser = await this.db.get('users', { id: userId });
+      const userTasks = await this.db.all('tasks', { user_id: userId });
       getWebhookService().fireEvent('attendance.checked_out', {
         userId,
         employeeId: webhookUser?.employee_id || null,
         employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         totalHours: newTotalHours,
-        checkOutTime
+        checkOutTime,
+        breakDuration: record.break_duration || 0,
+        photoUrl: photoUrl || null,
+        slackThreadTs: record.slack_thread_ts || null,
+        tasks: (userTasks || []).map((t: { title: string; status: string; sub_tasks?: string | unknown[] }) => ({
+          title: t.title,
+          status: t.status,
+          subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
+        }))
       });
 
       return { success: true, totalHours: newTotalHours };
@@ -351,7 +367,9 @@ export class AttendanceService {
         employeeId: webhookUser?.employee_id || null,
         employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
-        breakStartTime
+        breakStartTime,
+        photoUrl: photoUrl || null,
+        slackThreadTs: record.slack_thread_ts || null
       });
 
       return { success: true };
@@ -398,7 +416,9 @@ export class AttendanceService {
         employeeName: webhookUser?.employee_name || webhookUser?.name || null,
         date: today,
         breakDurationSeconds,
-        totalBreakDuration
+        totalBreakDuration,
+        photoUrl: photoUrl || null,
+        slackThreadTs: record.slack_thread_ts || null
       });
 
       return { success: true, breakDuration: breakDurationSeconds };

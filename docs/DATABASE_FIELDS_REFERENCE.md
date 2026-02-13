@@ -108,6 +108,7 @@ gowater-monorepo/
 | `work_location` | text | YES | 'WFH' | WFH, Onsite, or Field |
 | `sessions` | jsonb | YES | '[]' | Multiple check-in/out sessions |
 | `photo_url` | text | YES | - | Check-in photo URL (Cloudinary) with watermark |
+| `slack_thread_ts` | text | YES | - | Slack message ts for threading replies under check-in |
 
 ---
 
