@@ -234,10 +234,10 @@ export class AttendanceService {
 
       // Fire webhook event so workflow tools can react to check-outs
       const webhookUser = await this.db.get('users', { id: userId });
-      // Include completed tasks (finished today) + still in-progress/pending tasks
+      // Show same tasks as check-in: only pending and in_progress
       const userTasks = await this.db.executeRawSQL<{ title: string; status: string; sub_tasks?: string | unknown[] }>(
-        `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND (status IN ('in_progress', 'pending') OR (status = 'completed' AND updated_at::date = $2::date)) ORDER BY status ASC, created_at DESC`,
-        [userId, today]
+        `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND status IN ('in_progress', 'pending') ORDER BY created_at DESC`,
+        [userId]
       );
       getWebhookService().fireEvent('attendance.checked_out', {
         userId,

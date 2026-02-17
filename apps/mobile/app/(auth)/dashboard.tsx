@@ -526,26 +526,17 @@ Today's Planned Tasks:`;
     try {
       const tasks = await tasksService.getTasks();
       const incompleteTasks = tasks.filter(task =>
-        task.status !== 'archived' &&
-        task.status !== 'completed' &&
-        (task.status === 'pending' || task.status === 'in_progress' || task.status === 'cancel')
+        task.status === 'pending' || task.status === 'in_progress'
       ).map(task => ({
         id: task.id,
         title: task.title,
         description: task.description,
         status: task.status,
         priority: task.priority,
-        subTasks: (task.subTasks || []).filter(st => !st.completed).map(st => ({
+        subTasks: (task.subTasks || []).map(st => ({
           ...st,
-          status: st.completed ? 'completed' : 'pending',
         })),
-      })).filter(task => {
-        // Hide tasks where all subtasks were already completed
-        if (task.subTasks && task.subTasks.length === 0) {
-          return false;
-        }
-        return true;
-      });
+      }));
       setCheckOutTasks(incompleteTasks as CheckInTask[]);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
