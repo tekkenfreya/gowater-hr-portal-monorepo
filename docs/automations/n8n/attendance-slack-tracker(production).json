@@ -234,7 +234,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"userId\": {{ $('Format Check-In Message').item.json.data.userId }}, \"date\": \"{{ $('Format Check-In Message').item.json.data.date }}\", \"slackThreadTs\": \"{{ $json.ts }}\" }",
+        "jsonBody": "={ \"userId\": {{ $('Format Check-In Message').item.json.data.userId }}, \"date\": \"{{ $('Format Check-In Message').item.json.data.date }}\", \"slackThreadTs\": \"{{ $('Slack: Check In').item.json.ts }}\" }",
         "options": {
           "timeout": 10000
         }

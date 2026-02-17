@@ -233,7 +233,8 @@ export async function PUT(request: NextRequest) {
       priority: priority || existingTask.priority,
       due_date: due_date !== undefined ? due_date : existingTask.due_date,
       status: status ? mapStatusToDb(status) : existingTask.status,
-      remarks: remarks?.trim() !== undefined ? remarks?.trim() : existingTask.remarks
+      remarks: remarks?.trim() !== undefined ? remarks?.trim() : existingTask.remarks,
+      updated_at: new Date().toISOString()
     };
 
     // Handle subTasks update
