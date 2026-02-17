@@ -35,6 +35,12 @@ export interface AuthUser {
   password_expiry_days?: number;
 }
 
+// Strip sensitive fields before sending user data to the client
+function sanitizeUserForClient(user: AuthUser): Omit<AuthUser, 'last_password_change' | 'password_expires_at' | 'password_expiry_days'> {
+  const { last_password_change, password_expires_at, password_expiry_days, ...safeUser } = user;
+  return safeUser;
+}
+
 export interface LoginResult {
   success: boolean;
   user?: AuthUser;
@@ -148,7 +154,7 @@ export class AuthService {
         { expiresIn: JWT_EXPIRES_IN }
       );
 
-      return { success: true, user: authUser, token };
+      return { success: true, user: sanitizeUserForClient(authUser), token };
     } catch (error) {
       logger.error('Login error', error);
       logger.security('Failed login attempt', { username });
@@ -212,7 +218,7 @@ export class AuthService {
 
       if (!user) return null;
 
-      return {
+      return sanitizeUserForClient({
         id: user.id,
         email: user.email,
         name: user.name,
@@ -223,10 +229,7 @@ export class AuthService {
         employeeName: user.employee_name,
         avatar: user.avatar,
         force_password_reset: user.force_password_reset,
-        last_password_change: user.last_password_change,
-        password_expires_at: user.password_expires_at,
-        password_expiry_days: user.password_expiry_days,
-      };
+      });
     } catch (error) {
       logger.error('Token verification error', error);
       return null;

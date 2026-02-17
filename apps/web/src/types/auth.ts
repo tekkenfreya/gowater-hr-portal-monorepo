@@ -9,9 +9,6 @@ export interface User {
   employeeName?: string;
   avatar?: string;
   force_password_reset?: boolean;
-  last_password_change?: string;
-  password_expires_at?: string;
-  password_expiry_days?: number;
   permissions?: UserPermission[];
 }
 
