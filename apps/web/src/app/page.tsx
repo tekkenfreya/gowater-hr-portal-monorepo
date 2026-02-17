@@ -1,13 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoginCredentials } from '@/types/auth';
-import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
   const router = useRouter();
-  const { login } = useAuth();
   const [credentials, setCredentials] = useState<LoginCredentials>({
     username: '',
     password: ''
@@ -16,18 +14,29 @@ export default function Home() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Clear any stale auth session on login page load
+  useEffect(() => {
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      const result = await login(credentials.username, credentials.password);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: credentials.username, password: credentials.password }),
+      });
 
-      if (result.success) {
+      const data = await response.json();
+
+      if (response.ok) {
         router.push('/dashboard');
       } else {
-        setError(result.error || 'Login failed. Please check your credentials.');
+        setError(data.error || 'Login failed. Please check your credentials.');
       }
     } catch {
       setError('Login failed. Please try again.');

@@ -122,7 +122,8 @@ export function useAuth() {
 
   useEffect(() => {
     // On login page: clear any stale httpOnly auth cookie and skip verify
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/login')) {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    if (path === '/' || path.includes('/auth/login')) {
       fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       setAuthState({ user: null, isLoading: false, error: null });
       return;
