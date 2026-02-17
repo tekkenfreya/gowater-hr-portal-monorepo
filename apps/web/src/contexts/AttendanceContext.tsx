@@ -13,7 +13,7 @@ interface AttendanceContextType {
   checkInTime: Date | null;
   breakStartTime: Date | null;
   handleTimeIn: (workLocation?: 'WFH' | 'Onsite' | 'Field') => Promise<void>;
-  handleTimeOut: () => Promise<void>;
+  handleTimeOut: (tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[]) => Promise<void>;
   handleStartBreak: () => Promise<void>;
   handleEndBreak: () => Promise<void>;
   fetchTodayAttendance: () => Promise<void>;
@@ -138,12 +138,12 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const handleTimeOut = async () => {
+  const handleTimeOut = async (tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[]) => {
     try {
       const response = await fetch('/api/attendance/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: '' })
+        body: JSON.stringify({ notes: '', tasks })
       });
 
       if (response.ok) {

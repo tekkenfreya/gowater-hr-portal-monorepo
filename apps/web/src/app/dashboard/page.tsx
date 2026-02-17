@@ -803,8 +803,17 @@ ${tasksSection}`;
         logger.warn('Clipboard copy failed (common on mobile browsers)', clipboardError);
       }
 
-      // Complete check-out (always proceed even if clipboard failed)
-      await handleTimeOut();
+      // Complete check-out with tasks from checkout modal
+      await handleTimeOut(
+        checkOutTasks.map(t => ({
+          title: t.title,
+          status: t.status,
+          subTasks: (t.subTasks || []).map(st => ({
+            title: st.title,
+            completed: st.status === 'completed',
+          })),
+        }))
+      );
 
       // Close checkout modal and show confirmation
       setShowCheckOutModal(false);
