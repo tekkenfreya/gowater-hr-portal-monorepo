@@ -8,13 +8,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "93b38dd0-1de9-4e69-bb9e-78fc74b1b452",
+      "id": "e29f48d3-f3f6-4aef-b6d9-0aa6283cabfe",
       "name": "Webhook Receiver",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        1600,
-        2768
+        11296,
+        5984
       ],
       "webhookId": "gowater-attendance"
     },
@@ -22,13 +22,13 @@
       "parameters": {
         "jsCode": "// ============================================================\n// HMAC-SHA256 Signature Verification + Deduplication\n// ============================================================\n// 1. Dedup: Skip if we already processed this delivery ID\n//    (prevents duplicate Slack messages from webhook retries)\n// 2. HMAC: Verify the request came from GoWater\n// ============================================================\n\nconst crypto = require('crypto');\n\nconst headers = $input.first().json.headers;\nconst deliveryId = headers['x-webhook-delivery-id'] || '';\n\n// --- Deduplication via static variable ---\nif (!globalThis._processedDeliveries) {\n  globalThis._processedDeliveries = new Set();\n}\nif (deliveryId && globalThis._processedDeliveries.has(deliveryId)) {\n  // Already processed this delivery — stop execution\n  return [];\n}\nif (deliveryId) {\n  globalThis._processedDeliveries.add(deliveryId);\n  // Keep set small: remove entries older than 5 min (based on set size)\n  if (globalThis._processedDeliveries.size > 500) {\n    const arr = Array.from(globalThis._processedDeliveries);\n    globalThis._processedDeliveries = new Set(arr.slice(-200));\n  }\n}\n\nconst SHARED_SECRET = $vars.SHARED_SECRET;\n\nconst signature = headers['x-webhook-signature'] || '';\nconst body = JSON.stringify($input.first().json.body);\n\nif (!SHARED_SECRET) {\n  // No secret configured — skip verification (dev mode)\n  return [{ json: { ...($input.first().json.body), _verified: false } }];\n}\n\nconst expected = 'sha256=' + crypto\n  .createHmac('sha256', SHARED_SECRET)\n  .update(body)\n  .digest('hex');\n\nif (signature !== expected) {\n  throw new Error('Invalid webhook signature — request rejected');\n}\n\nreturn [{ json: { ...($input.first().json.body), _verified: true } }];\n"
       },
-      "id": "9c963ca1-88a3-4ccf-8379-884f268181c9",
+      "id": "5a47ed2d-2155-4f96-8aa3-12c1138e60db",
       "name": "Verify HMAC Signature",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1824,
-        2768
+        11520,
+        5984
       ],
       "notes": "Verifies HMAC-SHA256 signature from GoWater. Skips verification in dev mode (no secret configured). Throws error on invalid signature to halt the pipeline."
     },
@@ -38,13 +38,13 @@
         "responseBody": "OK",
         "options": {}
       },
-      "id": "54eadc0f-7eb1-4b76-b111-e1f909c8aa2f",
+      "id": "20eeb068-83d0-4c65-85ac-4cf02ba15a57",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1824,
-        2544
+        11520,
+        5760
       ]
     },
     {
@@ -153,39 +153,39 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "ac462bc8-da28-4674-93e1-8868e509341e",
+      "id": "2215fe0a-5198-48a3-8906-29492349083d",
       "name": "Route by Event",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        2272,
-        2768
+        11968,
+        5984
       ]
     },
     {
       "parameters": {
         "jsCode": "// ============================================================\n// Format PHT Time\n// ============================================================\n// Converts timestamp to Philippines time (UTC+8) for display.\n// ============================================================\n\nconst item = $input.first().json;\nconst ts = new Date(item.timestamp);\n\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\n\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr\n  }\n}];\n"
       },
-      "id": "8e785bba-80d1-4b34-b115-384dd97265d4",
+      "id": "8943025c-0324-40ba-9b13-4c3c735f2e9a",
       "name": "Format PHT Time",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2496,
-        2544
+        12192,
+        5760
       ]
     },
     {
       "parameters": {
         "jsCode": "// ============================================================\n// Format Check-In Message (Slack mrkdwn)\n// ============================================================\n\nconst item = $input.first().json;\nconst d = item.data;\nconst tasks = d.tasks || [];\n\nlet msg = `*Check In*\\n━━━━━━━━━━━━━━━━\\n\\n`;\nmsg += `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\nmsg += `*Date:* ${d.date}\\n`;\nmsg += `*Location:* ${d.workLocation}\\n`;\nmsg += `*Time:* ${item._phtTime}\\n`;\nif (d.notes) {\n  msg += `*Notes:* ${d.notes}\\n`;\n}\n\nmsg += `\\n*Planned Tasks:*\\n`;\nif (tasks.length === 0) {\n  msg += `_No tasks assigned_`;\n} else {\n  tasks.forEach((t, i) => {\n    const statusLabel = (t.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\n    msg += `${i + 1}. ${t.title} [${statusLabel}]\\n`;\n    const subs = t.subTasks || [];\n    subs.forEach(s => {\n      const subStatus = s.completed ? 'Done' : 'Pending';\n      msg += `    - ${s.title} [${subStatus}]\\n`;\n    });\n  });\n}\n\nif (d.photoUrl) {\n  msg += `\\n<${d.photoUrl}|Check-in Photo>`;\n}\n\nreturn [{ json: { ...item, _message: msg } }];\n"
       },
-      "id": "aa8a8569-237f-488d-82a3-fba93365f10b",
+      "id": "59614d3c-a338-447f-b53d-13d7ce4a902c",
       "name": "Format Check-In Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2928,
-        2624
+        12624,
+        5840
       ]
     },
     {
@@ -194,7 +194,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0AFMMNKXSL",
+          "value": "C0AF7FFEDKM",
           "mode": "list",
           "cachedResultName": "attendance"
         },
@@ -203,13 +203,13 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "ae5b5173-073b-4596-902b-d8ccb0704e45",
+      "id": "380e9a0e-309a-49ac-97ce-de97427e5137",
       "name": "Slack: Check In",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        3152,
-        2624
+        12848,
+        5840
       ],
       "webhookId": "2a555223-b296-4c94-af95-900d6f7f5048",
       "credentials": {
@@ -223,13 +223,13 @@
       "parameters": {
         "jsCode": "// ============================================================\n// Build Thread TS Request Body\n// ============================================================\n// Constructs the request body for saving the Slack thread TS.\n// Tries multiple paths for the Slack ts since n8n Slack node\n// versions return it under different field names.\n// ============================================================\n\nconst checkInData = $('Format Check-In Message').first().json;\nconst slackResponse = $('Slack: Check In').first().json;\n\nconst userId = checkInData.data.userId;\nconst date = checkInData.data.date;\n\n// n8n Slack node may return ts under different keys depending on version\nconst slackThreadTs = slackResponse.ts\n  || slackResponse.messageId\n  || (slackResponse.message && slackResponse.message.ts)\n  || '';\n\nif (!userId || !date || !slackThreadTs) {\n  // Log all available keys for debugging\n  const keys = Object.keys(slackResponse);\n  throw new Error(`Missing data: userId=${userId}, date=${date}, ts=${slackThreadTs}, slackKeys=[${keys.join(',')}]`);\n}\n\nreturn [{\n  json: {\n    userId,\n    date,\n    slackThreadTs\n  }\n}];\n"
       },
-      "id": "a1b2c3d4-build-thread-body",
+      "id": "49612047-e106-455e-8a66-c9496f71e68c",
       "name": "Build Thread Body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3376,
-        2624
+        13072,
+        5840
       ],
       "notes": "Builds the request body from check-in data and Slack response for saving the thread TS"
     },
@@ -253,13 +253,13 @@
           "timeout": 10000
         }
       },
-      "id": "7d5b304b-9ee4-49aa-9cea-d035c3dc2f6c",
+      "id": "f7715746-3b94-4576-9b09-2fe72d9fa14a",
       "name": "Save Thread TS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3600,
-        2624
+        13296,
+        5840
       ],
       "notes": "Saves Slack message ts to attendance record so break/checkout can thread under check-in"
     },
@@ -267,26 +267,26 @@
       "parameters": {
         "jsCode": "// ============================================================\n// Check-Out: Calculate overtime & format hours\n// ============================================================\n// Philippine labor: regular = 8 hrs, OT = anything above 8.\n// ============================================================\n\nconst item = $input.first().json;\nconst totalHours = Number(item.data.totalHours) || 0;\nconst breakSec = Number(item.data.breakDuration) || 0;\nconst breakMins = Math.floor(breakSec / 60);\n\nconst REGULAR_HOURS = 8;\nconst netHours = totalHours;\nconst overtime = Math.max(0, netHours - REGULAR_HOURS);\nconst regularHrs = Math.min(netHours, REGULAR_HOURS);\nconst isUndertime = netHours < REGULAR_HOURS;\nconst undertimeHrs = isUndertime ? (REGULAR_HOURS - netHours) : 0;\n\n// Format check-out time to PHT\nconst ts = new Date(item.data.checkOutTime || item.timestamp);\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr,\n    _regularHrs: regularHrs.toFixed(2),\n    _overtimeHrs: overtime.toFixed(2),\n    _netHours: netHours.toFixed(2),\n    _isUndertime: isUndertime,\n    _undertimeHrs: undertimeHrs.toFixed(2),\n    _hasOvertime: overtime > 0,\n    _breakMins: breakMins\n  }\n}];\n"
       },
-      "id": "0ac8a244-7311-4c73-b3a8-59efe36b7bf1",
+      "id": "e9e2b830-31c5-4436-9402-a3d6a0b4bb70",
       "name": "Calculate Hours & OT",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2496,
-        2768
+        12192,
+        5984
       ]
     },
     {
       "parameters": {
         "jsCode": "// ============================================================\n// Format Check-Out Message (Slack mrkdwn)\n// ============================================================\n\nconst item = $input.first().json;\nconst d = item.data;\nconst tasks = d.tasks || [];\n\nlet msg = `*Check Out*\\n━━━━━━━━━━━━━━━━\\n\\n`;\nmsg += `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\nmsg += `*Date:* ${d.date}\\n`;\nmsg += `*Check Out:* ${item._phtTime}\\n`;\nmsg += `*Net Hours:* ${item._netHours}h | Regular: ${item._regularHrs}h`;\nif (item._hasOvertime) {\n  msg += ` | OT: ${item._overtimeHrs}h`;\n}\nmsg += `\\n`;\nif (item._isUndertime) {\n  msg += `*Undertime:* ${item._undertimeHrs}h\\n`;\n}\nmsg += `*Break:* ${item._breakMins} min\\n`;\n\nmsg += `\\n*Task Updates:*\\n`;\nif (tasks.length === 0) {\n  msg += `_No tasks assigned_`;\n} else {\n  tasks.forEach((t, i) => {\n    const statusLabel = (t.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\n    msg += `${i + 1}. ${t.title} [${statusLabel}]\\n`;\n    const subs = t.subTasks || [];\n    subs.forEach(s => {\n      const subStatus = s.completed ? 'Done' : 'Pending';\n      msg += `    - ${s.title} [${subStatus}]\\n`;\n    });\n  });\n}\n\nif (d.photoUrl) {\n  msg += `\\n<${d.photoUrl}|Check-out Photo>`;\n}\n\nreturn [{ json: { ...item, _message: msg } }];\n"
       },
-      "id": "cd7cea25-aa3b-404a-8410-8baceaa86ef7",
+      "id": "046c7202-448f-4e5a-a1e5-35d9b762c6de",
       "name": "Format Check-Out Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2720,
-        2768
+        12416,
+        5984
       ]
     },
     {
@@ -295,23 +295,23 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0AFMMNKXSL",
+          "value": "C0AF7FFEDKM",
           "mode": "list",
           "cachedResultName": "attendance"
         },
         "text": "={{ $json._message }}",
         "otherOptions": {
           "includeLinkToWorkflow": false,
-          "threadTs": "={{ $json.data.slackThreadTs || '' }}"
+          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
         }
       },
-      "id": "5b514f92-447c-478f-a19f-ca1419b8988d",
+      "id": "70c2651c-41fd-47b5-bdff-69ce120cfb85",
       "name": "Slack: Check Out",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2928,
-        2768
+        12624,
+        5984
       ],
       "webhookId": "8038a38a-47db-4463-938b-46fd80337736",
       "credentials": {
@@ -327,23 +327,23 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0AFMMNKXSL",
+          "value": "C0AF7FFEDKM",
           "mode": "list",
           "cachedResultName": "attendance"
         },
         "text": "=*Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date(new Date($json.data.breakStartTime || $json.timestamp).getTime() + (8*60*60*1000)).toISOString().substring(11,16) }} PHT",
         "otherOptions": {
           "includeLinkToWorkflow": false,
-          "threadTs": "={{ $json.data.slackThreadTs || '' }}"
+          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
         }
       },
-      "id": "b6859999-56d3-43cd-89ec-79406941b096",
+      "id": "5f2e8b60-7818-4fa0-ba3d-79f21273ae33",
       "name": "Slack: Break Start",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2496,
-        2944
+        12192,
+        6160
       ],
       "webhookId": "ba1113df-31c2-455b-aa3e-36a67be33677",
       "credentials": {
@@ -351,19 +351,20 @@
           "id": "OC5FQmA1EbyUGmKH",
           "name": "Gowater Slack Bot"
         }
-      }
+      },
+      "notes": "Posts break start message as a threaded reply under check-in"
     },
     {
       "parameters": {
         "jsCode": "// ============================================================\n// Break Compliance: Over-Break Detection\n// ============================================================\n// Flags breaks longer than 2 hours for manager review.\n// ============================================================\n\nconst item = $input.first().json;\nconst breakSec = Number(item.data.breakDurationSeconds) || 0;\nconst breakMin = Math.floor(breakSec / 60);\nconst totalBreakMin = Math.floor((Number(item.data.totalBreakDuration) || 0) / 60);\n\nconst LONG_BREAK_THRESHOLD = 120;  // minutes\n\nlet complianceFlag = 'ok';\nlet complianceMsg = '';\n\nif (breakMin > LONG_BREAK_THRESHOLD) {\n  complianceFlag = 'long_break';\n  complianceMsg = `Extended break of ${breakMin} min — needs manager review`;\n}\n\nreturn [{\n  json: {\n    ...item,\n    _breakMin: breakMin,\n    _totalBreakMin: totalBreakMin,\n    _complianceFlag: complianceFlag,\n    _complianceMsg: complianceMsg\n  }\n}];\n"
       },
-      "id": "1086ca18-003a-4752-9187-8bf96584facd",
+      "id": "2b630255-e31f-48f2-97e1-3874ab785a24",
       "name": "Check Break Compliance",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2496,
-        3120
+        12192,
+        6336
       ]
     },
     {
@@ -388,13 +389,13 @@
         },
         "options": {}
       },
-      "id": "20ced571-4aa0-4e7e-8c7e-4831915c9ea2",
+      "id": "c15fdc6d-c633-4592-904c-1cda4412a0d8",
       "name": "Compliance Issue?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2720,
-        3120
+        12416,
+        6336
       ]
     },
     {
@@ -409,17 +410,16 @@
         },
         "text": "=*Break Compliance Alert*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Issue:* {{ $json._complianceMsg }}\n*Total Break Today:* {{ $json._totalBreakMin }} min",
         "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "threadTs": "={{ $json.data.slackThreadTs || '' }}"
+          "includeLinkToWorkflow": false
         }
       },
-      "id": "e252d995-75d6-4898-a90f-0ebdc43aec20",
+      "id": "21e94598-8b84-4448-92bd-1f6845c36269",
       "name": "Slack: Compliance Alert",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2928,
-        3072
+        12624,
+        6288
       ],
       "webhookId": "dd12d5be-cb46-48de-9c8e-20ead00469de",
       "credentials": {
@@ -435,23 +435,23 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0AFMMNKXSL",
+          "value": "C0AF7FFEDKM",
           "mode": "list",
           "cachedResultName": "attendance"
         },
         "text": "=*Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Total Break Today:* {{ $json._totalBreakMin }} min{{ $json._complianceFlag !== 'ok' ? '\\n' + $json._complianceMsg : '' }}",
         "otherOptions": {
           "includeLinkToWorkflow": false,
-          "threadTs": "={{ $json.data.slackThreadTs || '' }}"
+          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
         }
       },
-      "id": "9b74bca6-b1fa-4c07-bf32-e09d6f284d80",
+      "id": "a863be8e-5111-4c8c-ab8a-bc999f36ab3a",
       "name": "Slack: Break End",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2944,
-        3232
+        12640,
+        6448
       ],
       "webhookId": "e2f69bf3-ef39-4048-a6a0-675928728836",
       "credentials": {
@@ -491,13 +491,13 @@
         },
         "options": {}
       },
-      "id": "07abbf5d-6e2b-424b-b8b5-f2b2d212e629",
+      "id": "e7708b4c-fdc3-4536-b1df-c99952391e9e",
       "name": "Google Sheets: Audit Log",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2272,
-        2992
+        11968,
+        6208
       ],
       "disabled": true
     },
@@ -511,13 +511,13 @@
           ]
         }
       },
-      "id": "fb27ce60-a82f-48a6-90d3-1b87a8fbd62a",
+      "id": "822798b8-3de6-4122-a2fa-1fb8b8086aff",
       "name": "Daily 6 PM PHT",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        1600,
-        3408
+        11296,
+        6624
       ]
     },
     {
@@ -536,26 +536,26 @@
           "timeout": 10000
         }
       },
-      "id": "0b26978a-21fb-487b-a952-dc5b04a78dcd",
+      "id": "5026f60e-cb08-4d18-aaa6-cdcf74e35294",
       "name": "Fetch Daily Summary",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1824,
-        3408
+        11520,
+        6624
       ]
     },
     {
       "parameters": {
         "jsCode": "// ============================================================\n// Daily Summary Report Builder\n// ============================================================\n// Aggregates the day's attendance data into a formatted Slack\n// message with key metrics, flags, and employee status.\n// Outputs TWO items:\n//   [0] = full daily report for #attendance\n//   [1] = absent employee list for #absent\n// ============================================================\n\nconst data = $input.first().json;\nconst employees = data.employees || [];\nconst date = data.date || new Date().toISOString().split('T')[0];\n\nconst total = employees.length;\nconst checkedIn = employees.filter(e => e.checked_in).length;\nconst checkedOut = employees.filter(e => e.checked_out).length;\nconst stillWorking = employees.filter(e => e.checked_in && !e.checked_out).length;\nconst onBreak = employees.filter(e => e.on_break).length;\nconst absent = employees.filter(e => !e.checked_in).length;\nconst lateArrivals = employees.filter(e => e.is_late);\nconst overtimeWorkers = employees.filter(e => Number(e.overtime_hours) > 0);\nconst undertimeWorkers = employees.filter(e => e.checked_out && Number(e.net_hours) < 8);\nconst breakViolations = employees.filter(e => e.break_violation);\n\nlet report = `*Daily Attendance Report — ${date}*\\n`;\nreport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\nreport += `*Team Status*\\n`;\nreport += `Total: ${total} | Checked In: ${checkedIn} | Checked Out: ${checkedOut}\\n`;\nreport += `Still Working: ${stillWorking} | On Break: ${onBreak} | Absent: ${absent}\\n\\n`;\n\nif (lateArrivals.length > 0) {\n  report += `*Late Arrivals (${lateArrivals.length})*\\n`;\n  lateArrivals.forEach(e => {\n    report += `  - ${e.name}: ${e.minutes_late} min late\\n`;\n  });\n  report += `\\n`;\n}\n\nif (overtimeWorkers.length > 0) {\n  report += `*Overtime (${overtimeWorkers.length})*\\n`;\n  overtimeWorkers.forEach(e => {\n    report += `  - ${e.name}: +${Number(e.overtime_hours).toFixed(1)}h OT\\n`;\n  });\n  report += `\\n`;\n}\n\nif (undertimeWorkers.length > 0) {\n  report += `*Undertime (${undertimeWorkers.length})*\\n`;\n  undertimeWorkers.forEach(e => {\n    report += `  - ${e.name}: ${Number(e.net_hours).toFixed(1)}h (${(8 - Number(e.net_hours)).toFixed(1)}h short)\\n`;\n  });\n  report += `\\n`;\n}\n\nif (breakViolations.length > 0) {\n  report += `*Break Compliance Issues (${breakViolations.length})*\\n`;\n  breakViolations.forEach(e => {\n    report += `  - ${e.name}: ${e.break_issue}\\n`;\n  });\n  report += `\\n`;\n}\n\nif (absent > 0) {\n  const absentList = employees.filter(e => !e.checked_in);\n  report += `*Absent (${absent})*\\n`;\n  absentList.forEach(e => {\n    report += `  - ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\n// Build absent list for #absent channel\nconst absentEmployees = employees.filter(e => !e.checked_in);\nlet absentReport = `*Absent Employees — ${date}*\\n`;\nabsentReport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\nif (absentEmployees.length === 0) {\n  absentReport += `All employees checked in today.`;\n} else {\n  absentReport += `*${absentEmployees.length} employee(s) did not check in:*\\n\\n`;\n  absentEmployees.forEach((e, i) => {\n    absentReport += `${i + 1}. ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\nreturn [\n  { json: { report, date, _outputType: 'daily_report' } },\n  { json: { report: absentReport, date, _outputType: 'absent_list' } }\n];\n"
       },
-      "id": "b3d9715a-0ba8-4de9-85bf-3207e9d2d19e",
+      "id": "0a568a2d-9971-41bc-a8e1-1fcfc81a9403",
       "name": "Build Daily Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2048,
-        3408
+        11744,
+        6624
       ]
     },
     {
@@ -614,13 +614,13 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "93d7a10f-e268-4687-a6e1-0b63513661a2",
+      "id": "0905c8e1-4bd1-4e27-a052-d01e80da2404",
       "name": "Route Daily Output",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        2272,
-        3408
+        11968,
+        6624
       ]
     },
     {
@@ -629,7 +629,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0AFMMNKXSL",
+          "value": "C0AF7FFEDKM",
           "mode": "list",
           "cachedResultName": "attendance"
         },
@@ -638,13 +638,13 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "791d7434-bdf0-4fd8-a291-d7f19d94802a",
+      "id": "c9e86994-9a76-418e-9062-3b021da2333c",
       "name": "Slack: Daily Summary",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2496,
-        3312
+        12192,
+        6528
       ],
       "webhookId": "aec52e5a-6593-4dd4-b5e4-5158060ced2a",
       "credentials": {
@@ -669,13 +669,13 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "86ad54d9-3ff4-455b-95f9-45c9adea29f0",
+      "id": "69564399-508f-4a1a-809a-df014b68cfaa",
       "name": "Slack: Absent List",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2496,
-        3504
+        12192,
+        6720
       ],
       "webhookId": "9b183893-d618-4e33-bd5f-60a3a13783c9",
       "credentials": {
@@ -707,13 +707,13 @@
         },
         "options": {}
       },
-      "id": "999a9f6d-e701-4bf3-8045-5bb8282637a9",
+      "id": "81f8e994-6a6e-40f0-94a4-f581dbf2a9dd",
       "name": "Google Sheets: Daily Summary",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2496,
-        3696
+        12192,
+        6912
       ],
       "disabled": true
     },
@@ -739,13 +739,13 @@
         },
         "options": {}
       },
-      "id": "93d1aad9-daad-4899-a438-048c3605f1aa",
+      "id": "53fce4c2-a444-46b7-8fb8-f25bc8e92b77",
       "name": "Valid Attendance Event?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2048,
-        2768
+        11744,
+        5984
       ],
       "notes": "Rejects non-attendance events early to prevent unexpected data in the pipeline"
     },
@@ -757,13 +757,13 @@
           ]
         }
       },
-      "id": "2bd254bb-de35-4b99-bddd-8da5b644e2f9",
+      "id": "56dfe5f1-bda7-4fd9-8be6-1a3a063002bf",
       "name": "Daily 8 AM PHT",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        1600,
-        3632
+        11296,
+        6848
       ],
       "notes": "Fires at 00:00 UTC = 8:00 AM PHT to post daily divider"
     },
@@ -771,13 +771,13 @@
       "parameters": {
         "jsCode": "// ============================================================\n// Format Daily Divider Date\n// ============================================================\n// Generates a date string in PHT (UTC+8) for the daily divider.\n// Uses manual UTC+8 offset (toLocaleString is unreliable on Vercel/n8n).\n// ============================================================\n\nconst now = new Date();\nconst phtMs = now.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\n\nconst days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];\n\nconst dayName = days[pht.getUTCDay()];\nconst month = months[pht.getUTCMonth()];\nconst date = pht.getUTCDate();\nconst year = pht.getUTCFullYear();\n\nconst dividerText = `${month} ${date}, ${year} (${dayName})`;\n\nreturn [{ json: { dividerText } }];\n"
       },
-      "id": "c4aff8f7-d69a-41e2-9ba1-0a78ed7b4e53",
+      "id": "e9b5fa08-5162-4c86-b004-94cd66a97f2d",
       "name": "Format Divider Date",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1824,
-        3632
+        11520,
+        6848
       ]
     },
     {
@@ -795,13 +795,13 @@
           "includeLinkToWorkflow": false
         }
       },
-      "id": "2c510b3a-69cf-43f1-972d-a6e8bcc09d58",
+      "id": "9c3aee92-51bd-4e69-960e-9a2d92d76b38",
       "name": "Slack: Daily Divider",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2048,
-        3632
+        11744,
+        6848
       ],
       "webhookId": "2b911faa-ee5c-4cee-a6a7-c4357f5bf5e1",
       "credentials": {
@@ -1067,7 +1067,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "76ea178d-82dc-4117-bdac-de7b0d14d651",
+  "versionId": "0ad0ab1e-5dc5-4bc4-8c8e-a48f991ee182",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6fb87aa61d7b2b62fa4cc6d7122005aee62aa14cfcc0caa3ed46f1e4c0a04bb8"
