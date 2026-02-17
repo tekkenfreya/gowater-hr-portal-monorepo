@@ -121,8 +121,9 @@ export function useAuth() {
   };
 
   useEffect(() => {
-    // Skip auto-verify on login page — no need to send credentials before the user logs in
+    // On login page: clear any stale httpOnly auth cookie and skip verify
     if (typeof window !== 'undefined' && window.location.pathname.includes('/auth/login')) {
+      fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       setAuthState({ user: null, isLoading: false, error: null });
       return;
     }
