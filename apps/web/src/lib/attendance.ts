@@ -164,7 +164,7 @@ export class AttendanceService {
     }
   }
 
-  async checkOut(userId: number, notes?: string, photoUrl?: string): Promise<{ success: boolean; error?: string; totalHours?: number }> {
+  async checkOut(userId: number, notes?: string, photoUrl?: string, tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[]): Promise<{ success: boolean; error?: string; totalHours?: number }> {
     try {
       const today = getPhilippineDateString();
 
@@ -234,11 +234,23 @@ export class AttendanceService {
 
       // Fire webhook event so workflow tools can react to check-outs
       const webhookUser = await this.db.get('users', { id: userId });
-      // Include pending/in_progress tasks AND tasks completed today (user may have completed them during checkout)
-      const userTasks = await this.db.executeRawSQL<{ title: string; status: string; sub_tasks?: string | unknown[] }>(
-        `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND (status IN ('in_progress', 'pending') OR (status = 'completed' AND updated_at::date >= $2::date)) ORDER BY created_at DESC`,
-        [userId, today]
-      );
+
+      // Use tasks passed from mobile (matches check-in tasks) or fall back to DB query
+      let webhookTasks: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[];
+      if (tasks && tasks.length > 0) {
+        webhookTasks = tasks;
+      } else {
+        const userTasks = await this.db.executeRawSQL<{ title: string; status: string; sub_tasks?: string | unknown[] }>(
+          `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND status IN ('in_progress', 'pending') ORDER BY created_at DESC`,
+          [userId]
+        );
+        webhookTasks = (userTasks || []).map((t) => ({
+          title: t.title,
+          status: t.status,
+          subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
+        }));
+      }
+
       getWebhookService().fireEvent('attendance.checked_out', {
         userId,
         employeeId: webhookUser?.employee_id || null,
@@ -249,11 +261,7 @@ export class AttendanceService {
         breakDuration: totalBreakDuration,
         photoUrl: photoUrl || null,
         slackThreadTs: record.slack_thread_ts || null,
-        tasks: (userTasks || []).map((t) => ({
-          title: t.title,
-          status: t.status,
-          subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
-        }))
+        tasks: webhookTasks
       });
 
       return { success: true, totalHours: newTotalHours };

@@ -595,8 +595,15 @@ Today's Planned Tasks:`;
       const report = generateEODReport(checkOutPhotoUrl, checkOutLocation);
       await Clipboard.setStringAsync(report);
 
-      // Call checkout API with photo URL
-      const result = await attendanceService.checkOut(checkOutPhotoUrl || undefined);
+      // Call checkout API with photo URL and tasks from checkout modal
+      const result = await attendanceService.checkOut(
+        checkOutPhotoUrl || undefined,
+        checkOutTasks.map(t => ({
+          title: t.title,
+          status: t.status,
+          subTasks: (t.subTasks || []).map(st => ({ title: st.title, completed: st.completed })),
+        }))
+      );
       if (result.success) {
         await fetchAttendanceStatus();
         setReportContent(report);

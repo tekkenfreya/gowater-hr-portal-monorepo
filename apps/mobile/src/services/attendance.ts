@@ -101,13 +101,13 @@ export const attendanceService = {
     }
   },
 
-  async checkOut(photoUrl?: string): Promise<ApiResponse> {
+  async checkOut(photoUrl?: string, tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[]): Promise<ApiResponse> {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/attendance/checkout`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ photoUrl }),
+        body: JSON.stringify({ photoUrl, tasks }),
       });
 
       checkUnauthorized(response);
