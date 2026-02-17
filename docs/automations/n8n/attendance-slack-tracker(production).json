@@ -291,68 +291,71 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AF7FFEDKM",
-          "mode": "list",
-          "cachedResultName": "attendance"
-        },
-        "text": "={{ $json._message }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
-        }
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ channel: 'C0AF7FFEDKM', text: $json._message }, $json.data.slackThreadTs ? { thread_ts: $json.data.slackThreadTs } : {})) }}",
+        "options": {}
       },
       "id": "70c2651c-41fd-47b5-bdff-69ce120cfb85",
       "name": "Slack: Check Out",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         12624,
         5984
       ],
-      "webhookId": "8038a38a-47db-4463-938b-46fd80337736",
       "credentials": {
         "slackOAuth2Api": {
           "id": "OC5FQmA1EbyUGmKH",
           "name": "Gowater Slack Bot"
         }
-      }
+      },
+      "notes": "Posts checkout message to Slack with thread_ts for threading under check-in"
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AF7FFEDKM",
-          "mode": "list",
-          "cachedResultName": "attendance"
-        },
-        "text": "=*Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date(new Date($json.data.breakStartTime || $json.timestamp).getTime() + (8*60*60*1000)).toISOString().substring(11,16) }} PHT",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
-        }
+        "jsCode": "// Format Break Start message and build Slack API payload\nconst item = $input.first().json;\nconst d = item.data;\n\n// Format time to PHT (UTC+8)\nconst ts = new Date(d.breakStartTime || item.timestamp);\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nlet text = `*Break Started*\\n\\n`;\ntext += `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\ntext += `*Date:* ${d.date}\\n`;\ntext += `*Break Start:* ${timeStr} PHT`;\n\nconst body = { channel: 'C0AF7FFEDKM', text };\nif (d.slackThreadTs) {\n  body.thread_ts = d.slackThreadTs;\n}\n\nreturn [{ json: { ...item, _slackBody: body } }];\n"
       },
       "id": "5f2e8b60-7818-4fa0-ba3d-79f21273ae33",
-      "name": "Slack: Break Start",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "name": "Format Break Start",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         12192,
         6160
       ],
-      "webhookId": "ba1113df-31c2-455b-aa3e-36a67be33677",
+      "notes": "Formats break start message and builds Slack API payload with thread_ts"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._slackBody) }}",
+        "options": {}
+      },
+      "id": "ba1113df-post-break-start",
+      "name": "Post Break Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12416,
+        6160
+      ],
       "credentials": {
         "slackOAuth2Api": {
           "id": "OC5FQmA1EbyUGmKH",
           "name": "Gowater Slack Bot"
         }
       },
-      "notes": "Posts break start message as a threaded reply under check-in"
+      "notes": "Posts break start to Slack with thread_ts for threading"
     },
     {
       "parameters": {
@@ -431,35 +434,44 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AF7FFEDKM",
-          "mode": "list",
-          "cachedResultName": "attendance"
-        },
-        "text": "=*Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Total Break Today:* {{ $json._totalBreakMin }} min{{ $json._complianceFlag !== 'ok' ? '\\n' + $json._complianceMsg : '' }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": "={{ $json.data.slackThreadTs || '' }}"
-        }
+        "jsCode": "// Format Break End message and build Slack API payload\nconst item = $input.first().json;\nconst d = item.data;\n\nlet text = `*Break Ended*\\n\\n`;\ntext += `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\ntext += `*Date:* ${d.date}\\n`;\ntext += `*Break Duration:* ${item._breakMin} min\\n`;\ntext += `*Total Break Today:* ${item._totalBreakMin} min`;\nif (item._complianceFlag !== 'ok') {\n  text += `\\n${item._complianceMsg}`;\n}\n\nconst body = { channel: 'C0AF7FFEDKM', text };\nif (d.slackThreadTs) {\n  body.thread_ts = d.slackThreadTs;\n}\n\nreturn [{ json: { ...item, _slackBody: body } }];\n"
       },
       "id": "a863be8e-5111-4c8c-ab8a-bc999f36ab3a",
-      "name": "Slack: Break End",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "name": "Format Break End",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         12640,
         6448
       ],
-      "webhookId": "e2f69bf3-ef39-4048-a6a0-675928728836",
+      "notes": "Formats break end message and builds Slack API payload with thread_ts"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._slackBody) }}",
+        "options": {}
+      },
+      "id": "e2f69bf3-post-break-end",
+      "name": "Post Break End",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12864,
+        6448
+      ],
       "credentials": {
         "slackOAuth2Api": {
           "id": "OC5FQmA1EbyUGmKH",
           "name": "Gowater Slack Bot"
         }
-      }
+      },
+      "notes": "Posts break end to Slack with thread_ts for threading"
     },
     {
       "parameters": {
@@ -875,7 +887,7 @@
         ],
         [
           {
-            "node": "Slack: Break Start",
+            "node": "Format Break Start",
             "type": "main",
             "index": 0
           }
@@ -964,7 +976,7 @@
             "index": 0
           },
           {
-            "node": "Slack: Break End",
+            "node": "Format Break End",
             "type": "main",
             "index": 0
           }
@@ -976,6 +988,28 @@
         [
           {
             "node": "Slack: Compliance Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Break Start": {
+      "main": [
+        [
+          {
+            "node": "Post Break Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Break End": {
+      "main": [
+        [
+          {
+            "node": "Post Break End",
             "type": "main",
             "index": 0
           }
