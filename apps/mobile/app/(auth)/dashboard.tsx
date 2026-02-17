@@ -601,7 +601,7 @@ Today's Planned Tasks:`;
         checkOutTasks.map(t => ({
           title: t.title,
           status: t.status,
-          subTasks: (t.subTasks || []).map(st => ({ title: st.title, completed: st.completed })),
+          subTasks: (t.subTasks || []).map(st => ({ title: st.title, completed: st.completed, status: st.completed ? 'completed' : 'pending' })),
         }))
       );
       if (result.success) {

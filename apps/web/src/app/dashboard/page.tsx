@@ -811,6 +811,7 @@ ${tasksSection}`;
           subTasks: (t.subTasks || []).map(st => ({
             title: st.title,
             completed: st.status === 'completed',
+            status: st.status,
           })),
         }))
       );

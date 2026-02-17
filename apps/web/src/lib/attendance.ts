@@ -164,7 +164,7 @@ export class AttendanceService {
     }
   }
 
-  async checkOut(userId: number, notes?: string, photoUrl?: string, tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[]): Promise<{ success: boolean; error?: string; totalHours?: number }> {
+  async checkOut(userId: number, notes?: string, photoUrl?: string, tasks?: { title: string; status: string; subTasks: { title: string; completed: boolean; status?: string }[] }[]): Promise<{ success: boolean; error?: string; totalHours?: number }> {
     try {
       const today = getPhilippineDateString();
 
@@ -236,7 +236,7 @@ export class AttendanceService {
       const webhookUser = await this.db.get('users', { id: userId });
 
       // Use tasks passed from mobile (matches check-in tasks) or fall back to DB query
-      let webhookTasks: { title: string; status: string; subTasks: { title: string; completed: boolean }[] }[];
+      let webhookTasks: { title: string; status: string; subTasks: { title: string; completed: boolean; status?: string }[] }[];
       if (tasks && tasks.length > 0) {
         webhookTasks = tasks;
       } else {
