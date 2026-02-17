@@ -182,8 +182,42 @@ export class AttendanceService {
       const checkInTime = new Date(record.check_in_time);
       const sessionHours = (new Date(checkOutTime).getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
 
+      // Auto-end active break if user checks out while on break
+      let totalBreakDuration = record.break_duration || 0;
+      if (record.break_start_time && !record.break_end_time) {
+        const activeBreakSeconds = Math.floor(
+          (new Date(checkOutTime).getTime() - new Date(record.break_start_time).getTime()) / 1000
+        );
+        totalBreakDuration += activeBreakSeconds;
+
+        // Update break fields in the same checkout update below
+        await this.db.update('attendance', {
+          break_end_time: checkOutTime,
+          break_duration: totalBreakDuration,
+          updated_at: new Date()
+        }, { id: record.id });
+
+        // Fire break_ended webhook so Slack thread gets the break end message
+        const breakWebhookUser = await this.db.get('users', { id: userId });
+        getWebhookService().fireEvent('attendance.break_ended', {
+          userId,
+          employeeId: breakWebhookUser?.employee_id || null,
+          employeeName: breakWebhookUser?.employee_name || breakWebhookUser?.name || null,
+          date: today,
+          breakDurationSeconds: activeBreakSeconds,
+          totalBreakDuration,
+          slackThreadTs: record.slack_thread_ts || null
+        });
+
+        // Re-read the record to get updated break_duration
+        const updatedRecord = await this.db.get('attendance', { id: record.id });
+        if (updatedRecord) {
+          totalBreakDuration = updatedRecord.break_duration || totalBreakDuration;
+        }
+      }
+
       // Subtract break time from session hours
-      const breakDurationHours = (record.break_duration || 0) / 3600; // Convert seconds to hours
+      const breakDurationHours = totalBreakDuration / 3600; // Convert seconds to hours
       const workingSessionHours = sessionHours - breakDurationHours;
 
       // Add current session working hours to existing total_hours (accumulate)
@@ -212,7 +246,7 @@ export class AttendanceService {
         date: today,
         totalHours: newTotalHours,
         checkOutTime,
-        breakDuration: record.break_duration || 0,
+        breakDuration: totalBreakDuration,
         photoUrl: photoUrl || null,
         slackThreadTs: record.slack_thread_ts || null,
         tasks: (userTasks || []).map((t) => ({

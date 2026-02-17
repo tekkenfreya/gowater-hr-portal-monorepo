@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// HMAC-SHA256 Signature Verification\n// ============================================================\n// Ensures the webhook request actually came from GoWater\n// and wasn't spoofed by a third party.\n//\n// GoWater sends: X-Webhook-Signature: sha256=<hex>\n// We recompute the HMAC using our shared secret and compare.\n// ============================================================\n\nconst crypto = require('crypto');\n\nconst SHARED_SECRET = $vars.SHARED_SECRET;\n\nconst signature = $input.first().json.headers['x-webhook-signature'] || '';\nconst body = JSON.stringify($input.first().json.body);\n\nif (!SHARED_SECRET) {\n  // No secret configured — skip verification (dev mode)\n  return [{ json: { ...($input.first().json.body), _verified: false } }];\n}\n\nconst expected = 'sha256=' + crypto\n  .createHmac('sha256', SHARED_SECRET)\n  .update(body)\n  .digest('hex');\n\nif (signature !== expected) {\n  throw new Error('Invalid webhook signature — request rejected');\n}\n\nreturn [{ json: { ...($input.first().json.body), _verified: true } }];\n"
+        "jsCode": "// ============================================================\n// HMAC-SHA256 Signature Verification + Deduplication\n// ============================================================\n// 1. Dedup: Skip if we already processed this delivery ID\n//    (prevents duplicate Slack messages from webhook retries)\n// 2. HMAC: Verify the request came from GoWater\n// ============================================================\n\nconst crypto = require('crypto');\n\nconst headers = $input.first().json.headers;\nconst deliveryId = headers['x-webhook-delivery-id'] || '';\n\n// --- Deduplication via static variable ---\nif (!globalThis._processedDeliveries) {\n  globalThis._processedDeliveries = new Set();\n}\nif (deliveryId && globalThis._processedDeliveries.has(deliveryId)) {\n  // Already processed this delivery — stop execution\n  return [];\n}\nif (deliveryId) {\n  globalThis._processedDeliveries.add(deliveryId);\n  // Keep set small: remove entries older than 5 min (based on set size)\n  if (globalThis._processedDeliveries.size > 500) {\n    const arr = Array.from(globalThis._processedDeliveries);\n    globalThis._processedDeliveries = new Set(arr.slice(-200));\n  }\n}\n\nconst SHARED_SECRET = $vars.SHARED_SECRET;\n\nconst signature = headers['x-webhook-signature'] || '';\nconst body = JSON.stringify($input.first().json.body);\n\nif (!SHARED_SECRET) {\n  // No secret configured — skip verification (dev mode)\n  return [{ json: { ...($input.first().json.body), _verified: false } }];\n}\n\nconst expected = 'sha256=' + crypto\n  .createHmac('sha256', SHARED_SECRET)\n  .update(body)\n  .digest('hex');\n\nif (signature !== expected) {\n  throw new Error('Invalid webhook signature — request rejected');\n}\n\nreturn [{ json: { ...($input.first().json.body), _verified: true } }];\n"
       },
       "id": "9c963ca1-88a3-4ccf-8379-884f268181c9",
       "name": "Verify HMAC Signature",
@@ -221,6 +221,20 @@
     },
     {
       "parameters": {
+        "jsCode": "// ============================================================\n// Build Thread TS Request Body\n// ============================================================\n// Constructs the request body for saving the Slack thread TS.\n// Uses explicit references to avoid expression resolution issues\n// in the HTTP Request node's jsonBody field.\n// ============================================================\n\nconst checkInData = $('Format Check-In Message').first().json;\nconst slackResponse = $('Slack: Check In').first().json;\n\nconst userId = checkInData.data.userId;\nconst date = checkInData.data.date;\nconst slackThreadTs = slackResponse.ts;\n\nif (!userId || !date || !slackThreadTs) {\n  throw new Error(`Missing data for Save Thread TS: userId=${userId}, date=${date}, ts=${slackThreadTs}`);\n}\n\nreturn [{\n  json: {\n    userId,\n    date,\n    slackThreadTs\n  }\n}];\n"
+      },
+      "id": "a1b2c3d4-build-thread-body",
+      "name": "Build Thread Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3376,
+        2624
+      ],
+      "notes": "Builds the request body from check-in data and Slack response for saving the thread TS"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $vars.GOWATER_API_URL }}/api/attendance/slack-thread",
         "sendHeaders": true,
@@ -234,7 +248,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"userId\": {{ $('Format Check-In Message').item.json.data.userId }}, \"date\": \"{{ $('Format Check-In Message').item.json.data.date }}\", \"slackThreadTs\": \"{{ $('Slack: Check In').item.json.ts }}\" }",
+        "jsonBody": "={{ JSON.stringify({ userId: $json.userId, date: $json.date, slackThreadTs: $json.slackThreadTs }) }}",
         "options": {
           "timeout": 10000
         }
@@ -244,7 +258,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3376,
+        3600,
         2624
       ],
       "notes": "Saves Slack message ts to attendance record so break/checkout can thread under check-in"
@@ -898,6 +912,17 @@
       ]
     },
     "Slack: Check In": {
+      "main": [
+        [
+          {
+            "node": "Build Thread Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Thread Body": {
       "main": [
         [
           {

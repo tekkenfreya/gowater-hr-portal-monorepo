@@ -377,11 +377,15 @@ export class WebhookService {
       : (webhook.headers || {});
     Object.assign(headers, customHeaders);
 
+    // Unique delivery ID so receivers can deduplicate retries
+    const deliveryId = `${webhook.id}-${event}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    headers['X-Webhook-Delivery-Id'] = deliveryId;
+
     // Retry loop with exponential backoff
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
+        const timeout = setTimeout(() => controller.abort(), 30000);
 
         const response = await fetch(webhook.url, {
           method: 'POST',

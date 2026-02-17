@@ -27,8 +27,14 @@ export async function POST(request: NextRequest) {
     const { userId, date, slackThreadTs } = body;
 
     if (!userId || !date || !slackThreadTs) {
+      logger.warn('Slack thread TS missing fields', {
+        receivedBody: body,
+        userId,
+        date,
+        slackThreadTs
+      });
       return NextResponse.json(
-        { error: 'Missing required fields: userId, date, slackThreadTs' },
+        { error: 'Missing required fields: userId, date, slackThreadTs', received: { userId: !!userId, date: !!date, slackThreadTs: !!slackThreadTs } },
         { status: 400 }
       );
     }
