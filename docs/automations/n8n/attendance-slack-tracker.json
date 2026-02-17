@@ -126,58 +126,28 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
-            {
-              "leftValue": "={{ $json._isLate }}",
-              "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "// ============================================================\n// Format Check-In Blocks (Slack Block Kit)\n// ============================================================\n// Builds a Block Kit JSON payload for the check-in message.\n// Includes: header, employee details, task list, and photo.\n// ============================================================\n\nconst item = $input.first().json;\nconst d = item.data;\nconst tasks = d.tasks || [];\n\n// Build task list text\nlet taskText = '*Planned Tasks:*\\n';\nif (tasks.length === 0) {\n  taskText += '_No tasks assigned_';\n} else {\n  tasks.forEach((t, i) => {\n    const statusLabel = (t.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\n    taskText += `${i + 1}. ${t.title} [${statusLabel}]\\n`;\n    const subs = t.subTasks || [];\n    subs.forEach(s => {\n      const subStatus = s.completed ? 'Done' : 'Pending';\n      taskText += `    - ${s.title} [${subStatus}]\\n`;\n    });\n  });\n}\n\n// Build info text\nlet infoText = `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\ninfoText += `*Date:* ${d.date}\\n`;\ninfoText += `*Location:* ${d.workLocation}\\n`;\ninfoText += `*Time:* ${item._phtTime}`;\nif (item._isLate) {\n  infoText += ` (${item._minutesLate} min late)`;\n}\nif (d.notes) {\n  infoText += `\\n*Notes:* ${d.notes}`;\n}\n\n// Build blocks array\nconst blocks = [\n  { type: 'header', text: { type: 'plain_text', text: 'Check In', emoji: false } },\n  { type: 'section', text: { type: 'mrkdwn', text: infoText } },\n  { type: 'section', text: { type: 'mrkdwn', text: taskText } }\n];\n\nif (d.photoUrl) {\n  blocks.push({ type: 'image', image_url: d.photoUrl, alt_text: 'Check-in photo' });\n}\n\nreturn [{ json: { ...item, _blocks: JSON.stringify(blocks) } }];\n"
       },
-      "id": "is-late",
-      "name": "Is Late?",
-      "type": "n8n-nodes-base.if",
+      "id": "format-checkin-blocks",
+      "name": "Format Check-In Blocks",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 340]
-    },
-    {
-      "parameters": {
-        "channel": "#hr-alerts",
-        "text": "=:warning: *Late Check-In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Checked in at:* {{ $json._phtTime }} — *{{ $json._minutesLate }} min late*\n*Location:* {{ $json.data.workLocation }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false
-        }
-      },
-      "id": "slack-late-alert",
-      "name": "Slack: Late Alert",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [1520, 280],
-      "credentials": {
-        "slackApi": {
-          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
-          "name": "Slack Account"
-        }
-      }
+      "position": [1520, 420]
     },
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:white_check_mark: *Check In*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Location:* {{ $json.data.workLocation }}\n*Time:* {{ $json._phtTime }}{{ $json._isLate ? ' (:warning: ' + $json._minutesLate + ' min late)' : '' }}{{ $json.data.notes ? '\\n*Notes:* ' + $json.data.notes : '' }}",
+        "text": "=Check In — {{ $json.data.employeeName }}",
         "otherOptions": {
-          "includeLinkToWorkflow": false
+          "includeLinkToWorkflow": false,
+          "blocksUi": "={{ $json._blocks }}"
         }
       },
       "id": "slack-checkin",
       "name": "Slack: Check In",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1520, 420],
+      "position": [1740, 420],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -187,7 +157,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// Check-Out: Calculate overtime & format hours\n// ============================================================\n// Philippine labor: regular = 8 hrs, OT = anything above 8.\n// OT rate: 1.25x on regular days.\n// Night differential: +10% for work between 10 PM - 6 AM.\n// ============================================================\n\nconst item = $input.first().json;\nconst totalHours = Number(item.data.totalHours) || 0;\nconst breakMins = Number(item.data.totalBreakDuration) || 0;\n\nconst REGULAR_HOURS = 8;\nconst netHours = totalHours - (breakMins / 60);\nconst overtime = Math.max(0, netHours - REGULAR_HOURS);\nconst regularHrs = Math.min(netHours, REGULAR_HOURS);\nconst isUndertime = netHours < REGULAR_HOURS;\nconst undertimeHrs = isUndertime ? (REGULAR_HOURS - netHours) : 0;\n\n// Format check-out time to PHT\nconst ts = new Date(item.data.checkOutTime || item.timestamp);\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr,\n    _regularHrs: regularHrs.toFixed(2),\n    _overtimeHrs: overtime.toFixed(2),\n    _netHours: netHours.toFixed(2),\n    _isUndertime: isUndertime,\n    _undertimeHrs: undertimeHrs.toFixed(2),\n    _hasOvertime: overtime > 0\n  }\n}];\n"
+        "jsCode": "// ============================================================\n// Check-Out: Calculate overtime & format hours\n// ============================================================\n// Philippine labor: regular = 8 hrs, OT = anything above 8.\n// OT rate: 1.25x on regular days.\n// Night differential: +10% for work between 10 PM - 6 AM.\n// ============================================================\n\nconst item = $input.first().json;\nconst totalHours = Number(item.data.totalHours) || 0;\nconst breakSec = Number(item.data.breakDuration) || 0;\nconst breakMins = Math.floor(breakSec / 60);\n\nconst REGULAR_HOURS = 8;\nconst netHours = totalHours;\nconst overtime = Math.max(0, netHours - REGULAR_HOURS);\nconst regularHrs = Math.min(netHours, REGULAR_HOURS);\nconst isUndertime = netHours < REGULAR_HOURS;\nconst undertimeHrs = isUndertime ? (REGULAR_HOURS - netHours) : 0;\n\n// Format check-out time to PHT\nconst ts = new Date(item.data.checkOutTime || item.timestamp);\nconst phtMs = ts.getTime() + (8 * 60 * 60 * 1000);\nconst pht = new Date(phtMs);\nconst hours = pht.getUTCHours();\nconst minutes = pht.getUTCMinutes();\nconst timeStr = `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;\n\nreturn [{\n  json: {\n    ...item,\n    _phtTime: timeStr,\n    _regularHrs: regularHrs.toFixed(2),\n    _overtimeHrs: overtime.toFixed(2),\n    _netHours: netHours.toFixed(2),\n    _isUndertime: isUndertime,\n    _undertimeHrs: undertimeHrs.toFixed(2),\n    _hasOvertime: overtime > 0,\n    _breakMins: breakMins\n  }\n}];\n"
       },
       "id": "calc-checkout",
       "name": "Calculate Hours & OT",
@@ -197,17 +167,28 @@
     },
     {
       "parameters": {
+        "jsCode": "// ============================================================\n// Format Check-Out Blocks (Slack Block Kit)\n// ============================================================\n// Builds a Block Kit JSON payload for the check-out message.\n// Includes: header, hours summary, task updates, and photo.\n// ============================================================\n\nconst item = $input.first().json;\nconst d = item.data;\nconst tasks = d.tasks || [];\n\n// Build task list text\nlet taskText = '*Task Updates:*\\n';\nif (tasks.length === 0) {\n  taskText += '_No tasks assigned_';\n} else {\n  tasks.forEach((t, i) => {\n    const statusLabel = (t.status || 'pending').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\n    taskText += `${i + 1}. ${t.title} [${statusLabel}]\\n`;\n    const subs = t.subTasks || [];\n    subs.forEach(s => {\n      const subStatus = s.completed ? 'Done' : 'Pending';\n      taskText += `    - ${s.title} [${subStatus}]\\n`;\n    });\n  });\n}\n\n// Build info text\nlet infoText = `*Employee:* ${d.employeeName} (${d.employeeId})\\n`;\ninfoText += `*Date:* ${d.date}\\n`;\ninfoText += `*Check Out:* ${item._phtTime}\\n`;\ninfoText += `*Net Hours:* ${item._netHours}h | Regular: ${item._regularHrs}h`;\nif (item._hasOvertime) {\n  infoText += ` | OT: ${item._overtimeHrs}h`;\n}\nif (item._isUndertime) {\n  infoText += `\\n*Undertime:* ${item._undertimeHrs}h`;\n}\ninfoText += `\\n*Break:* ${item._breakMins} min`;\n\n// Build blocks array\nconst blocks = [\n  { type: 'header', text: { type: 'plain_text', text: 'Check Out', emoji: false } },\n  { type: 'section', text: { type: 'mrkdwn', text: infoText } },\n  { type: 'section', text: { type: 'mrkdwn', text: taskText } }\n];\n\nif (d.photoUrl) {\n  blocks.push({ type: 'image', image_url: d.photoUrl, alt_text: 'Check-out photo' });\n}\n\nreturn [{ json: { ...item, _blocks: JSON.stringify(blocks) } }];\n"
+      },
+      "id": "format-checkout-blocks",
+      "name": "Format Check-Out Blocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 560]
+    },
+    {
+      "parameters": {
         "channel": "#attendance",
-        "text": "=:door: *Check Out*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Check Out:* {{ $json._phtTime }}\n*Net Hours:* {{ $json._netHours }}h (Regular: {{ $json._regularHrs }}h{{ $json._hasOvertime ? ' | OT: ' + $json._overtimeHrs + 'h' : '' }}){{ $json._isUndertime ? '\\n:warning: *Undertime:* ' + $json._undertimeHrs + 'h' : '' }}",
+        "text": "=Check Out — {{ $json.data.employeeName }}",
         "otherOptions": {
-          "includeLinkToWorkflow": false
+          "includeLinkToWorkflow": false,
+          "blocksUi": "={{ $json._blocks }}"
         }
       },
       "id": "slack-checkout",
       "name": "Slack: Check Out",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1300, 560],
+      "position": [1520, 560],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -218,7 +199,7 @@
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:coffee: *Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date(new Date($json.data.breakStartTime || $json.timestamp).getTime() + (8*60*60*1000)).toISOString().substring(11,16) }} PHT",
+        "text": "=*Break Started*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Start:* {{ new Date(new Date($json.data.breakStartTime || $json.timestamp).getTime() + (8*60*60*1000)).toISOString().substring(11,16) }} PHT",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -268,8 +249,8 @@
     },
     {
       "parameters": {
-        "channel": "#hr-alerts",
-        "text": "=:rotating_light: *Break Compliance Alert*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Issue:* {{ $json._complianceMsg }}\n*Total Break Today:* {{ $json._totalBreakMin }} min",
+        "channel": "#attendance",
+        "text": "=*Break Compliance Alert*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Issue:* {{ $json._complianceMsg }}\n*Total Break Today:* {{ $json._totalBreakMin }} min",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -289,7 +270,7 @@
     {
       "parameters": {
         "channel": "#attendance",
-        "text": "=:arrow_forward: *Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Total Break Today:* {{ $json._totalBreakMin }} min{{ $json._complianceFlag !== 'ok' ? '\\n:warning: ' + $json._complianceMsg : '' }}",
+        "text": "=*Break Ended*\n\n*Employee:* {{ $json.data.employeeName }} ({{ $json.data.employeeId }})\n*Date:* {{ $json.data.date }}\n*Break Duration:* {{ $json._breakMin }} min\n*Total Break Today:* {{ $json._totalBreakMin }} min{{ $json._complianceFlag !== 'ok' ? '\\n' + $json._complianceMsg : '' }}",
         "otherOptions": {
           "includeLinkToWorkflow": false
         }
@@ -360,8 +341,7 @@
     {
       "parameters": {
         "url": "={{ $env.GOWATER_API_URL }}/api/attendance/daily-summary",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -379,23 +359,63 @@
       "name": "Fetch Daily Summary",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [420, 1200],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "REPLACE_WITH_YOUR_HTTP_CREDENTIAL_ID",
-          "name": "GoWater API Key"
-        }
-      }
+      "position": [420, 1200]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// Daily Summary Report Builder\n// ============================================================\n// Aggregates the day's attendance data into a formatted Slack\n// message with key metrics, flags, and employee status.\n// ============================================================\n\nconst data = $input.first().json;\nconst employees = data.employees || [];\nconst date = data.date || new Date().toISOString().split('T')[0];\n\nconst total = employees.length;\nconst checkedIn = employees.filter(e => e.checked_in).length;\nconst checkedOut = employees.filter(e => e.checked_out).length;\nconst stillWorking = employees.filter(e => e.checked_in && !e.checked_out).length;\nconst onBreak = employees.filter(e => e.on_break).length;\nconst absent = employees.filter(e => !e.checked_in).length;\nconst lateArrivals = employees.filter(e => e.is_late);\nconst overtimeWorkers = employees.filter(e => Number(e.overtime_hours) > 0);\nconst undertimeWorkers = employees.filter(e => e.checked_out && Number(e.net_hours) < 8);\nconst breakViolations = employees.filter(e => e.break_violation);\n\nlet report = `:clipboard: *Daily Attendance Report — ${date}*\\n`;\nreport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\n// Status overview\nreport += `:busts_in_silhouette: *Team Status*\\n`;\nreport += `Total: ${total} | Checked In: ${checkedIn} | Checked Out: ${checkedOut}\\n`;\nreport += `Still Working: ${stillWorking} | On Break: ${onBreak} | Absent: ${absent}\\n\\n`;\n\n// Late arrivals\nif (lateArrivals.length > 0) {\n  report += `:warning: *Late Arrivals (${lateArrivals.length})*\\n`;\n  lateArrivals.forEach(e => {\n    report += `  - ${e.name}: ${e.minutes_late} min late\\n`;\n  });\n  report += `\\n`;\n}\n\n// Overtime\nif (overtimeWorkers.length > 0) {\n  report += `:clock3: *Overtime (${overtimeWorkers.length})*\\n`;\n  overtimeWorkers.forEach(e => {\n    report += `  - ${e.name}: +${Number(e.overtime_hours).toFixed(1)}h OT\\n`;\n  });\n  report += `\\n`;\n}\n\n// Undertime\nif (undertimeWorkers.length > 0) {\n  report += `:small_red_triangle_down: *Undertime (${undertimeWorkers.length})*\\n`;\n  undertimeWorkers.forEach(e => {\n    report += `  - ${e.name}: ${Number(e.net_hours).toFixed(1)}h (${(8 - Number(e.net_hours)).toFixed(1)}h short)\\n`;\n  });\n  report += `\\n`;\n}\n\n// Break violations\nif (breakViolations.length > 0) {\n  report += `:rotating_light: *Break Compliance Issues (${breakViolations.length})*\\n`;\n  breakViolations.forEach(e => {\n    report += `  - ${e.name}: ${e.break_issue}\\n`;\n  });\n  report += `\\n`;\n}\n\n// Absent employees\nif (absent > 0) {\n  const absentList = employees.filter(e => !e.checked_in);\n  report += `:no_entry_sign: *Absent (${absent})*\\n`;\n  absentList.forEach(e => {\n    report += `  - ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\nreturn [{ json: { report, date } }];\n"
+        "jsCode": "// ============================================================\n// Daily Summary Report Builder\n// ============================================================\n// Aggregates the day's attendance data into a formatted Slack\n// message with key metrics, flags, and employee status.\n// Outputs TWO items:\n//   [0] = full daily report for #attendance\n//   [1] = absent employee list for #absent\n// ============================================================\n\nconst data = $input.first().json;\nconst employees = data.employees || [];\nconst date = data.date || new Date().toISOString().split('T')[0];\n\nconst total = employees.length;\nconst checkedIn = employees.filter(e => e.checked_in).length;\nconst checkedOut = employees.filter(e => e.checked_out).length;\nconst stillWorking = employees.filter(e => e.checked_in && !e.checked_out).length;\nconst onBreak = employees.filter(e => e.on_break).length;\nconst absent = employees.filter(e => !e.checked_in).length;\nconst lateArrivals = employees.filter(e => e.is_late);\nconst overtimeWorkers = employees.filter(e => Number(e.overtime_hours) > 0);\nconst undertimeWorkers = employees.filter(e => e.checked_out && Number(e.net_hours) < 8);\nconst breakViolations = employees.filter(e => e.break_violation);\n\nlet report = `*Daily Attendance Report — ${date}*\\n`;\nreport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\n// Status overview\nreport += `*Team Status*\\n`;\nreport += `Total: ${total} | Checked In: ${checkedIn} | Checked Out: ${checkedOut}\\n`;\nreport += `Still Working: ${stillWorking} | On Break: ${onBreak} | Absent: ${absent}\\n\\n`;\n\n// Late arrivals\nif (lateArrivals.length > 0) {\n  report += `*Late Arrivals (${lateArrivals.length})*\\n`;\n  lateArrivals.forEach(e => {\n    report += `  - ${e.name}: ${e.minutes_late} min late\\n`;\n  });\n  report += `\\n`;\n}\n\n// Overtime\nif (overtimeWorkers.length > 0) {\n  report += `*Overtime (${overtimeWorkers.length})*\\n`;\n  overtimeWorkers.forEach(e => {\n    report += `  - ${e.name}: +${Number(e.overtime_hours).toFixed(1)}h OT\\n`;\n  });\n  report += `\\n`;\n}\n\n// Undertime\nif (undertimeWorkers.length > 0) {\n  report += `*Undertime (${undertimeWorkers.length})*\\n`;\n  undertimeWorkers.forEach(e => {\n    report += `  - ${e.name}: ${Number(e.net_hours).toFixed(1)}h (${(8 - Number(e.net_hours)).toFixed(1)}h short)\\n`;\n  });\n  report += `\\n`;\n}\n\n// Break violations\nif (breakViolations.length > 0) {\n  report += `*Break Compliance Issues (${breakViolations.length})*\\n`;\n  breakViolations.forEach(e => {\n    report += `  - ${e.name}: ${e.break_issue}\\n`;\n  });\n  report += `\\n`;\n}\n\n// Absent employees in daily report\nif (absent > 0) {\n  const absentList = employees.filter(e => !e.checked_in);\n  report += `*Absent (${absent})*\\n`;\n  absentList.forEach(e => {\n    report += `  - ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\n// Build absent list for #absent channel\nconst absentEmployees = employees.filter(e => !e.checked_in);\nlet absentReport = `*Absent Employees — ${date}*\\n`;\nabsentReport += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\nif (absentEmployees.length === 0) {\n  absentReport += `All employees checked in today.`;\n} else {\n  absentReport += `*${absentEmployees.length} employee(s) did not check in:*\\n\\n`;\n  absentEmployees.forEach((e, i) => {\n    absentReport += `${i + 1}. ${e.name}${e.on_leave ? ' (on leave)' : ''}\\n`;\n  });\n}\n\nreturn [\n  { json: { report, date, _outputType: 'daily_report' } },\n  { json: { report: absentReport, date, _outputType: 'absent_list' } }\n];\n"
       },
       "id": "build-daily-report",
       "name": "Build Daily Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [640, 1200]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._outputType }}",
+                    "rightValue": "daily_report",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "daily_report"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._outputType }}",
+                    "rightValue": "absent_list",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "absent_list"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "route-daily-output",
+      "name": "Route Daily Output",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [860, 1200]
     },
     {
       "parameters": {
@@ -409,7 +429,27 @@
       "name": "Slack: Daily Summary",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [860, 1200],
+      "position": [1080, 1100],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#absent",
+        "text": "={{ $json.report }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-absent-list",
+      "name": "Slack: Absent List",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1080, 1300],
       "credentials": {
         "slackApi": {
           "id": "REPLACE_WITH_YOUR_SLACK_CREDENTIAL_ID",
@@ -435,7 +475,7 @@
       "name": "Google Sheets: Daily Summary",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [860, 1380],
+      "position": [1080, 1480],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_WITH_YOUR_GOOGLE_CREDENTIAL_ID",
@@ -510,20 +550,25 @@
     "Check Late Arrival": {
       "main": [
         [
-          { "node": "Is Late?", "type": "main", "index": 0 },
+          { "node": "Format Check-In Blocks", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format Check-In Blocks": {
+      "main": [
+        [
           { "node": "Slack: Check In", "type": "main", "index": 0 }
         ]
       ]
     },
-    "Is Late?": {
+    "Calculate Hours & OT": {
       "main": [
         [
-          { "node": "Slack: Late Alert", "type": "main", "index": 0 }
-        ],
-        []
+          { "node": "Format Check-Out Blocks", "type": "main", "index": 0 }
+        ]
       ]
     },
-    "Calculate Hours & OT": {
+    "Format Check-Out Blocks": {
       "main": [
         [
           { "node": "Slack: Check Out", "type": "main", "index": 0 }
@@ -563,8 +608,18 @@
     "Build Daily Report": {
       "main": [
         [
+          { "node": "Route Daily Output", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Route Daily Output": {
+      "main": [
+        [
           { "node": "Slack: Daily Summary", "type": "main", "index": 0 },
           { "node": "Google Sheets: Daily Summary", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Slack: Absent List", "type": "main", "index": 0 }
         ]
       ]
     }

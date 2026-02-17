@@ -128,7 +128,10 @@ export class AttendanceService {
 
       // Fire webhook event so n8n/Zapier/GHL can react to check-ins
       const webhookUser = await this.db.get('users', { id: userId });
-      const userTasks = await this.db.all('tasks', { user_id: userId });
+      const userTasks = await this.db.executeRawSQL<{ title: string; status: string; sub_tasks?: string | unknown[] }>(
+        `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND status IN ('in_progress', 'pending') ORDER BY created_at DESC`,
+        [userId]
+      );
       getWebhookService().fireEvent('attendance.checked_in', {
         userId,
         employeeId: webhookUser?.employee_id || null,
@@ -137,7 +140,7 @@ export class AttendanceService {
         workLocation: workLocation || 'WFH',
         notes: notes || null,
         photoUrl: photoUrl || null,
-        tasks: (userTasks || []).map((t: { title: string; status: string; sub_tasks?: string | unknown[] }) => ({
+        tasks: (userTasks || []).map((t) => ({
           title: t.title,
           status: t.status,
           subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
@@ -197,7 +200,11 @@ export class AttendanceService {
 
       // Fire webhook event so workflow tools can react to check-outs
       const webhookUser = await this.db.get('users', { id: userId });
-      const userTasks = await this.db.all('tasks', { user_id: userId });
+      // Include completed tasks (finished today) + still in-progress/pending tasks
+      const userTasks = await this.db.executeRawSQL<{ title: string; status: string; sub_tasks?: string | unknown[] }>(
+        `SELECT title, status, sub_tasks FROM tasks WHERE user_id = $1 AND (status IN ('in_progress', 'pending') OR (status = 'completed' AND updated_at::date = $2::date)) ORDER BY status ASC, created_at DESC`,
+        [userId, today]
+      );
       getWebhookService().fireEvent('attendance.checked_out', {
         userId,
         employeeId: webhookUser?.employee_id || null,
@@ -208,7 +215,7 @@ export class AttendanceService {
         breakDuration: record.break_duration || 0,
         photoUrl: photoUrl || null,
         slackThreadTs: record.slack_thread_ts || null,
-        tasks: (userTasks || []).map((t: { title: string; status: string; sub_tasks?: string | unknown[] }) => ({
+        tasks: (userTasks || []).map((t) => ({
           title: t.title,
           status: t.status,
           subTasks: typeof t.sub_tasks === 'string' ? JSON.parse(t.sub_tasks) : (t.sub_tasks || [])
