@@ -52,8 +52,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    message: 'Use POST to initialize database',
-    endpoint: '/api/init-db'
-  });
+  return NextResponse.json({ error: 'Not found' }, { status: 404 });
 }
