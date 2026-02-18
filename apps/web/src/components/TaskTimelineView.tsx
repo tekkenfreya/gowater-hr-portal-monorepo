@@ -10,6 +10,7 @@ interface TaskTimelineViewProps {
   getPriorityColor: (priority: Task['priority']) => string;
   userRole?: string;
   onRefresh?: () => void;
+  onEdit?: (task: Task) => void;
 }
 
 export default function TaskTimelineView({
@@ -18,7 +19,8 @@ export default function TaskTimelineView({
   onTaskDelete,
   getPriorityColor,
   userRole,
-  onRefresh
+  onRefresh,
+  onEdit
 }: TaskTimelineViewProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set(tasks.map(t => t.id)));
   const [editingNote, setEditingNote] = useState<{ taskId: string; subTaskId: string } | null>(null);
@@ -277,19 +279,31 @@ export default function TaskTimelineView({
                     {userRole === 'admin' && <option value="archived">Archived</option>}
                   </select>
 
-                  {/* Add Update Button */}
-                  <button
-                    onClick={() => {
-                      setUpdatingTaskId(task.id);
-                      setShowUpdateModal(true);
-                    }}
-                    className="p-1.5 hover:bg-blue-50 rounded text-blue-600 transition-all"
-                    title="Add update/note"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
+                  {/* Admin: Add Update | Employee: Edit Task */}
+                  {userRole === 'admin' ? (
+                    <button
+                      onClick={() => {
+                        setUpdatingTaskId(task.id);
+                        setShowUpdateModal(true);
+                      }}
+                      className="p-1.5 hover:bg-blue-50 rounded text-blue-600 transition-all"
+                      title="Add update/note"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  ) : onEdit && (
+                    <button
+                      onClick={() => onEdit(task)}
+                      className="p-1.5 hover:bg-blue-50 rounded text-blue-600 transition-all"
+                      title="Edit task"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  )}
 
                   {/* Delete Button - Admin Only */}
                   {userRole === 'admin' && (

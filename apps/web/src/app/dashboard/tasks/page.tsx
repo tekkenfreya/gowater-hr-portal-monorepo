@@ -1015,6 +1015,7 @@ ${tasksSection}`;
                 getPriorityColor={getPriorityColor}
                 userRole={user?.role}
                 onRefresh={fetchTasks}
+                onEdit={(task) => setEditingTask(task)}
               />
             </div>
           </div>
