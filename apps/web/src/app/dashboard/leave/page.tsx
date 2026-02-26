@@ -241,7 +241,7 @@ export default function LeaveTracker() {
       });
 
       // Build email recipient list (exclude self if admin)
-      const adminEmails = ['mark.belen@nxtlvlwater.xyz', 'rubyanne.talosig@nxtlvlwater.xyz'];
+      const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '').split(',').filter(Boolean);
       const userEmail = user?.email?.toLowerCase();
       const filteredEmails = adminEmails.filter(email => email.toLowerCase() !== userEmail);
 
