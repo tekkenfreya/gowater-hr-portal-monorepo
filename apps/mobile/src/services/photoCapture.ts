@@ -60,7 +60,6 @@ export const photoCaptureService = {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission not granted');
         return null;
       }
 
@@ -85,8 +84,8 @@ export const photoCaptureService = {
           ].filter(Boolean);
           address = parts.join(', ');
         }
-      } catch (geocodeError) {
-        console.log('Geocoding failed:', geocodeError);
+      } catch {
+        // Geocoding is best-effort; proceed without address if it fails
       }
 
       return {

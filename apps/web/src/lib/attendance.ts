@@ -399,8 +399,7 @@ export class AttendanceService {
 
       const breakStartTime = new Date().toISOString();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         break_start_time: breakStartTime,
         break_end_time: null,
         updated_at: new Date()
@@ -447,8 +446,7 @@ export class AttendanceService {
       const breakDurationSeconds = Math.floor((new Date(breakEndTime).getTime() - breakStartTime.getTime()) / 1000);
       const totalBreakDuration = (record.break_duration || 0) + breakDurationSeconds;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         break_end_time: breakEndTime,
         break_duration: totalBreakDuration,
         updated_at: new Date()

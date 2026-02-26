@@ -598,11 +598,9 @@ Today's Task Updates:`;
             <TouchableOpacity
               style={styles.addTaskButton}
               onPress={() => {
-                console.log('Add Task button pressed, closing check-in modal first...');
                 setShowCheckInModal(false);
                 // Small delay to let the first modal close before opening the second
                 setTimeout(() => {
-                  console.log('Opening add task modal...');
                   setShowAddTaskModal(true);
                 }, 100);
               }}
@@ -684,7 +682,6 @@ Today's Task Updates:`;
         visible={showAddTaskModal}
         animationType="slide"
         onRequestClose={() => setShowAddTaskModal(false)}
-        onShow={() => console.log('Add Task Modal is now visible')}
       >
         <View style={styles.fullScreenModal}>
           <KeyboardAvoidingView

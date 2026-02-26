@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { getDb } from '@/lib/supabase';
 import { randomUUID } from 'crypto';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/tasks/updates
@@ -53,9 +54,8 @@ export async function POST(request: NextRequest) {
 
     // Get existing updates or initialize empty array
     // Supabase JSONB fields are automatically parsed as JavaScript objects
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const taskUpdates = (task as any).updates;
-    const existingUpdates = Array.isArray(taskUpdates) ? taskUpdates : [];
+    const taskRecord = task as { updates?: unknown };
+    const existingUpdates = Array.isArray(taskRecord.updates) ? taskRecord.updates : [];
 
     // Create new update object
     const newUpdate = {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       update: newUpdate
     });
   } catch (error) {
-    console.error('Add task update error:', error);
+    logger.error('[tasks/updates] error:', error);
     return NextResponse.json(
       { error: 'Failed to add task update' },
       { status: 500 }

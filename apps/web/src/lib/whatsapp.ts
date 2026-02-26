@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message } from 'whatsapp-web.js';
+import { Client, LocalAuth, Message, GroupChat } from 'whatsapp-web.js';
 import { logger } from './logger';
 
 export interface WhatsAppConfig {
@@ -193,8 +193,7 @@ class WhatsAppService {
         id: chat.id._serialized,
         name: chat.name,
         isGroup: chat.isGroup,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        participants: (chat as any).participants?.length || 0,
+        participants: chat.isGroup ? (chat as GroupChat).participants?.length ?? 0 : 0,
         lastMessage: chat.lastMessage?.body?.substring(0, 50) || ''
       }));
     } catch (error) {

@@ -275,7 +275,7 @@ export default function DashboardScreen() {
           const saveResult = await photoCaptureService.saveToGallery(breakPhotoUrl);
           setIsSavingPhoto(false);
           if (!saveResult.success) {
-            console.log('Failed to save to gallery:', saveResult.error);
+            console.error('Failed to save to gallery:', saveResult.error);
           }
         }
 

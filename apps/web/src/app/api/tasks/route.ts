@@ -18,8 +18,10 @@ interface DbTask {
   due_date: string | null;
   status: string;
   remarks?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sub_tasks?: string | any; // JSON string or JSONB object of sub-tasks array
+  sub_tasks?: string | unknown[]; // JSON string or JSONB object of sub-tasks array
+  updates?: string | unknown[]; // JSON string or JSONB object of updates array
+  created_at?: string;
+  updated_at?: string;
 }
 
 function getTokenFromRequest(request: NextRequest): string | null {
@@ -75,13 +77,12 @@ export async function GET(request: NextRequest) {
 
       let updates = [];
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const taskUpdates = (task as any).updates;
+        const taskUpdates = task.updates;
         if (taskUpdates) {
           if (typeof taskUpdates === 'string') {
             updates = JSON.parse(taskUpdates);
           } else {
-            updates = taskUpdates;
+            updates = taskUpdates as unknown[];
           }
         }
       } catch (error) {
@@ -93,10 +94,8 @@ export async function GET(request: NextRequest) {
         ...task,
         subTasks,
         updates,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createdAt: (task as any).created_at || new Date().toISOString(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        updatedAt: (task as any).updated_at || new Date().toISOString()
+        createdAt: task.created_at || new Date().toISOString(),
+        updatedAt: task.updated_at || new Date().toISOString()
       };
     });
 
@@ -150,7 +149,7 @@ export async function POST(request: NextRequest) {
       sub_tasks: subTasks ? JSON.stringify(subTasks) : JSON.stringify([])
     };
 
-    const task = await database.insert('tasks', taskData);
+    const task = await database.insert('tasks', taskData) as DbTask;
 
     // Fire webhook for task created
     getWebhookService().fireEvent('task.created', {
@@ -166,10 +165,8 @@ export async function POST(request: NextRequest) {
       task: {
         ...task,
         subTasks: subTasks || [],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createdAt: (task as any).created_at || new Date().toISOString(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        updatedAt: (task as any).updated_at || new Date().toISOString()
+        createdAt: task.created_at || new Date().toISOString(),
+        updatedAt: task.updated_at || new Date().toISOString()
       },
       message: 'Task created successfully'
     });
@@ -242,7 +239,8 @@ export async function PUT(request: NextRequest) {
       updateData.sub_tasks = JSON.stringify(subTasks);
     }
 
-    const updatedTask = await database.update('tasks', updateData, { id, user_id: userId });
+    const updatedTaskRows = await database.update('tasks', updateData, { id, user_id: userId }) as DbTask[];
+    const updatedTask = updatedTaskRows?.[0] ?? existingTask;
 
     // Parse existing subTasks if needed
     let existingSubTasks = [];
@@ -282,10 +280,8 @@ export async function PUT(request: NextRequest) {
       task: {
         ...updatedTask,
         subTasks: subTasks !== undefined ? subTasks : existingSubTasks,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createdAt: (updatedTask as any).created_at || (existingTask as any).created_at || new Date().toISOString(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        updatedAt: (updatedTask as any).updated_at || new Date().toISOString()
+        createdAt: updatedTask.created_at || existingTask.created_at || new Date().toISOString(),
+        updatedAt: updatedTask.updated_at || new Date().toISOString()
       },
       message: 'Task updated successfully'
     });

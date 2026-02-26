@@ -64,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(JSON.parse(storedUser));
           } else {
             // Token expired or invalid - clear auth data
-            console.log('Token expired or invalid, logging out');
             await SecureStore.deleteItemAsync('auth_token');
             await SecureStore.deleteItemAsync('user_data');
           }
