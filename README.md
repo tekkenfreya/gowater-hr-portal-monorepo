@@ -51,11 +51,19 @@ This single file creates all tables, indexes, and applies all migrations in the 
 gowater-monorepo/
 ├── apps/
 │   ├── web/
-│   │   ├── src/app/           # Pages and API routes
-│   │   ├── src/components/    # React components
-│   │   ├── src/lib/           # Supabase, auth, services
+│   │   ├── src/
+│   │   │   ├── app/           # Pages and API routes
+│   │   │   ├── components/    # React components
+│   │   │   ├── contexts/      # React context providers
+│   │   │   ├── hooks/         # Custom hooks
+│   │   │   ├── lib/           # Supabase, auth, services
+│   │   │   ├── styles/        # Global styles
+│   │   │   ├── types/         # TypeScript types
+│   │   │   └── utils/         # Utility functions
 │   │   └── migrations/        # Database setup SQL
 │   └── mobile/
-│       └── src/               # Expo screens and services
+│       └── src/
+│           ├── contexts/      # Auth context
+│           └── services/      # API service layer
 └── docs/                      # Reference documentation
 ```
