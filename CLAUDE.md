@@ -55,6 +55,24 @@ Before making ANY changes, read the relevant docs:
 | File names (components) | PascalCase | `TaskCard.tsx` |
 | File names (utilities) | camelCase | `formatDate.ts` |
 
+### 5. Plan Before Executing
+- State the full implementation plan before writing any code or modifying any file
+- Get explicit approval before proceeding
+- If scope changes mid-implementation, stop and re-plan
+
+### 6. Production-Grade Clean Code
+- No hacks, no shortcuts, no commented-out code, no dead code
+- No bloating — do not add dependencies, abstractions, or utilities unless directly required
+- No over-engineering — solve only what is asked, nothing more
+- No `any` types — use exact types from `@gowater/types` or define a precise local interface
+- No `console.log` left in production code — only `logger.error()` / `logger.info()` via `src/lib/logger.ts`
+- Every function does one thing
+
+### 7. AI Temperature — Precision First
+- **Development approach:** Claude must be precision-first and deterministic — follow existing patterns exactly, no creative liberties, no unsolicited refactoring or improvements
+- **LLM calls in this codebase:** None currently (AI lives in n8n, not in app code). If ever added: structured output → `temperature: 0`, creative → `temperature: 0.7` max
+- Never exceed `temperature: 0.7` in any LLM call
+
 ---
 
 ## Mobile App (Expo/React Native)
