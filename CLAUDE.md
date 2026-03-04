@@ -1,7 +1,7 @@
 # GoWater Monorepo - Development Guidelines
 
 > **Purpose:** Standard development rules and best practices
-> **Last Updated:** 2026-01-28
+> **Last Updated:** 2026-03-04
 
 ---
 
@@ -14,13 +14,29 @@ gowater-monorepo/
 │   └── mobile/              # Expo React Native application
 ├── packages/
 │   └── types/               # Shared TypeScript types (@gowater/types)
+├── infra/                   # Docker, Caddy, deployment configs (NOT YET CREATED — target architecture)
 ├── docs/                    # Documentation and references
 │   ├── CODE_REFERENCE.md
 │   ├── DATABASE_FIELDS_REFERENCE.md
-│   ├── REUSABLE_REFERENCE.md
-│   └── NEXT_STEPS.md
+│   └── REUSABLE_REFERENCE.md
 └── CLAUDE.md                # This file
 ```
+
+---
+
+## Migration Status (Current → Target)
+
+| Component | Current (Production) | Target (Hetzner VPS) | Status |
+|-----------|---------------------|----------------------|--------|
+| Database | Supabase (hosted PostgreSQL) | Self-hosted PostgreSQL 16 in Docker | Not started |
+| Photo Storage | Cloudinary | Hetzner Object Storage (S3-compatible) | Not started |
+| Watermarking | Satori + Sharp → Cloudinary upload | Satori + Sharp → Hetzner Object Storage upload | Not started |
+| Hosting | Vercel (Next.js) | Hetzner VPS + Docker + Caddy | Not started |
+| Infrastructure files | None (`infra/` dir empty) | Dockerfile, docker-compose, Caddyfile, scripts | Not started |
+
+**Why migrate from Cloudinary:** Cloudinary's transformation limits prevent custom watermark UI on photos (text overlay limitations). Satori+Sharp gives full JSX control over watermark design, and Hetzner Object Storage is cheaper for direct upload of pre-watermarked images.
+
+**Important:** All `infra/` section content in this document describes the TARGET architecture. Do not assume these files or configs exist until this table is updated.
 
 ---
 
@@ -296,7 +312,7 @@ apps/web/
 // app/api/example/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/supabase';
+import { getDb } from '@/lib/db';
 
 interface JWTPayload {
   userId: number;
@@ -484,7 +500,18 @@ import { Image } from 'expo-image';
 ### 3. Input Validation
 - Validate all user inputs before API calls
 - Sanitize data before database operations
-- Use parameterized queries (handled by Supabase)
+- Use parameterized queries (never interpolate user input into SQL)
+
+### 4. Infrastructure Security (Hetzner VPS)
+- **SSH**: Key-only authentication, disable password auth, disable root login, non-standard port
+- **Firewall (UFW)**: Default deny incoming, allow only 80, 443, and SSH port
+- **fail2ban**: Enabled for SSH, Caddy, and Docker logs
+- **Docker network isolation**: Each client's containers on their own Docker network, only Caddy connects to all
+- **Secrets**: Never in code, never in Dockerfile. Use `.env` files with `600` permissions, owned by deploy user. Listed in `.gitignore`
+- **Container security**: Non-root users, read-only filesystem where possible (`read_only: true`), drop all capabilities and add only needed ones
+- **Automated backups**: Daily PostgreSQL `pg_dump` to Hetzner Object Storage, 30-day retention
+- **Updates**: Unattended-upgrades for OS security patches, manual Docker image updates
+- **Logging**: Docker logs with `json-file` driver, max-size 10MB, max-file 3
 
 ---
 
@@ -522,29 +549,114 @@ Before marking a feature complete:
 
 ---
 
-## Cloudinary Photo Watermark Rules
+## Infrastructure & Deployment (Hetzner VPS) — TARGET ARCHITECTURE
 
-The app uses Cloudinary's `upload_stream` with the `transformation` option to apply text overlay watermarks on check-in/break/checkout photos. **These rules are critical — violating them causes silent upload failures.**
+> **Status:** Not yet implemented. See Migration Status table above. Current production runs on Vercel + Supabase + Cloudinary.
 
-### Working Pattern (DO NOT CHANGE THE APPROACH)
+### VPS Architecture
+- **Provider:** Hetzner Cloud, CX32 Singapore (4 vCPU, 8GB RAM, ~$7.50/mo)
+- **OS:** Ubuntu 24.04 LTS
+- Each client project gets its own `docker-compose.yml` with isolated containers
+- Shared reverse proxy (Caddy) handles SSL and routing for all client domains
+- Shared services: Caddy only. Each client gets own PostgreSQL + Next.js containers
+
+### Docker Rules
+- Every service runs in a container — no bare-metal processes
+- One `Dockerfile.web` per app, multi-stage build (builder → runner)
+- Non-root user inside containers (`USER node` / `USER nextjs`)
+- Named volumes for persistent data (PostgreSQL, uploads)
+- Resource limits on every container (`mem_limit`, `cpus`)
+- `restart: unless-stopped` on all production containers
+- No `latest` tags — pin image versions (e.g., `node:20-alpine`, `postgres:16-alpine`)
+- `.dockerignore` must exclude `node_modules`, `.git`, `.env*`, `*.md`
+- Health checks on every container
+
+### Caddy Reverse Proxy Rules
+- One Caddyfile for all client domains
+- Automatic HTTPS via Let's Encrypt
+- Security headers (HSTS, X-Frame-Options, etc.) applied at Caddy level, not Next.js
+- Rate limiting on API routes
+- Pattern:
 ```
-transformations array = [
-  { raw_transformation: "label with b_rgb colored bg" },   // 1st raw_transformation
-  { overlay: { ... }, color, gravity, ... },                // SDK overlay object(s)
-  { raw_transformation: "stats bar with b_rgb black bg" },  // 2nd raw_transformation (optional)
-]
+portal.gowatervendo.com {
+    reverse_proxy gowater-web:3000
+}
 ```
+
+### Database Rules (Self-hosted PostgreSQL)
+- PostgreSQL 16 Alpine in Docker
+- Each client gets their own PostgreSQL container and named volume
+- Backups: daily `pg_dump` compressed, stored on Hetzner Object Storage
+- Connection only from app container on same Docker network — never exposed to host
+- Strong password, not default `postgres` user
+
+### Photo Storage (Hetzner Object Storage)
+- S3-compatible API
+- Photos uploaded via `@aws-sdk/client-s3` (works with any S3-compatible storage)
+- Already-watermarked images uploaded (no server-side transforms needed on storage)
+- Public read bucket for photo URLs, private write via IAM credentials
+- CDN (Cloudflare or Bunny) in front for caching
+
+---
+
+## Multi-Client Architecture
+
+### VPS Directory Structure
+```
+/srv/
+├── shared/
+│   └── docker-compose.yml    # Caddy reverse proxy
+│       └── caddy/Caddyfile
+├── clients/
+│   ├── gowater/
+│   │   ├── docker-compose.yml
+│   │   ├── .env
+│   │   └── data/             # Mounted volumes
+│   ├── client-2/
+│   │   ├── docker-compose.yml
+│   │   ├── .env
+│   │   └── data/
+│   └── ...
+└── backups/
+    └── scripts/
+        └── backup.sh
+```
+
+### Client Onboarding Rules
+1. Create client folder under `/srv/clients/<client-name>/`
+2. Copy template `docker-compose.yml` and customize domain, ports, env
+3. Add domain block to shared Caddyfile
+4. Run `docker compose up -d` in client folder
+5. Run database migrations
+6. Caddy auto-provisions SSL certificate
+
+### Client Isolation Rules
+- Each client: own Docker network, own PostgreSQL, own app container, own volumes
+- No shared databases — ever
+- No cross-client container communication
+- Caddy is the only container that bridges networks
+
+---
+
+## Photo Watermarking (Satori + Sharp)
+
+Watermarks are generated server-side using **Satori** (JSX → SVG) and **Sharp** (composite SVG onto photo). Photos are uploaded already-watermarked to Hetzner Object Storage.
+
+### Architecture
+- Watermark templates live in `apps/web/src/lib/watermark/`
+- One JSX component per watermark type: checkin, checkout, break
+- Satori renders JSX to SVG with full CSS flexbox layout — no Cloudinary transformation limits
+- Sharp composites the SVG watermark onto the original photo buffer
+- The watermarked image is then uploaded to S3-compatible storage (Hetzner Object Storage)
 
 ### Hard Rules
-1. **Max 2 `raw_transformation` elements** in the transformations array. More than 2 causes Cloudinary to reject the upload silently. The upload API returns an error and the photo fails.
-2. **Use `raw_transformation` ONLY for overlays that need `b_rgb:` background color** (colored label, dark stats bar). The SDK's `background` property applies to the base image, not text overlays.
-3. **Use SDK overlay objects** (with `overlay`, `color`, `gravity`, `effect`) for plain text overlays (date, address, branding). These are reliable with `upload_stream`.
-4. **Encode special chars in `raw_transformation` text**: spaces→`%20`, commas→`%2C`, colons→`%3A`, slashes→`%2F`, pipes→`%7C`, hash→`%23`, percent→`%25` (encode `%` first).
-5. **Never change the upload approach** (e.g., URL-based transformations, eager transformations). The `transformation` option on `upload_stream` is the only approach that works and returns a clean Cloudinary URL.
-6. **For multi-line info with background**, combine lines using `%0A` (newline) within a single `raw_transformation` instead of creating multiple raw_transformation elements.
-7. **Philippines timezone (UTC+8)**: Always use manual offset `new Date(now.getTime() + (8 * 60 * 60 * 1000))` with `getUTCHours()`/`getUTCMinutes()`. Do NOT use `toLocaleTimeString` — it's unreliable on Vercel.
-
-### File: `apps/web/src/lib/cloudinary.ts`
+1. **Watermark before upload** — never rely on storage-side transforms. The photo uploaded to object storage must already contain the watermark.
+2. **Satori JSX must use inline styles only** — Satori does not support external CSS, class names, or `styled-components`. All styles must be inline `style={{ }}` objects.
+3. **Satori supports a subset of CSS** — flexbox layout, basic text styling, colors, borders, padding, margin. No CSS Grid, no `position: absolute` relative to viewport, no animations.
+4. **Sharp composite order matters** — composite the watermark SVG onto the photo, not the other way around. Use `sharp(photoBuffer).composite([{ input: svgBuffer, gravity: 'south' }])`.
+5. **Philippines timezone (UTC+8)**: Always use manual offset `new Date(now.getTime() + (8 * 60 * 60 * 1000))` with `getUTCHours()`/`getUTCMinutes()`. Do NOT use `toLocaleTimeString` — it's unreliable in Docker/server environments.
+6. **Font loading** — Satori requires font data as `ArrayBuffer`. Load fonts once at module level, not per-request. Store font files in `apps/web/src/lib/watermark/fonts/`.
+7. **SVG dimensions must match photo width** — render the watermark SVG at the same width as the source photo to avoid scaling artifacts.
 
 ---
 
@@ -558,28 +670,38 @@ transformations array = [
 6. **Don't forget pull-to-refresh** - Add to all scrollable screens
 7. **Don't nest modals on iOS** - Close one before opening another
 8. **Don't forget type safety** - Always define proper TypeScript types
-9. **Don't use more than 2 `raw_transformation` elements in Cloudinary uploads** - See Cloudinary rules above
+9. **Don't expose Docker ports to host** - Use Caddy reverse proxy instead
+10. **Don't store secrets in Dockerfiles or code** - Use `.env` files only
+11. **Don't use `latest` Docker image tags** - Pin versions (e.g., `node:20-alpine`)
+12. **Don't run containers as root** - Use `USER node` in Dockerfile
+13. **Don't share databases between clients** - Full isolation always
 
 ---
 
 ## Quick Reference Commands
 
 ```bash
-# Install dependencies
+# Local development
 pnpm install
-
-# Run web app
 pnpm run dev:web
-
-# Run mobile app
 cd apps/mobile && npx expo start --clear
-
-# Build web
-pnpm run build
 
 # Type check
 cd apps/web && npx tsc --noEmit
 cd apps/mobile && npx tsc --noEmit
+
+# Docker (production)
+docker compose build
+docker compose up -d
+docker compose logs -f web
+docker compose exec postgres pg_dump -U gowater gowater > backup.sql
+
+# Deploy update
+docker compose pull && docker compose up -d
+
+# Per-client management
+cd /srv/clients/gowater && docker compose restart
+cd /srv/clients/gowater && docker compose logs -f
 ```
 
 ---
@@ -591,11 +713,20 @@ cd apps/mobile && npx tsc --noEmit
 EXPO_PUBLIC_API_URL=http://YOUR_IP:3000
 ```
 
-### Web (.env.local)
+### Web (.env)
 ```
-SUPABASE_URL=...
-SUPABASE_SERVICE_KEY=...
+# Database (self-hosted PostgreSQL)
+DATABASE_URL=postgresql://gowater:password@postgres:5432/gowater
+
+# Auth
 JWT_SECRET=...
+
+# Hetzner Object Storage (S3-compatible)
+S3_ENDPOINT=https://fsn1.your-objectstorage.com
+S3_BUCKET=gowater-photos
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+S3_REGION=fsn1
 ```
 
 ---

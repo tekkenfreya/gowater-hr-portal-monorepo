@@ -1,0 +1,31 @@
+services:
+  gowater-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    container_name: gowater-web
+    env_file: .env.gowater
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - gowater-net
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  gowater-net:
+    driver: bridge
+  caddy-net:
+    external: true
+    name: caddy-net

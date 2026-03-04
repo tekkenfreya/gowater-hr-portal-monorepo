@@ -1,0 +1,3 @@
+portal.gowatervendo.com {
+    reverse_proxy gowater-web:3000
+}
