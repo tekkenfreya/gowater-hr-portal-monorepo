@@ -45,6 +45,7 @@ gowater-monorepo/
    - [FileService](#fileservice)
    - [NotificationService](#notificationservice)
    - [WhatsAppService](#whatsappservice)
+   - [UnitsService](#unitsservice)
 2. [Hooks](#hooks)
 3. [Contexts](#contexts)
 4. [API Routes](#api-routes)
@@ -795,6 +796,71 @@ All services use the singleton pattern. Get instances using `get*Service()` func
 
 ---
 
+### UnitsService *(NEW)*
+
+**File:** `src/lib/units.ts`
+**Singleton:** `getUnitsService()`
+**Purpose:** Manage dispatched units (vending machines/dispensers) and service requests
+
+#### Unit CRUD Methods
+
+- `async getAllUnits(filters?: UnitFilters): Promise<{units: DispatchedUnit[], total: number}>`
+  - **Purpose:** Get all units with filtering and pagination
+  - **Params:** `filters` - `{status?, unitType?, search?, page?, limit?}`
+  - **Returns:** `{units, total}`
+  - **Example:** `await getUnitsService().getAllUnits({status: 'dispatched', page: 1, limit: 20})`
+
+- `async getUnitById(id: number): Promise<DispatchedUnit | null>`
+  - **Purpose:** Get a single unit by ID
+  - **Returns:** DispatchedUnit or null
+  - **Example:** `await getUnitsService().getUnitById(5)`
+
+- `async getUnitBySerial(serial: string): Promise<DispatchedUnit | null>`
+  - **Purpose:** Get a single unit by serial number
+  - **Returns:** DispatchedUnit or null
+  - **Example:** `await getUnitsService().getUnitBySerial('GW-VM-000001')`
+
+- `async createUnit(input: CreateUnitInput, createdBy: number): Promise<{success: boolean, unit?: DispatchedUnit, error?: string}>`
+  - **Purpose:** Register a new unit
+  - **Params:** `input` - `{serialNumber, unitType, modelName, destination?, notes?}`
+  - **Handles:** Duplicate serial detection (23505 unique violation)
+  - **Returns:** `{success, unit?, error?}`
+  - **Example:** `await getUnitsService().createUnit({serialNumber: 'GW-VM-000001', unitType: 'vending_machine', modelName: 'AquaPure 3000'}, adminId)`
+
+- `async bulkCreateUnits(rows: BulkImportRow[], createdBy: number): Promise<{created: number, errors: {row: number, error: string}[]}>`
+  - **Purpose:** Bulk import units from CSV-style data
+  - **Params:** `rows` - Array of `{serial_number, unit_type, model_name, destination?, notes?}`
+  - **Returns:** `{created, errors}`
+
+- `async updateUnit(id: number, updates: Partial<{destination, status, notes, modelName}>): Promise<{success: boolean, unit?: DispatchedUnit, error?: string}>`
+  - **Purpose:** Update unit fields. Auto-sets `dispatched_at` when status changes to 'dispatched', `verified_at` when 'verified'
+  - **Returns:** `{success, unit?, error?}`
+
+#### Service Request Methods
+
+- `async getServiceRequests(filters?: ServiceRequestFilters): Promise<{requests: ServiceRequest[], total: number}>`
+  - **Purpose:** Get service requests with filtering and pagination. Joins dispatched_units for serial info
+  - **Params:** `filters` - `{status?, unitId?, page?, limit?}`
+  - **Returns:** `{requests, total}`
+
+- `async createServiceRequest(unitId: number, input: CreateServiceRequestInput): Promise<{success: boolean, requestId?: number, error?: string}>`
+  - **Purpose:** Create a service request for a unit (public-facing, no auth required)
+  - **Params:** `input` - `{customerName, contactNumber, email?, issueDescription}`
+  - **Returns:** `{success, requestId?, error?}`
+
+- `async updateServiceRequest(id: number, updates: UpdateServiceRequestInput): Promise<{success: boolean, error?: string}>`
+  - **Purpose:** Update service request status. Auto-sets `resolved_at` when status is 'resolved'
+  - **Params:** `updates` - `{status?, resolvedBy?}`
+  - **Returns:** `{success, error?}`
+
+#### Verification Method
+
+- `async verifyUnit(serial: string, customerName?: string): Promise<VerifyResult>`
+  - **Purpose:** Public verification endpoint. If unit is 'dispatched', auto-transitions to 'verified'
+  - **Returns:** `{found, status?, unitType?, modelName?, dispatchedAt?, message}`
+
+---
+
 ## Hooks
 
 ### useAuth
@@ -1305,6 +1371,62 @@ All API routes are in `src/app/api/`. Authentication required unless noted.
   - **Purpose:** Revoke or delete API key (admin only)
   - **Returns:** `{message: string}`
 
+### Admin Units Routes *(NEW)*
+
+- `GET /api/admin/units?status=dispatched&unitType=vending_machine&search=GW&page=1&limit=20`
+  - **Purpose:** Get all units with filtering and pagination (admin only)
+  - **Returns:** `{units: DispatchedUnit[], total: number}`
+
+- `POST /api/admin/units`
+  - **Purpose:** Create a new unit (admin only)
+  - **Body:** `{serialNumber, unitType, modelName, destination?, notes?}`
+  - **Returns:** `{success, unit?, error?}`
+
+- `POST /api/admin/units` (with `bulk: true`)
+  - **Purpose:** Bulk import units (admin only)
+  - **Body:** `{bulk: true, rows: BulkImportRow[]}`
+  - **Returns:** `{success, created, errors}`
+
+- `GET /api/admin/units/[id]`
+  - **Purpose:** Get single unit by ID (admin only)
+  - **Returns:** `{unit: DispatchedUnit}`
+
+- `PUT /api/admin/units/[id]`
+  - **Purpose:** Update unit fields (admin only)
+  - **Body:** `{destination?, status?, notes?, modelName?}`
+  - **Returns:** `{success, unit?, error?}`
+
+- `GET /api/admin/units/[id]/barcode`
+  - **Purpose:** Generate barcode SVG for a unit (admin only)
+  - **Returns:** `{barcodeSvg: string}`
+
+### Admin Service Request Routes *(NEW)*
+
+- `GET /api/admin/service-requests?status=pending&unitId=5&page=1&limit=20`
+  - **Purpose:** Get all service requests with filtering (admin only)
+  - **Returns:** `{requests: ServiceRequest[], total: number}`
+
+- `PUT /api/admin/service-requests`
+  - **Purpose:** Update service request status (admin only)
+  - **Body:** `{id, status, resolvedBy?}`
+  - **Returns:** `{success, error?}`
+
+### Public Verification Routes *(NEW)*
+
+- `GET /api/verify/[serial]`
+  - **Purpose:** Verify a unit by serial number (public, no auth)
+  - **Returns:** `VerifyResult` - `{found, status?, unitType?, modelName?, dispatchedAt?, message}`
+
+- `POST /api/verify/[serial]`
+  - **Purpose:** Verify unit with customer name (public, no auth). Auto-transitions 'dispatched' to 'verified'
+  - **Body:** `{customerName?: string}`
+  - **Returns:** `VerifyResult`
+
+- `POST /api/verify/[serial]/service-request`
+  - **Purpose:** Submit a service request for a verified unit (public, no auth)
+  - **Body:** `{customerName, contactNumber, email?, issueDescription}`
+  - **Returns:** `{success, requestId?, error?}`
+
 ---
 
 ## Components
@@ -1650,6 +1772,66 @@ interface CustomBackground {
 }
 ```
 
+### Unit Types (`src/types/units.ts`) *(NEW)*
+
+```typescript
+interface DispatchedUnit {
+  id: number;
+  serialNumber: string;
+  unitType: 'vending_machine' | 'dispenser';
+  modelName: string;
+  destination: string | null;
+  status: 'registered' | 'dispatched' | 'verified' | 'decommissioned';
+  dispatchedAt: string | null;
+  verifiedAt: string | null;
+  verifiedByName: string | null;
+  notes: string | null;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ServiceRequest {
+  id: number;
+  unitId: number;
+  customerName: string;
+  contactNumber: string;
+  email: string | null;
+  issueDescription: string;
+  status: 'pending' | 'in_progress' | 'resolved';
+  resolvedAt: string | null;
+  resolvedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+  unit?: DispatchedUnit;
+}
+
+interface CreateUnitInput {
+  serialNumber: string;
+  unitType: 'vending_machine' | 'dispenser';
+  modelName: string;
+  destination?: string;
+  notes?: string;
+}
+
+interface BulkImportRow {
+  serial_number: string;
+  unit_type: string;
+  model_name: string;
+  destination?: string;
+  notes?: string;
+}
+
+interface VerifyResult {
+  found: boolean;
+  status?: string;
+  unitType?: string;
+  modelName?: string;
+  dispatchedAt?: string;
+  message: string;
+}
+```
+
 ---
 
 ## Utility Functions
@@ -1735,6 +1917,14 @@ const stats = await service.getDashboardStats();
 const service = getPermissionsService();
 const hasAccess = await service.hasPermission(userId, 'can_manage_tasks');
 await service.grantPermission(userId, 'can_approve_leaves', adminId);
+```
+
+**Dispatched Units:**
+```typescript
+const service = getUnitsService();
+const { units, total } = await service.getAllUnits({ status: 'dispatched' });
+await service.createUnit({ serialNumber: 'GW-VM-000001', unitType: 'vending_machine', modelName: 'AquaPure 3000' }, adminId);
+const result = await service.verifyUnit('GW-VM-000001', 'John Doe');
 ```
 
 **Files:**

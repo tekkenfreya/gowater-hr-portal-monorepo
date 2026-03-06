@@ -38,22 +38,24 @@ gowater-monorepo/
 3. [attendance_automation_settings](#attendance_automation_settings)
 4. [attendance_edit_requests](#attendance_edit_requests) *(NEW)*
 5. [custom_backgrounds](#custom_backgrounds)
-6. [files](#files)
-7. [lead_activities](#lead_activities)
-8. [leads](#leads)
-9. [leave_requests](#leave_requests)
-10. [migration_log](#migration_log)
-11. [notifications](#notifications)
-12. [permissions](#permissions)
-13. [report_type_config](#report_type_config)
-14. [reports](#reports)
-15. [status_config](#status_config)
-16. [subtask_report_items](#subtask_report_items)
-17. [task_report_items](#task_report_items)
-18. [task_reports](#task_reports)
-19. [tasks](#tasks)
-20. [user_permissions](#user_permissions)
-21. [users](#users)
+6. [dispatched_units](#dispatched_units) *(NEW)*
+7. [files](#files)
+8. [lead_activities](#lead_activities)
+9. [leads](#leads)
+10. [leave_requests](#leave_requests)
+11. [migration_log](#migration_log)
+12. [notifications](#notifications)
+13. [permissions](#permissions)
+14. [report_type_config](#report_type_config)
+15. [reports](#reports)
+16. [service_requests](#service_requests) *(NEW)*
+17. [status_config](#status_config)
+18. [subtask_report_items](#subtask_report_items)
+19. [task_report_items](#task_report_items)
+20. [task_reports](#task_reports)
+21. [tasks](#tasks)
+22. [user_permissions](#user_permissions)
+23. [users](#users)
 
 ---
 
@@ -190,6 +192,36 @@ gowater-monorepo/
 | `uploaded_at` | timestamp with time zone | YES | now() | Upload timestamp |
 | `is_active` | boolean | YES | true | Enable/disable background |
 | `sort_order` | integer | YES | 0 | Display order |
+
+---
+
+## dispatched_units
+
+**Purpose:** Track vending machines and dispensers dispatched to customers *(NEW)*
+
+**Primary Key:** `id`
+
+**Foreign Keys:**
+- `created_by` → `users.id`
+
+**Unique Constraints:**
+- `serial_number` (unique)
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | integer | NO | nextval('...') | Unit ID |
+| `serial_number` | character varying(100) | NO | - | Unique serial/barcode number |
+| `unit_type` | text | NO | - | vending_machine, dispenser |
+| `model_name` | text | NO | - | Model name/identifier |
+| `destination` | text | YES | - | Customer or location name |
+| `status` | text | YES | 'registered' | registered, dispatched, verified, decommissioned |
+| `dispatched_at` | timestamp with time zone | YES | - | When unit was dispatched |
+| `verified_at` | timestamp with time zone | YES | - | When customer verified receipt |
+| `verified_by_name` | text | YES | - | Name of person who verified |
+| `notes` | text | YES | - | Additional notes |
+| `created_by` | integer | NO | - | Admin user ID who registered unit |
+| `created_at` | timestamp with time zone | YES | now() | Creation timestamp |
+| `updated_at` | timestamp with time zone | YES | now() | Last update timestamp |
 
 ---
 
@@ -414,6 +446,32 @@ gowater-monorepo/
 | `content` | text | NO | - | Report content (plain text) |
 | `sent_to_whatsapp` | boolean | YES | false | WhatsApp send status |
 | `created_at` | timestamp with time zone | YES | now() | Creation timestamp |
+
+---
+
+## service_requests
+
+**Purpose:** Customer service/repair requests linked to dispatched units *(NEW)*
+
+**Primary Key:** `id`
+
+**Foreign Keys:**
+- `unit_id` → `dispatched_units.id`
+- `resolved_by` → `users.id`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | integer | NO | nextval('...') | Request ID |
+| `unit_id` | integer | NO | - | Associated dispatched unit |
+| `customer_name` | text | NO | - | Customer who submitted request |
+| `contact_number` | text | NO | - | Customer contact number |
+| `email` | text | YES | - | Customer email address |
+| `issue_description` | text | NO | - | Description of the issue |
+| `status` | text | YES | 'pending' | pending, in_progress, resolved |
+| `resolved_at` | timestamp with time zone | YES | - | When issue was resolved |
+| `resolved_by` | integer | YES | - | Admin/tech who resolved it |
+| `created_at` | timestamp with time zone | YES | now() | Creation timestamp |
+| `updated_at` | timestamp with time zone | YES | now() | Last update timestamp |
 
 ---
 
@@ -668,6 +726,8 @@ Common status values across tables:
 - **Subtasks:** pending, in_progress, completed, cancel
 - **Users:** active, inactive
 - **Leads:** not-started, contacted, qualified, closed-deal, lost
+- **Dispatched Units:** registered, dispatched, verified, decommissioned *(NEW)*
+- **Service Requests:** pending, in_progress, resolved *(NEW)*
 - **Reports:** draft, sent, failed
 
 ---

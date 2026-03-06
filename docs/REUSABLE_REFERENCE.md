@@ -109,6 +109,12 @@ id, user_id, name, url, secret, events, is_active, created_at, updated_at
 
 -- webhook_logs (NEW v5.4 - Webhook delivery history)
 id, webhook_id, event, payload, response_status, response_body, success, error_message, delivered_at
+
+-- dispatched_units (NEW - Unit tracking and verification)
+id, serial_number, unit_type, model_name, destination, status, dispatched_at, verified_at, verified_by_name, notes, created_by, created_at, updated_at
+
+-- service_requests (NEW - Customer service requests for units)
+id, unit_id, customer_name, contact_number, email, issue_description, status, resolved_at, resolved_by, created_at, updated_at
 ```
 
 ### Enum Values
@@ -175,6 +181,15 @@ event: 'attendance.checked_in', 'attendance.checked_out', 'attendance.break_star
 
 -- API key scopes (NEW v5.4 - Granular access control)
 scopes: 'tasks:read', 'tasks:write', 'attendance:read', 'attendance:write', 'leads:read', 'leads:write', 'users:read', 'users:write', 'webhooks:manage', 'all'
+
+-- Dispatched unit type (NEW)
+unit_type: 'vending_machine', 'dispenser'
+
+-- Dispatched unit status (NEW)
+status: 'registered', 'dispatched', 'verified', 'decommissioned'
+
+-- Service request status (NEW)
+status: 'pending', 'in_progress', 'resolved'
 ```
 
 ## 🔧 Services & Classes
@@ -389,6 +404,21 @@ if (!auth.authenticated) {
 // auth.userId, auth.role, auth.authMethod available
 ```
 
+### UnitsService (`src/lib/units.ts`) (NEW)
+**Functions:**
+- `getAllUnits(filters?)` - Get units with filtering (status, unitType, search) and pagination
+- `getUnitById(id)` - Get single unit by ID
+- `getUnitBySerial(serial)` - Get single unit by serial number
+- `createUnit(input, createdBy)` - Register a new unit (detects duplicate serials)
+- `bulkCreateUnits(rows, createdBy)` - Bulk import units from CSV-style data, returns created count and per-row errors
+- `updateUnit(id, updates)` - Update unit fields. Auto-sets dispatched_at/verified_at on status transitions
+- `getServiceRequests(filters?)` - Get service requests with join to dispatched_units
+- `createServiceRequest(unitId, input)` - Create service request (public-facing)
+- `updateServiceRequest(id, updates)` - Update service request status. Auto-sets resolved_at when resolved
+- `verifyUnit(serial, customerName?)` - Public verification. Auto-transitions dispatched → verified
+
+**Singleton Access:** `getUnitsService()`
+
 ## 🔗 API Endpoints
 
 ### Authentication
@@ -522,6 +552,23 @@ if (!auth.authenticated) {
 - `GET /api/admin/api-keys` - List all API keys with metadata (never returns full key)
 - `POST /api/admin/api-keys` - Create API key (body: { name, description?, scopes[]?, expiresInDays? }). Returns plaintext key ONCE
 - `DELETE /api/admin/api-keys?id=&permanent=` - Revoke (soft) or delete (permanent) API key
+
+### Dispatched Units (NEW - Admin only)
+- `GET /api/admin/units` - List units with filters (query: ?status=&unitType=&search=&page=&limit=)
+- `POST /api/admin/units` - Create unit (body: { serialNumber, unitType, modelName, destination?, notes? })
+- `POST /api/admin/units` - Bulk import (body: { bulk: true, rows: [] })
+- `GET /api/admin/units/[id]` - Get single unit
+- `PUT /api/admin/units/[id]` - Update unit (body: { destination?, status?, notes?, modelName? })
+- `GET /api/admin/units/[id]/barcode` - Generate barcode SVG
+
+### Service Requests (NEW - Admin only)
+- `GET /api/admin/service-requests` - List requests with filters (query: ?status=&unitId=&page=&limit=)
+- `PUT /api/admin/service-requests` - Update request status (body: { id, status, resolvedBy? })
+
+### Public Verification (NEW - No auth)
+- `GET /api/verify/[serial]` - Look up unit by serial number
+- `POST /api/verify/[serial]` - Verify unit with customer name (auto-transitions dispatched → verified)
+- `POST /api/verify/[serial]/service-request` - Submit service request for a unit
 
 ### Database
 - `POST /api/init-db` - Initialize database
@@ -1135,6 +1182,98 @@ interface AuthResult {
 }
 ```
 
+### Unit Types (NEW - `src/types/units.ts`)
+```typescript
+interface DispatchedUnit {
+  id: number;
+  serialNumber: string;
+  unitType: 'vending_machine' | 'dispenser';
+  modelName: string;
+  destination: string | null;
+  status: 'registered' | 'dispatched' | 'verified' | 'decommissioned';
+  dispatchedAt: string | null;
+  verifiedAt: string | null;
+  verifiedByName: string | null;
+  notes: string | null;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ServiceRequest {
+  id: number;
+  unitId: number;
+  customerName: string;
+  contactNumber: string;
+  email: string | null;
+  issueDescription: string;
+  status: 'pending' | 'in_progress' | 'resolved';
+  resolvedAt: string | null;
+  resolvedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+  unit?: DispatchedUnit;
+}
+
+interface CreateUnitInput {
+  serialNumber: string;
+  unitType: 'vending_machine' | 'dispenser';
+  modelName: string;
+  destination?: string;
+  notes?: string;
+}
+
+interface BulkImportRow {
+  serial_number: string;
+  unit_type: string;
+  model_name: string;
+  destination?: string;
+  notes?: string;
+}
+
+interface VerifyResult {
+  found: boolean;
+  status?: string;
+  unitType?: string;
+  modelName?: string;
+  dispatchedAt?: string;
+  message: string;
+}
+```
+
+### Unit Validation Schemas (NEW - `src/lib/validations/units.ts`)
+```typescript
+// Zod schemas for request validation
+import { z } from 'zod';
+
+const createUnitSchema = z.object({
+  serialNumber: z.string().min(1).max(100),
+  unitType: z.enum(['vending_machine', 'dispenser']),
+  modelName: z.string().min(1),
+  destination: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const updateUnitSchema = z.object({
+  destination: z.string().optional(),
+  status: z.enum(['registered', 'dispatched', 'verified', 'decommissioned']).optional(),
+  notes: z.string().optional(),
+  modelName: z.string().min(1).optional(),
+});
+
+const serviceRequestSchema = z.object({
+  customerName: z.string().min(1),
+  contactNumber: z.string().min(1),
+  email: z.string().email().optional().or(z.literal('')),
+  issueDescription: z.string().min(1),
+});
+
+// Inferred types
+type CreateUnitInput = z.infer<typeof createUnitSchema>;
+type UpdateUnitInput = z.infer<typeof updateUnitSchema>;
+type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;
+```
+
 ## 🎣 React Hooks
 
 ### useAuth Hook (`src/hooks/useAuth.ts`)
@@ -1164,6 +1303,7 @@ export function useAuth() {
 
 ### Admin Components
 - `UserPermissionsModal({ userId, userName, userRole, onClose, onSuccess })` - Modal to manage user permissions with checkbox-based UI grouped by category
+- `BarcodeLabel({ serialNumber, unitType, modelName, barcodeSvg? })` - Barcode label preview with print button. Opens print window with 60mm x 30mm label layout. Uses bwip-js for barcode SVG generation
 
 ### Task Components
 - `TaskTimelineView` - Timeline view for tasks with dates and archived status
