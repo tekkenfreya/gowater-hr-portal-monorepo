@@ -67,5 +67,23 @@ export async function runUnitsMigration(): Promise<void> {
   }
 
   logger.info('service_requests table created successfully');
+
+  const { error: permissionsError } = await supabaseAdmin.rpc('execute_sql', {
+    query: `
+      INSERT INTO permissions (permission_key, display_name, description, category)
+      VALUES
+        ('can_manage_units', 'Manage Dispatched Units', 'Create, edit, dispatch, import, and print unit labels', 'units'),
+        ('can_view_service_requests', 'View Service Requests', 'View and manage customer service requests', 'units')
+      ON CONFLICT (permission_key) DO NOTHING;
+    `,
+    params: [],
+  });
+
+  if (permissionsError) {
+    logger.error('Failed to insert unit permissions', permissionsError);
+    throw new Error(`unit permissions migration failed: ${permissionsError.message}`);
+  }
+
+  logger.info('Unit permissions inserted successfully');
   logger.info('Units migration completed');
 }
