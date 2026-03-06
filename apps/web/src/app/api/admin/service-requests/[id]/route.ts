@@ -62,6 +62,11 @@ export async function PATCH(
       );
     }
 
+    logger.audit('Service request updated', auth.userId!, {
+      requestId,
+      newStatus: status,
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error('Admin update service request error', error);

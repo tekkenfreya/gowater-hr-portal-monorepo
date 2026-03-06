@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { ServiceRequest } from '@/types/units';
 import { Search, ChevronDown, ChevronUp, Wrench, CheckCircle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 type StatusFilter = 'all' | 'pending' | 'in_progress' | 'resolved';
 
@@ -77,8 +78,8 @@ export default function ServiceRequestsPage() {
         setRequests(data.requests || []);
         setTotal(data.total || 0);
       }
-    } catch {
-      // Silently handle fetch errors
+    } catch (error) {
+      logger.error('Failed to fetch service requests', error);
     } finally {
       setLoading(false);
     }
@@ -107,8 +108,8 @@ export default function ServiceRequestsPage() {
       if (response.ok) {
         await fetchRequests();
       }
-    } catch {
-      // Silently handle update errors
+    } catch (error) {
+      logger.error('Failed to update service request', error);
     } finally {
       setUpdatingId(null);
     }

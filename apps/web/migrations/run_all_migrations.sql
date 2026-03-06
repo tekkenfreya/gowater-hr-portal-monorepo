@@ -91,6 +91,27 @@ CREATE TABLE IF NOT EXISTS files (
   updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS permissions (
+  id              SERIAL PRIMARY KEY,
+  permission_key  VARCHAR(100) UNIQUE NOT NULL,
+  display_name    VARCHAR(255) NOT NULL,
+  description     TEXT,
+  category        VARCHAR(50),
+  is_active       BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+  id            SERIAL PRIMARY KEY,
+  user_id       INTEGER NOT NULL REFERENCES users(id),
+  permission_id INTEGER NOT NULL REFERENCES permissions(id),
+  granted_at    TIMESTAMPTZ DEFAULT NOW(),
+  granted_by    INTEGER REFERENCES users(id),
+  UNIQUE(user_id, permission_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_permissions_key       ON permissions(permission_key);
+
 CREATE TABLE IF NOT EXISTS migration_log (
   id               SERIAL PRIMARY KEY,
   migration_name   TEXT NOT NULL UNIQUE,

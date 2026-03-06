@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') ?? undefined;
     const unitType = searchParams.get('type') ?? undefined;
     const search = searchParams.get('search') ?? undefined;
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const limit = parseInt(searchParams.get('limit') ?? '20', 10);
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10) || 20));
 
     const unitsService = getUnitsService();
     const { units, total } = await unitsService.getAllUnits({

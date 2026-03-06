@@ -20,10 +20,10 @@ interface ServiceRequestForm {
   issueDescription: string;
 }
 
-const WHATSAPP_NUMBER = '639XXXXXXXXX';
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
 
 function formatUnitType(unitType: string): string {
-  if (unitType === 'vendo') return 'Vending Machine';
+  if (unitType === 'vending_machine') return 'Vending Machine';
   if (unitType === 'dispenser') return 'Dispenser';
   return unitType;
 }
@@ -39,10 +39,10 @@ function formatDate(dateString: string): string {
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    active: 'bg-green-100 text-green-800',
+    registered: 'bg-gray-100 text-gray-800',
     dispatched: 'bg-blue-100 text-blue-800',
-    maintenance: 'bg-yellow-100 text-yellow-800',
-    decommissioned: 'bg-gray-100 text-gray-800',
+    verified: 'bg-green-100 text-green-800',
+    decommissioned: 'bg-red-100 text-red-800',
   };
 
   const colors = colorMap[status] ?? 'bg-gray-100 text-gray-800';
@@ -380,7 +380,7 @@ export default function VerifyPage() {
         )}
 
         {/* WhatsApp Button — for genuine units */}
-        {!loading && !fetchError && isGenuine && (
+        {!loading && !fetchError && isGenuine && WHATSAPP_NUMBER && (
           <div className="mt-4">
             <WhatsAppButton serial={serial} />
           </div>

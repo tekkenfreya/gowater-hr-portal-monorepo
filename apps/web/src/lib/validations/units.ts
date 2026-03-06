@@ -22,6 +22,5 @@ export const serviceRequestSchema = z.object({
   issueDescription: z.string().min(1, 'Issue description is required'),
 });
 
-export type CreateUnitInput = z.infer<typeof createUnitSchema>;
 export type UpdateUnitInput = z.infer<typeof updateUnitSchema>;
 export type ServiceRequestInput = z.infer<typeof serviceRequestSchema>;

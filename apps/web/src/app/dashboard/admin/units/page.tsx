@@ -32,6 +32,37 @@ const STATUS_BADGE_CLASSES: Record<UnitStatus, string> = {
 
 const ITEMS_PER_PAGE = 20;
 
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        fields.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -188,7 +219,7 @@ export default function DispatchedUnitsPage() {
         return;
       }
 
-      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
       const serialIdx = headers.indexOf('serial_number');
       const typeIdx = headers.indexOf('unit_type');
       const modelIdx = headers.indexOf('model_name');
@@ -202,7 +233,7 @@ export default function DispatchedUnitsPage() {
 
       const rows: BulkImportRow[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map((c) => c.trim());
+        const cols = parseCsvLine(lines[i]).map((c) => c.trim());
         if (!cols[serialIdx]) continue;
         rows.push({
           serial_number: cols[serialIdx],

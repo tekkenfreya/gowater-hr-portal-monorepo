@@ -126,9 +126,12 @@ class UnitsService {
     }
 
     if (filters?.search) {
-      query = query.or(
-        `serial_number.ilike.%${filters.search}%,destination.ilike.%${filters.search}%`
-      );
+      const sanitized = filters.search.replace(/[%_,.*()]/g, '');
+      if (sanitized) {
+        query = query.or(
+          `serial_number.ilike.%${sanitized}%,destination.ilike.%${sanitized}%`
+        );
+      }
     }
 
     query = query
@@ -251,18 +254,24 @@ class UnitsService {
       return { created: 0, errors };
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('dispatched_units')
-      .insert(validRecords)
-      .select();
+    let created = 0;
+    for (let i = 0; i < validRecords.length; i++) {
+      const { error } = await supabaseAdmin
+        .from('dispatched_units')
+        .insert(validRecords[i]);
 
-    if (error) {
-      logger.error('Failed to bulk insert units', error);
-      errors.push({ row: 0, error: `Bulk insert failed: ${error.message}` });
-      return { created: 0, errors };
+      if (error) {
+        if (error.code === '23505') {
+          errors.push({ row: i + 1, error: 'Serial number already exists' });
+        } else {
+          errors.push({ row: i + 1, error: error.message });
+        }
+      } else {
+        created++;
+      }
     }
 
-    return { created: data?.length ?? 0, errors };
+    return { created, errors };
   }
 
   async updateUnit(
@@ -323,7 +332,7 @@ class UnitsService {
 
     let query = supabaseAdmin
       .from('service_requests')
-      .select('*, dispatched_units(serial_number, unit_type, model_name, destination, status)', {
+      .select('*, dispatched_units(*)', {
         count: 'exact',
       });
 

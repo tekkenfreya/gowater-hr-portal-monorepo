@@ -1382,23 +1382,23 @@ All API routes are in `src/app/api/`. Authentication required unless noted.
   - **Body:** `{serialNumber, unitType, modelName, destination?, notes?}`
   - **Returns:** `{success, unit?, error?}`
 
-- `POST /api/admin/units` (with `bulk: true`)
-  - **Purpose:** Bulk import units (admin only)
-  - **Body:** `{bulk: true, rows: BulkImportRow[]}`
+- `POST /api/admin/units/bulk`
+  - **Purpose:** Bulk import units from CSV data (admin only, max 500 rows)
+  - **Body:** `{rows: BulkImportRow[]}`
   - **Returns:** `{success, created, errors}`
 
 - `GET /api/admin/units/[id]`
   - **Purpose:** Get single unit by ID (admin only)
   - **Returns:** `{unit: DispatchedUnit}`
 
-- `PUT /api/admin/units/[id]`
+- `PATCH /api/admin/units/[id]`
   - **Purpose:** Update unit fields (admin only)
   - **Body:** `{destination?, status?, notes?, modelName?}`
   - **Returns:** `{success, unit?, error?}`
 
-- `GET /api/admin/units/[id]/barcode`
-  - **Purpose:** Generate barcode SVG for a unit (admin only)
-  - **Returns:** `{barcodeSvg: string}`
+- `GET /api/admin/units/[id]/label`
+  - **Purpose:** Generate printable barcode label SVG for a unit (admin only)
+  - **Returns:** SVG image (`Content-Type: image/svg+xml`)
 
 ### Admin Service Request Routes *(NEW)*
 
@@ -1406,19 +1406,19 @@ All API routes are in `src/app/api/`. Authentication required unless noted.
   - **Purpose:** Get all service requests with filtering (admin only)
   - **Returns:** `{requests: ServiceRequest[], total: number}`
 
-- `PUT /api/admin/service-requests`
+- `PATCH /api/admin/service-requests/[id]`
   - **Purpose:** Update service request status (admin only)
-  - **Body:** `{id, status, resolvedBy?}`
-  - **Returns:** `{success, error?}`
+  - **Body:** `{status: 'in_progress' | 'resolved'}`
+  - **Returns:** `{success}`
 
 ### Public Verification Routes *(NEW)*
 
 - `GET /api/verify/[serial]`
-  - **Purpose:** Verify a unit by serial number (public, no auth)
-  - **Returns:** `VerifyResult` - `{found, status?, unitType?, modelName?, dispatchedAt?, message}`
+  - **Purpose:** Look up unit by serial number (public, read-only, no auth)
+  - **Returns:** `{found, status?, unitType?, modelName?, dispatchedAt?, message}`
 
 - `POST /api/verify/[serial]`
-  - **Purpose:** Verify unit with customer name (public, no auth). Auto-transitions 'dispatched' to 'verified'
+  - **Purpose:** Confirm verification and optionally record customer name (public, no auth). Auto-transitions 'dispatched' to 'verified'
   - **Body:** `{customerName?: string}`
   - **Returns:** `VerifyResult`
 

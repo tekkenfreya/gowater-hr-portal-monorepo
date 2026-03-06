@@ -556,14 +556,14 @@ if (!auth.authenticated) {
 ### Dispatched Units (NEW - Admin only)
 - `GET /api/admin/units` - List units with filters (query: ?status=&unitType=&search=&page=&limit=)
 - `POST /api/admin/units` - Create unit (body: { serialNumber, unitType, modelName, destination?, notes? })
-- `POST /api/admin/units` - Bulk import (body: { bulk: true, rows: [] })
+- `POST /api/admin/units/bulk` - Bulk import (body: { rows: BulkImportRow[] }, max 500)
 - `GET /api/admin/units/[id]` - Get single unit
-- `PUT /api/admin/units/[id]` - Update unit (body: { destination?, status?, notes?, modelName? })
-- `GET /api/admin/units/[id]/barcode` - Generate barcode SVG
+- `PATCH /api/admin/units/[id]` - Update unit (body: { destination?, status?, notes?, modelName? })
+- `GET /api/admin/units/[id]/label` - Generate printable barcode label SVG
 
 ### Service Requests (NEW - Admin only)
 - `GET /api/admin/service-requests` - List requests with filters (query: ?status=&unitId=&page=&limit=)
-- `PUT /api/admin/service-requests` - Update request status (body: { id, status, resolvedBy? })
+- `PATCH /api/admin/service-requests/[id]` - Update request status (body: { status: 'in_progress' | 'resolved' })
 
 ### Public Verification (NEW - No auth)
 - `GET /api/verify/[serial]` - Look up unit by serial number
