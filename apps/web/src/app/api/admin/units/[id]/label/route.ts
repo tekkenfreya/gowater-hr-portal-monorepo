@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bwipjs from 'bwip-js';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const bwipjs = require('bwip-js') as {
+  toSVG: (options: {
+    bcid: string;
+    text: string;
+    scale: number;
+    height: number;
+    includetext: boolean;
+    textxalign: string;
+  }) => string;
+};
 import { authenticateRequest, isAdmin } from '@/lib/authHelper';
 import { getUnitsService } from '@/lib/units';
 import { logger } from '@/lib/logger';
