@@ -1,7 +1,7 @@
 # GoWater Monorepo - Development Guidelines
 
 > **Purpose:** Standard development rules and best practices
-> **Last Updated:** 2026-03-04
+> **Last Updated:** 2026-03-06
 
 ---
 
@@ -675,6 +675,9 @@ Watermarks are generated server-side using **Satori** (JSX → SVG) and **Sharp*
 11. **Don't use `latest` Docker image tags** - Pin versions (e.g., `node:20-alpine`)
 12. **Don't run containers as root** - Use `USER node` in Dockerfile
 13. **Don't share databases between clients** - Full isolation always
+14. **Don't use `ON CONFLICT` in SQL migrations** - Supabase tables may lack UNIQUE constraints even when defined in `CREATE TABLE IF NOT EXISTS` (the statement is skipped if table exists, so constraints are never applied). Always use `DO $$ IF NOT EXISTS (SELECT 1 FROM table WHERE col = 'value') THEN INSERT ... END IF; END $$;` instead
+15. **Don't assume `CREATE TABLE IF NOT EXISTS` applies constraints** - If the table already exists, PostgreSQL skips the entire statement including all constraints, indexes, and defaults defined in it. Add constraints separately with `ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS` or use DO blocks
+16. **Single migration file** - All DB migrations go in `apps/web/migrations/run_all_migrations.sql`. Do not create separate migration files. All statements must be idempotent (safe to run multiple times)
 
 ---
 
