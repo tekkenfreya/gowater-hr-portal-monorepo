@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request);
     if (!auth.authenticated) {
-      return NextResponse.json({ error: auth.error }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (!isAdmin(auth)) {
@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || undefined;
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
 
     const unitsService = getUnitsService();
     const { requests, total } = await unitsService.getServiceRequests({

@@ -122,6 +122,10 @@ export default function UnitDetailPage() {
     try {
       const response = await fetch(`/api/admin/units/${unitId}/label`);
       if (response.ok) {
+        const contentType = response.headers.get('Content-Type') ?? '';
+        if (!contentType.includes('image/svg+xml')) {
+          return;
+        }
         const svg = await response.text();
         setLabelSvg(svg);
       }
@@ -218,31 +222,31 @@ export default function UnitDetailPage() {
   const handlePrintLabel = () => {
     if (!labelSvg) return;
 
-    const printWindow = window.open('', '_blank', 'width=400,height=300');
-    if (!printWindow) return;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Print Label</title>
+  <style>
+    @media print { body { margin: 0; padding: 0; } .label-container { width: 300px; height: 200px; } }
+    body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .label-container { width: 300px; height: 200px; }
+    .label-container svg { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="label-container">${labelSvg}</div>
+  <script>window.onload = function() { window.print(); window.close(); }<\/script>
+</body>
+</html>`;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Print Label</title>
-        <style>
-          @media print {
-            body { margin: 0; padding: 0; }
-            .label-container { width: 300px; height: 200px; }
-          }
-          body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-          .label-container { width: 300px; height: 200px; }
-          .label-container svg { width: 100%; height: 100%; }
-        </style>
-      </head>
-      <body>
-        <div class="label-container">${labelSvg}</div>
-        <script>window.onload = function() { window.print(); window.close(); }</script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank', 'width=400,height=300');
+    if (printWindow) {
+      printWindow.onafterprint = () => URL.revokeObjectURL(url);
+    } else {
+      URL.revokeObjectURL(url);
+    }
   };
 
   if (!user || user.role !== 'admin') {
