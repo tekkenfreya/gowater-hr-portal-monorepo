@@ -105,6 +105,15 @@ interface UpdateServiceRequestInput {
   resolvedBy?: number;
 }
 
+type UnitStatus = 'registered' | 'dispatched' | 'verified' | 'decommissioned';
+
+const ALLOWED_TRANSITIONS: Record<UnitStatus, UnitStatus[]> = {
+  registered: ['dispatched', 'decommissioned'],
+  dispatched: ['verified', 'decommissioned'],
+  verified: ['decommissioned'],
+  decommissioned: [],
+};
+
 class UnitsService {
   // ============ UNITS CRUD ============
 
@@ -278,6 +287,21 @@ class UnitsService {
     id: number,
     updates: Partial<{ destination: string; status: string; notes: string; modelName: string }>
   ): Promise<{ success: boolean; unit?: DispatchedUnit; error?: string }> {
+    if (updates.status !== undefined) {
+      const current = await this.getUnitById(id);
+      if (!current) {
+        return { success: false, error: 'Unit not found' };
+      }
+
+      const allowed = ALLOWED_TRANSITIONS[current.status];
+      if (!allowed.includes(updates.status as UnitStatus)) {
+        return {
+          success: false,
+          error: `Cannot change status from "${current.status}" to "${updates.status}"`,
+        };
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -319,6 +343,38 @@ class UnitsService {
     }
 
     return { success: true, unit: mapUnitRow(data as UnitRow) };
+  }
+
+  async deleteUnit(id: number): Promise<{ success: boolean; error?: string }> {
+    const unit = await this.getUnitById(id);
+    if (!unit) {
+      return { success: false, error: 'Unit not found' };
+    }
+
+    if (unit.status !== 'registered') {
+      return { success: false, error: 'Only registered units can be deleted' };
+    }
+
+    const { count } = await supabaseAdmin
+      .from('service_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('unit_id', id);
+
+    if (count && count > 0) {
+      return { success: false, error: 'Cannot delete: unit has service requests' };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('dispatched_units')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to delete unit', error);
+      return { success: false, error: 'Failed to delete unit' };
+    }
+
+    return { success: true };
   }
 
   // ============ SERVICE REQUESTS ============

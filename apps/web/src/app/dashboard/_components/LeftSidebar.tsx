@@ -4,6 +4,21 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User } from '@/types/auth';
+import {
+  Home,
+  Clock,
+  ClipboardCheck,
+  CalendarDays,
+  Users,
+  Folder,
+  Settings,
+  LogOut,
+  X,
+  ShieldCheck,
+  Package,
+  Wrench,
+  UsersRound,
+} from 'lucide-react';
 
 interface LeftSidebarProps {
   user: User | null;
@@ -87,80 +102,99 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
     {
       id: 'home',
       label: 'Home',
-      icon: <HomeIcon />,
+      icon: <Home className="w-5 h-5" />,
       href: '/dashboard'
     },
     {
       id: 'attendance',
       label: 'Attendance',
-      icon: <ClockIcon />,
+      icon: <Clock className="w-5 h-5" />,
       href: '/dashboard/attendance'
     },
     {
       id: 'tasks',
       label: 'Tasks',
-      icon: <TaskIcon />,
+      icon: <ClipboardCheck className="w-5 h-5" />,
       href: '/dashboard/tasks'
     },
     {
       id: 'leave',
       label: 'Leave Tracker',
-      icon: <CalendarDaysIcon />,
+      icon: <CalendarDays className="w-5 h-5" />,
       href: '/dashboard/leave'
     },
     {
       id: 'task-assigned',
       label: 'Activities',
-      icon: <LeadsIcon />,
+      icon: <UsersRound className="w-5 h-5" />,
       href: '/dashboard/task-assigned'
     },
     {
       id: 'team',
       label: 'Team',
-      icon: <UsersIcon />,
+      icon: <Users className="w-5 h-5" />,
       href: '#',
       subItems: []
     },
     {
       id: 'files',
       label: 'Files',
-      icon: <FolderIcon />,
+      icon: <Folder className="w-5 h-5" />,
       href: '/dashboard/files'
     },
-    ...(user?.role === 'admin' ? [{
-      id: 'admin',
-      label: 'Admin Panel',
-      icon: <AdminIcon />,
-      href: '/dashboard/admin',
-      subItems: [
-        {
-          id: 'admin-units',
-          label: 'Dispatched Units',
-          icon: <PackageIcon />,
-          href: '/dashboard/admin/units'
-        },
-        {
-          id: 'admin-service-requests',
-          label: 'Service Requests',
-          icon: <WrenchIcon />,
-          href: '/dashboard/admin/service-requests'
-        }
-      ]
-    }] : [])
+    ...(user?.role === 'admin' ? [
+      {
+        id: 'assets',
+        label: 'Assets',
+        icon: <Package className="w-5 h-5" />,
+        href: '#',
+        subItems: [
+          {
+            id: 'assets-units',
+            label: 'Units',
+            icon: <Package className="w-4 h-4" />,
+            href: '/dashboard/admin/units'
+          },
+          {
+            id: 'assets-service-requests',
+            label: 'Service Requests',
+            icon: <Wrench className="w-4 h-4" />,
+            href: '/dashboard/admin/service-requests'
+          }
+        ]
+      },
+      {
+        id: 'admin',
+        label: 'Admin Panel',
+        icon: <ShieldCheck className="w-5 h-5" />,
+        href: '/dashboard/admin',
+      }
+    ] : [])
   ];
 
   const settingsItem: NavItem = {
     id: 'settings',
     label: 'Settings',
-    icon: <SettingsIcon />,
+    icon: <Settings className="w-5 h-5" />,
     href: '/dashboard/settings'
   };
 
+  const subItemHrefs = navItems.flatMap(item => item.subItems?.map(sub => sub.href) ?? []);
+
   const isActive = (href: string) => {
+    if (href === '#') return false;
     if (href === '/dashboard') {
       return pathname === '/dashboard';
     }
-    return pathname === href || pathname.startsWith(href + '/');
+    if (pathname === href) return true;
+    if (pathname.startsWith(href + '/')) {
+      // Don't match parent if a more specific sub-item owns this path
+      const claimedBySubItem = subItemHrefs.some(
+        subHref => subHref !== href && pathname.startsWith(subHref)
+      );
+      return !claimedBySubItem;
+    }
+    return false;
   };
 
   const hasActiveSubItem = (item: NavItem) => {
@@ -191,7 +225,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
             onClick={onToggle}
             className="p-1.5 rounded-lg hover:bg-gray-700/50 transition-colors lg:hidden absolute top-2 right-2 z-10"
           >
-            <XIcon className="w-5 h-5 text-gray-300" />
+            <X className="w-5 h-5 text-gray-300" />
           </button>
         </div>
 
@@ -210,7 +244,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                         ? 'bg-blue-600/20 text-white border-l-4 border-blue-500 shadow-md'
                         : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-1 hover:scale-[1.02] border-l-4 border-transparent'
                     }`}>
-                      {item.id === 'team' ? (
+                      {item.id === 'team' || item.id === 'assets' ? (
                         <div className="flex-1 flex items-center px-3 py-3 text-sm font-bold uppercase tracking-[0.1em]" style={{ fontFamily: 'var(--font-geist-sans)' }}>
                           <div className="flex items-center space-x-3">
                             <div className="w-5 h-5 flex-shrink-0">{item.icon}</div>
@@ -363,7 +397,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
               style={{ fontFamily: 'var(--font-geist-sans)' }}
             >
               <div className="flex items-center space-x-3">
-                <div className="w-5 h-5 flex-shrink-0"><LogoutIcon /></div>
+                <div className="w-5 h-5 flex-shrink-0"><LogOut className="w-5 h-5" /></div>
                 {!isCollapsed && <span>Logout</span>}
               </div>
             </button>
@@ -407,108 +441,3 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
   );
 }
 
-// Icon Components (same as before)
-function HomeIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m3 7 5.119-4.094a1.628 1.628 0 0 1 2.123 0L16 7v11a1 1 0 0 1-1 1H9v-5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v5H5a1 1 0 0 1-1-1V7z" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
-
-function CalendarDaysIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008ZM14.25 15h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008ZM16.5 15h.008v.008H16.5V15Zm0 2.25h.008v.008H16.5v-.008Z" />
-    </svg>
-  );
-}
-
-function TaskIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
-  );
-}
-
-function UsersIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-    </svg>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
-
-function AdminIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-    </svg>
-  );
-}
-
-function LeadsIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-  );
-}
-
-function PackageIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>
-  );
-}
-
-function WrenchIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z" />
-    </svg>
-  );
-}
-
-function LogoutIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-    </svg>
-  );
-}

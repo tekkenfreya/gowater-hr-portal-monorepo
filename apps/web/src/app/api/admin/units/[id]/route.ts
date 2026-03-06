@@ -84,3 +84,35 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const auth = await authenticateRequest(request);
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isAdmin(auth)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const unitId = parseInt(id, 10);
+    if (isNaN(unitId)) {
+      return NextResponse.json({ error: 'Invalid unit ID' }, { status: 400 });
+    }
+
+    const unitsService = getUnitsService();
+    const result = await unitsService.deleteUnit(unitId);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    logger.audit('Unit deleted', auth.userId!, { unitId });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    logger.error('Delete unit API error', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

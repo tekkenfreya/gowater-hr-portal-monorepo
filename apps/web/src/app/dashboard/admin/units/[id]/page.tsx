@@ -4,9 +4,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { DispatchedUnit, ServiceRequest } from '@/types/units';
-import { ArrowLeft, Edit, Printer, Truck, Package, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit, Printer, Truck, Package, CheckCircle, Clock, AlertTriangle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { logger } from '@/lib/logger';
+
+const ALLOWED_TRANSITIONS: Record<DispatchedUnit['status'], DispatchedUnit['status'][]> = {
+  registered: ['dispatched', 'decommissioned'],
+  dispatched: ['verified', 'decommissioned'],
+  verified: ['decommissioned'],
+  decommissioned: [],
+};
 
 interface EditFormData {
   modelName: string;
@@ -219,6 +226,27 @@ export default function UnitDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!unit || unit.status !== 'registered') return;
+    if (!confirm('Are you sure you want to delete this unit? This action cannot be undone.')) return;
+
+    try {
+      const response = await fetch(`/api/admin/units/${unitId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        router.push('/dashboard/admin/units');
+      } else {
+        setError(data.error || 'Failed to delete unit');
+      }
+    } catch (err) {
+      logger.error('Failed to delete unit', err);
+      setError('Failed to delete unit');
+    }
+  };
+
   const handlePrintLabel = () => {
     if (!labelSvg) return;
 
@@ -304,13 +332,15 @@ export default function UnitDetailPage() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button
-            onClick={openEditModal}
-            className="inline-flex items-center space-x-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Edit className="w-4 h-4" />
-            <span>Edit</span>
-          </button>
+          {unit.status !== 'decommissioned' && (
+            <button
+              onClick={openEditModal}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit</span>
+            </button>
+          )}
           <button
             onClick={handlePrintLabel}
             disabled={!labelSvg}
@@ -326,6 +356,15 @@ export default function UnitDetailPage() {
             >
               <Truck className="w-4 h-4" />
               <span>Dispatch</span>
+            </button>
+          )}
+          {unit.status === 'registered' && (
+            <button
+              onClick={handleDelete}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete</span>
             </button>
           )}
         </div>
@@ -569,10 +608,10 @@ export default function UnitDetailPage() {
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value as DispatchedUnit['status'] })}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-p3-cyan focus:border-p3-cyan text-gray-900 bg-white transition-all duration-200"
                 >
-                  <option value="registered">Registered</option>
-                  <option value="dispatched">Dispatched</option>
-                  <option value="verified">Verified</option>
-                  <option value="decommissioned">Decommissioned</option>
+                  <option value={unit.status} className="capitalize">{unit.status}</option>
+                  {ALLOWED_TRANSITIONS[unit.status].map((s) => (
+                    <option key={s} value={s} className="capitalize">{s}</option>
+                  ))}
                 </select>
               </div>
 
