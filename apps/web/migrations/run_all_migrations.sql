@@ -292,6 +292,18 @@ CREATE INDEX IF NOT EXISTS idx_service_requests_status ON service_requests(statu
 ALTER TABLE dispatched_units  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_requests  ENABLE ROW LEVEL SECURITY;
 
+-- Ensure unique constraint exists on permission_key (may be missing on older DBs)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'permissions_permission_key_key'
+      AND conrelid = 'permissions'::regclass
+  ) THEN
+    ALTER TABLE permissions ADD CONSTRAINT permissions_permission_key_key UNIQUE (permission_key);
+  END IF;
+END $$;
+
 -- Unit management permissions
 INSERT INTO permissions (permission_key, display_name, description, category)
 VALUES
