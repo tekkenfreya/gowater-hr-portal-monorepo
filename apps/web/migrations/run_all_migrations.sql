@@ -231,6 +231,57 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
   CHECK (role IN ('admin', 'employee', 'manager', 'intern'));
 
+-- 7. ADD_DISPATCHED_UNITS (2026-03-06)
+CREATE TABLE IF NOT EXISTS dispatched_units (
+  id                SERIAL PRIMARY KEY,
+  serial_number     VARCHAR(100) NOT NULL UNIQUE,
+  unit_type         TEXT NOT NULL CHECK (unit_type IN ('vending_machine', 'dispenser')),
+  model_name        TEXT NOT NULL,
+  destination       TEXT,
+  status            TEXT NOT NULL DEFAULT 'registered' CHECK (status IN ('registered', 'dispatched', 'verified', 'decommissioned')),
+  dispatched_at     TIMESTAMPTZ,
+  verified_at       TIMESTAMPTZ,
+  verified_by_name  TEXT,
+  notes             TEXT,
+  created_by        INTEGER NOT NULL REFERENCES users(id),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispatched_units_serial ON dispatched_units(serial_number);
+CREATE INDEX IF NOT EXISTS idx_dispatched_units_status ON dispatched_units(status);
+
+CREATE TABLE IF NOT EXISTS service_requests (
+  id                SERIAL PRIMARY KEY,
+  unit_id           INTEGER NOT NULL REFERENCES dispatched_units(id),
+  customer_name     TEXT NOT NULL,
+  contact_number    TEXT NOT NULL,
+  email             TEXT,
+  issue_description TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'resolved')),
+  resolved_at       TIMESTAMPTZ,
+  resolved_by       INTEGER REFERENCES users(id),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_requests_unit   ON service_requests(unit_id);
+CREATE INDEX IF NOT EXISTS idx_service_requests_status ON service_requests(status);
+
+ALTER TABLE dispatched_units  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE service_requests  ENABLE ROW LEVEL SECURITY;
+
+-- Unit management permissions
+INSERT INTO permissions (permission_key, display_name, description, category)
+VALUES
+  ('can_manage_units', 'Manage Dispatched Units', 'Create, edit, dispatch, import, and print unit labels', 'units'),
+  ('can_view_service_requests', 'View Service Requests', 'View and manage customer service requests', 'units')
+ON CONFLICT (permission_key) DO NOTHING;
+
+INSERT INTO migration_log (migration_name, description, affected_records)
+VALUES ('add_dispatched_units', 'Added dispatched_units, service_requests tables and unit permissions', 0)
+ON CONFLICT (migration_name) DO NOTHING;
+
 -- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
