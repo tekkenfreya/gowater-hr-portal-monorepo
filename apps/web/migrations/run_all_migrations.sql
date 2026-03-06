@@ -192,9 +192,13 @@ CREATE TABLE IF NOT EXISTS webhook_logs (
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_webhook ON webhook_logs(webhook_id);
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_created ON webhook_logs(created_at DESC);
 
-INSERT INTO migration_log (migration_name, description, affected_records)
-VALUES ('add_webhooks_and_api_keys', 'Added api_keys, webhooks, and webhook_logs tables', 0)
-ON CONFLICT (migration_name) DO NOTHING;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_webhooks_and_api_keys') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_webhooks_and_api_keys', 'Added api_keys, webhooks, and webhook_logs tables', 0);
+  END IF;
+END $$;
 
 -- 2. CREATE_ATTENDANCE_EDIT_REQUESTS (2026-01-14)
 CREATE TABLE IF NOT EXISTS attendance_edit_requests (
@@ -233,9 +237,13 @@ UPDATE leave_requests SET leave_type = 'vacation' WHERE leave_type = 'unpaid';
 -- 4. ADD_SLACK_THREAD_TS_TO_ATTENDANCE
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS slack_thread_ts TEXT DEFAULT NULL;
 
-INSERT INTO migration_log (migration_name, description, affected_records)
-VALUES ('ADD_SLACK_THREAD_TS_TO_ATTENDANCE', 'Add slack_thread_ts column to attendance for Slack threaded messages', 0)
-ON CONFLICT (migration_name) DO NOTHING;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'ADD_SLACK_THREAD_TS_TO_ATTENDANCE') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('ADD_SLACK_THREAD_TS_TO_ATTENDANCE', 'Add slack_thread_ts column to attendance for Slack threaded messages', 0);
+  END IF;
+END $$;
 
 -- 5. ADD_PHOTO_URL_TO_ATTENDANCE (2026-01-28)
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS photo_url        TEXT;
@@ -306,9 +314,13 @@ BEGIN
   END IF;
 END $$;
 
-INSERT INTO migration_log (migration_name, description, affected_records)
-VALUES ('add_dispatched_units', 'Added dispatched_units, service_requests tables and unit permissions', 0)
-ON CONFLICT (migration_name) DO NOTHING;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_dispatched_units') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_dispatched_units', 'Added dispatched_units, service_requests tables and unit permissions', 0);
+  END IF;
+END $$;
 
 -- ============================================================
 -- Done. Verify applied migrations:
