@@ -292,24 +292,19 @@ CREATE INDEX IF NOT EXISTS idx_service_requests_status ON service_requests(statu
 ALTER TABLE dispatched_units  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_requests  ENABLE ROW LEVEL SECURITY;
 
--- Ensure unique constraint exists on permission_key (may be missing on older DBs)
+-- Unit management permissions (use upsert-safe approach without ON CONFLICT)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'permissions_permission_key_key'
-      AND conrelid = 'permissions'::regclass
-  ) THEN
-    ALTER TABLE permissions ADD CONSTRAINT permissions_permission_key_key UNIQUE (permission_key);
+  IF NOT EXISTS (SELECT 1 FROM permissions WHERE permission_key = 'can_manage_units') THEN
+    INSERT INTO permissions (permission_key, display_name, description, category)
+    VALUES ('can_manage_units', 'Manage Dispatched Units', 'Create, edit, dispatch, import, and print unit labels', 'units');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM permissions WHERE permission_key = 'can_view_service_requests') THEN
+    INSERT INTO permissions (permission_key, display_name, description, category)
+    VALUES ('can_view_service_requests', 'View Service Requests', 'View and manage customer service requests', 'units');
   END IF;
 END $$;
-
--- Unit management permissions
-INSERT INTO permissions (permission_key, display_name, description, category)
-VALUES
-  ('can_manage_units', 'Manage Dispatched Units', 'Create, edit, dispatch, import, and print unit labels', 'units'),
-  ('can_view_service_requests', 'View Service Requests', 'View and manage customer service requests', 'units')
-ON CONFLICT (permission_key) DO NOTHING;
 
 INSERT INTO migration_log (migration_name, description, affected_records)
 VALUES ('add_dispatched_units', 'Added dispatched_units, service_requests tables and unit permissions', 0)
