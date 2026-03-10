@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { Lead } from '@/types/leads';
-import { logger } from '@/lib/logger';
 import { X, AlertTriangle } from 'lucide-react';
 
 interface DeleteConfirmationModalProps {
   lead: Lead;
   onClose: () => void;
   onSuccess: () => void;
+  apiBasePath?: string;
 }
 
-export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: DeleteConfirmationModalProps) {
+export default function DeleteConfirmationModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: DeleteConfirmationModalProps) {
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
   const [activityCount, setActivityCount] = useState<number | null>(null);
@@ -26,24 +26,24 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: De
       : lead.supplier_name;
 
   const entityType =
-    lead.category === 'lead' ? 'lead' : lead.category === 'event' ? 'event' : 'supply';
+    lead.category === 'lead' ? 'lead' : lead.category === 'event' ? 'event' : 'supplier';
 
   // Fetch activity count on mount
   useEffect(() => {
     const fetchActivityCount = async () => {
       try {
         setLoadingActivities(true);
-        const response = await fetch(`/api/leads/activities?leadId=${lead.id}`);
+        const response = await fetch(`${apiBasePath}/activities?leadId=${lead.id}`);
         const data = await response.json();
 
         if (response.ok) {
           setActivityCount(data.activities.length);
         } else {
-          logger.error('Failed to fetch activities', data.error);
+          console.error('Failed to fetch activities', data.error);
           setActivityCount(0);
         }
       } catch (error) {
-        logger.error('Error fetching activities', error);
+        console.error('Error fetching activities', error);
         setActivityCount(0);
       } finally {
         setLoadingActivities(false);
@@ -51,7 +51,7 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: De
     };
 
     fetchActivityCount();
-  }, [lead.id]);
+  }, [lead.id, apiBasePath]);
 
   const handleDelete = async () => {
     if (confirmText !== 'DELETE') {
@@ -61,7 +61,7 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: De
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/leads?id=${lead.id}`, {
+      const response = await fetch(`${apiBasePath}?id=${lead.id}`, {
         method: 'DELETE',
       });
 
@@ -72,11 +72,11 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: De
         onClose();
       } else {
         alert(`Failed to delete ${entityType}: ${data.error}`);
-        logger.error(`Failed to delete ${entityType}`, data.error);
+        console.error(`Failed to delete ${entityType}`, data.error);
       }
     } catch (error) {
       alert(`An error occurred while deleting the ${entityType}`);
-      logger.error(`Error deleting ${entityType}`, error);
+      console.error(`Error deleting ${entityType}`, error);
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess }: De
           {/* Warning Message */}
           <div className="bg-[#FFF4CE] border border-[#F59B00] rounded p-4">
             <p className="text-sm text-[#323130] font-medium">
-              You are about to permanently delete this {entityType}:
+              This will permanently delete the following {entityType}:
             </p>
             <p className="text-sm text-[#323130] font-semibold mt-1">&quot;{entityName}&quot;</p>
           </div>

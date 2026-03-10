@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Lead, LeadActivity, ActivityType } from '@/types/leads';
-import { logger } from '@/lib/logger';
 import { X, Phone, Mail, Users, Building, ClipboardCheck, FileText, Sparkles, MapPin, User, Calendar, Loader2, CheckCircle, Package, ClipboardList } from 'lucide-react';
 
 interface ViewActivitiesModalProps {
   lead: Lead;
   onClose: () => void;
+  apiBasePath?: string;
 }
 
 const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
@@ -36,14 +36,14 @@ const ACTIVITY_COLORS: Record<ActivityType, string> = {
   'checking': 'bg-[#FFF4E5] text-[#F59B00] border-[#F59B00]',
 };
 
-export default function ViewActivitiesModal({ lead, onClose }: ViewActivitiesModalProps) {
+export default function ViewActivitiesModal({ lead, onClose, apiBasePath = '/api/leads' }: ViewActivitiesModalProps) {
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchActivities = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/leads/activities?leadId=${lead.id}`);
+      const response = await fetch(`${apiBasePath}/activities?leadId=${lead.id}`);
       const data = await response.json();
 
       if (response.ok) {
@@ -54,14 +54,14 @@ export default function ViewActivitiesModal({ lead, onClose }: ViewActivitiesMod
         );
         setActivities(sortedActivities);
       } else {
-        logger.error('Failed to fetch activities', data.error);
+        console.error('Failed to fetch activities', data.error);
       }
     } catch (error) {
-      logger.error('Error fetching activities', error);
+      console.error('Error fetching activities', error);
     } finally {
       setLoading(false);
     }
-  }, [lead.id]);
+  }, [lead.id, apiBasePath]);
 
   useEffect(() => {
     fetchActivities();
@@ -95,7 +95,7 @@ export default function ViewActivitiesModal({ lead, onClose }: ViewActivitiesMod
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-[#323130]">Activity Timeline</h2>
-              <p className="text-[#605E5C] text-sm mt-1">{lead.company_name || lead.event_name}</p>
+              <p className="text-[#605E5C] text-sm mt-1">{lead.company_name || lead.event_name || lead.supplier_name}</p>
               <div className="flex items-center space-x-4 mt-2 text-xs text-[#605E5C]">
                 {lead.location && (
                   <span className="flex items-center gap-1">
@@ -130,8 +130,8 @@ export default function ViewActivitiesModal({ lead, onClose }: ViewActivitiesMod
           ) : activities.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 text-[#C8C6C4] mx-auto mb-4" />
-              <p className="text-[#605E5C] text-base">No activities logged yet</p>
-              <p className="text-[#8A8886] text-sm mt-2">Start logging activities to track progress on this lead</p>
+              <p className="text-[#605E5C] text-base">No activities yet</p>
+              <p className="text-[#8A8886] text-sm mt-2">Log an activity to start tracking this lead</p>
             </div>
           ) : (
             <div className="space-y-4">

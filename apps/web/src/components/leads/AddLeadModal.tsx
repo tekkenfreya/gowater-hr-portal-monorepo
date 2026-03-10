@@ -9,6 +9,7 @@ interface AddLeadModalProps {
   category: LeadCategory;
   onClose: () => void;
   onSuccess: () => void;
+  apiBasePath?: string;
 }
 
 const PRODUCT_OPTIONS: { value: ProductType; label: string }[] = [
@@ -61,7 +62,7 @@ const DISPOSITION_OPTIONS = [
   { value: 'for-negotiation', label: 'For Further Negotiation' },
 ];
 
-export default function AddLeadModal({ category, onClose, onSuccess }: AddLeadModalProps) {
+export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     category,
     // LEAD FIELDS
@@ -121,7 +122,7 @@ export default function AddLeadModal({ category, onClose, onSuccess }: AddLeadMo
 
     try {
       setLoading(true);
-      const response = await fetch('/api/leads', {
+      const response = await fetch(apiBasePath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -365,7 +366,7 @@ export default function AddLeadModal({ category, onClose, onSuccess }: AddLeadMo
                   onChange={handleChange}
                   rows={3}
                   className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-                  placeholder="Add any additional notes"
+                  placeholder="Any notes or comments"
                 />
               </div>
 
@@ -674,7 +675,7 @@ export default function AddLeadModal({ category, onClose, onSuccess }: AddLeadMo
                 onChange={handleChange}
                 rows={3}
                 className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-                placeholder="Add any additional notes"
+                placeholder="Any notes or comments"
               />
             </div>
           )}

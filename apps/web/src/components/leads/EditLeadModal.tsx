@@ -9,6 +9,7 @@ interface EditLeadModalProps {
   lead: Lead;
   onClose: () => void;
   onSuccess: () => void;
+  apiBasePath?: string;
 }
 
 const PRODUCT_OPTIONS: { value: ProductType; label: string }[] = [
@@ -35,7 +36,7 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-export default function EditLeadModal({ lead, onClose, onSuccess }: EditLeadModalProps) {
+export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: EditLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     category: lead.category,
     // LEAD FIELDS
@@ -90,7 +91,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess }: EditLeadModa
 
     try {
       setLoading(true);
-      const response = await fetch('/api/leads', {
+      const response = await fetch(apiBasePath, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +125,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess }: EditLeadModa
   const isLead = lead.category === 'lead';
   const isEvent = lead.category === 'event';
   const isSupply = lead.category === 'supplier';
-  const modalTitle = isLead ? 'Edit Lead' : isEvent ? 'Edit Event' : 'Edit Supply';
+  const modalTitle = isLead ? 'Edit Lead' : isEvent ? 'Edit Event' : 'Edit Supplier';
   const submitButtonText = loading ? 'Saving...' : 'Save Changes';
 
   // Get the display name for the entity
@@ -491,7 +492,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess }: EditLeadModa
               onChange={handleChange}
               rows={3}
               className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-              placeholder="Add any additional notes"
+              placeholder="Any notes or comments"
             />
           </div>
 
@@ -504,7 +505,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess }: EditLeadModa
               onChange={handleChange}
               rows={2}
               className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-              placeholder={isLead ? 'What is the current disposition of this lead?' : isEvent ? 'What is the status of this event?' : 'What is the status with this supplier?'}
+              placeholder={isLead ? 'Current disposition for this lead' : isEvent ? 'Current status of this event' : 'Current status with this supplier'}
             />
           </div>
 

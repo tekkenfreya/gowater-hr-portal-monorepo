@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { Lead, ActivityType, ActivityFormData } from '@/types/leads';
-import { logger } from '@/lib/logger';
 import { X, Phone, Mail, Users, Building, ClipboardCheck, FileText, Sparkles, Info, CheckCircle, Package, ClipboardList } from 'lucide-react';
 
 interface LogActivityModalProps {
   lead: Lead;
   onClose: () => void;
   onSuccess: () => void;
+  apiBasePath?: string;
 }
 
 // Activity types for Lead and Event categories
@@ -39,7 +39,7 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivityModalProps) {
+export default function LogActivityModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: LogActivityModalProps) {
   // Determine which activity types to show based on lead category
   const activityTypes = lead.category === 'supplier' ? SUPPLIER_ACTIVITY_TYPES : LEAD_EVENT_ACTIVITY_TYPES;
   const defaultActivityType = lead.category === 'supplier' ? 'active-supplier' : 'call';
@@ -63,7 +63,7 @@ export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivi
 
     try {
       setLoading(true);
-      const response = await fetch('/api/leads/activities', {
+      const response = await fetch(`${apiBasePath}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,11 +80,11 @@ export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivi
         onClose();
       } else {
         alert(`Failed to log activity: ${data.error}`);
-        logger.error('Failed to log activity', data.error);
+        console.error('Failed to log activity', data.error);
       }
     } catch (error) {
       alert('An error occurred while logging the activity');
-      logger.error('Error logging activity', error);
+      console.error('Error logging activity', error);
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivi
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-[#323130]">Log Activity</h2>
-              <p className="text-[#605E5C] text-sm mt-1">{lead.company_name || lead.event_name}</p>
+              <p className="text-[#605E5C] text-sm mt-1">{lead.company_name || lead.event_name || lead.supplier_name}</p>
             </div>
             <button
               onClick={onClose}
@@ -198,7 +198,7 @@ export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivi
               ))}
             </select>
             <p className="mt-1.5 text-xs text-[#605E5C]">
-              Optionally update the lead status based on this activity
+              You can also update the lead status here
             </p>
           </div>
 
@@ -207,9 +207,9 @@ export default function LogActivityModal({ lead, onClose, onSuccess }: LogActivi
             <div className="flex items-start space-x-2">
               <Info className="w-4 h-4 text-[#605E5C] mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-[#323130]">Activity will be tracked</p>
+                <p className="text-sm font-medium text-[#323130]">This gets logged</p>
                 <p className="text-xs text-[#605E5C] mt-1">
-                  This activity will be logged with your name and timestamp. Your boss can see all activities in the dashboard.
+                  Your name and timestamp will be recorded. Managers can view all activities from the dashboard.
                 </p>
               </div>
             </div>

@@ -323,6 +323,71 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- COLD LEADS & COLD LEAD ACTIVITIES
+-- Same schema as leads/lead_activities but for cold leads
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS cold_leads (
+  id                    TEXT PRIMARY KEY,
+  category              TEXT NOT NULL CHECK (category IN ('lead', 'event', 'supplier')),
+  date_of_interaction   DATE,
+  lead_type             TEXT,
+  company_name          TEXT,
+  number_of_beneficiary TEXT,
+  location              TEXT,
+  lead_source           TEXT,
+  event_name            TEXT,
+  event_type            TEXT,
+  venue                 TEXT,
+  event_date            DATE,
+  event_start_date      DATE,
+  event_end_date        DATE,
+  event_time            TEXT,
+  event_lead            TEXT,
+  number_of_attendees   TEXT,
+  event_report          TEXT,
+  supplier_name         TEXT,
+  supplier_location     TEXT,
+  supplier_product      TEXT,
+  price                 TEXT,
+  unit_type             TEXT,
+  contact_person        TEXT,
+  mobile_number         TEXT,
+  email_address         TEXT,
+  product               TEXT,
+  status                TEXT NOT NULL DEFAULT 'not-started',
+  remarks               TEXT,
+  disposition           TEXT,
+  assigned_to           TEXT,
+  created_by            TEXT NOT NULL,
+  created_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cold_lead_activities (
+  id                    TEXT PRIMARY KEY,
+  lead_id               TEXT NOT NULL REFERENCES cold_leads(id) ON DELETE CASCADE,
+  employee_name         TEXT NOT NULL,
+  activity_type         TEXT NOT NULL,
+  activity_description  TEXT NOT NULL,
+  start_date            DATE,
+  end_date              DATE,
+  status_update         TEXT,
+  created_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE cold_leads             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cold_lead_activities   ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_cold_leads') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_cold_leads', 'Added cold_leads and cold_lead_activities tables', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

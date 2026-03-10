@@ -41,10 +41,11 @@ import { logger } from './logger';
 // ============================================================
 
 // Standard JWT payload structure used across the app
-interface JWTPayload {
+export interface JWTPayload {
   userId: number;
   email: string;
   role: string;
+  name?: string;
 }
 
 // What authenticateRequest returns

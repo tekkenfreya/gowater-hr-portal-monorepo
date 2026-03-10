@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Lead, LeadCategory } from '@/types/leads';
-import { logger } from '@/lib/logger';
 import AddLeadModal from '@/components/leads/AddLeadModal';
 import EditLeadModal from '@/components/leads/EditLeadModal';
 import LogActivityModal from '@/components/leads/LogActivityModal';
@@ -11,6 +10,8 @@ import ViewActivitiesModal from '@/components/leads/ViewActivitiesModal';
 import DeleteConfirmationModal from '@/components/leads/DeleteConfirmationModal';
 import { Plus, Building2, Calendar, FileText, Eye, Package, Pencil, Trash2, Download, Snowflake } from 'lucide-react';
 import Link from 'next/link';
+
+const API_BASE_PATH = '/api/cold-leads';
 
 const CATEGORIES: { value: LeadCategory; label: string }[] = [
   { value: 'lead', label: 'Leads' },
@@ -28,8 +29,55 @@ const STATUS_COLORS: Record<string, string> = {
   'rejected': 'bg-[#FDE7E9] text-[#A4262C] border border-[#D13438]',
 };
 
-export default function LeadsPage() {
-  const { user } = useAuth();
+function LeadActionButtons({
+  lead,
+  onLogActivity,
+  onViewActivities,
+  onEdit,
+  onDelete,
+}: {
+  lead: Lead;
+  onLogActivity: (lead: Lead) => void;
+  onViewActivities: (lead: Lead) => void;
+  onEdit: (lead: Lead) => void;
+  onDelete: (lead: Lead) => void;
+}) {
+  return (
+    <div className="flex space-x-1">
+      <button
+        onClick={() => onLogActivity(lead)}
+        className="px-2 py-1 bg-[#0078D4] text-white text-xs rounded font-medium hover:bg-[#005A9E] transition-colors duration-150 flex items-center gap-1"
+      >
+        <FileText className="w-3 h-3" />
+        Log
+      </button>
+      <button
+        onClick={() => onViewActivities(lead)}
+        className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
+      >
+        <Eye className="w-3 h-3" />
+        View
+      </button>
+      <button
+        onClick={() => onEdit(lead)}
+        className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
+      >
+        <Pencil className="w-3 h-3" />
+        Edit
+      </button>
+      <button
+        onClick={() => onDelete(lead)}
+        className="px-2 py-1 bg-white text-[#D13438] text-xs rounded font-medium hover:bg-[#FEF0F1] transition-colors duration-150 border border-[#D13438] flex items-center gap-1"
+      >
+        <Trash2 className="w-3 h-3" />
+        Delete
+      </button>
+    </div>
+  );
+}
+
+export default function ColdLeadsPage() {
+  useAuth();
   const [selectedCategory, setSelectedCategory] = useState<LeadCategory>('lead');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,30 +89,29 @@ export default function LeadsPage() {
   const [showViewActivitiesModal, setShowViewActivitiesModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  useEffect(() => {
-    fetchLeads();
-  }, [selectedCategory]);
-
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/leads?category=${selectedCategory}`);
+      const response = await fetch(`${API_BASE_PATH}?category=${selectedCategory}`);
       const data = await response.json();
 
       if (response.ok) {
         setLeads(data.leads);
       } else {
-        logger.error('Failed to fetch leads', data.error);
+        console.error('Failed to fetch cold leads', data.error);
       }
     } catch (error) {
-      logger.error('Error fetching leads', error);
+      console.error('Error fetching cold leads', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
 
   const openAddFlow = () => {
-    // Directly open the add modal with the current category
     setSelectedCategoryForAdd(selectedCategory);
     setShowAddModal(true);
   };
@@ -95,30 +142,28 @@ export default function LeadsPage() {
   };
 
   const handleEditSuccess = () => {
-    fetchLeads(); // Refresh the leads list
+    fetchLeads();
   };
 
   const handleDeleteSuccess = () => {
-    fetchLeads(); // Refresh the leads list
+    fetchLeads();
   };
 
   const handleExportToExcel = async () => {
     try {
-      const response = await fetch(`/api/leads/export?category=${selectedCategory}`);
+      const response = await fetch(`${API_BASE_PATH}/export?category=${selectedCategory}`);
 
       if (!response.ok) {
         const data = await response.json();
         alert(`Failed to export: ${data.error}`);
-        logger.error('Failed to export leads', data.error);
+        console.error('Failed to export cold leads', data.error);
         return;
       }
 
-      // Get the filename from Content-Disposition header
       const contentDisposition = response.headers.get('Content-Disposition');
       const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch ? filenameMatch[1] : `export-${Date.now()}.xlsx`;
+      const filename = filenameMatch ? filenameMatch[1] : `cold-leads-export-${Date.now()}.xlsx`;
 
-      // Create blob and download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -130,7 +175,7 @@ export default function LeadsPage() {
       document.body.removeChild(a);
     } catch (error) {
       alert('An error occurred while exporting');
-      logger.error('Error exporting leads', error);
+      console.error('Error exporting cold leads', error);
     }
   };
 
@@ -154,36 +199,47 @@ export default function LeadsPage() {
 
         {/* Category Navigation */}
         <nav className="space-y-1 mb-6">
+          <Link
+            href="/dashboard/task-assigned"
+            className="w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 text-[#323130] hover:bg-[#F3F2F1]"
+          >
+            <Building2 className="w-4 h-4" />
+            Leads
+          </Link>
+
           {CATEGORIES.map((category) => {
             const items = [];
 
-            items.push(
-              <button
-                key={category.value}
-                onClick={() => setSelectedCategory(category.value)}
-                className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
-                  selectedCategory === category.value
-                    ? 'bg-[#E6F3FF] text-[#0078D4] border-l-4 border-[#0078D4]'
-                    : 'text-[#323130] hover:bg-[#F3F2F1]'
-                }`}
-              >
-                {category.value === 'lead' ? <Building2 className="w-4 h-4" /> :
-                 category.value === 'event' ? <Calendar className="w-4 h-4" /> :
-                 <Package className="w-4 h-4" />}
-                {category.label}
-              </button>
-            );
-
             if (category.value === 'lead') {
               items.push(
-                <Link
-                  key="cold-leads"
-                  href="/dashboard/cold-leads"
-                  className="w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 text-[#323130] hover:bg-[#F3F2F1]"
+                <button
+                  key="cold-leads-label"
+                  onClick={() => setSelectedCategory(category.value)}
+                  className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
+                    selectedCategory === category.value
+                      ? 'bg-[#E6F3FF] text-[#0078D4] border-l-4 border-[#0078D4]'
+                      : 'text-[#323130] hover:bg-[#F3F2F1]'
+                  }`}
                 >
                   <Snowflake className="w-4 h-4" />
                   Cold Leads
-                </Link>
+                </button>
+              );
+            } else {
+              items.push(
+                <button
+                  key={category.value}
+                  onClick={() => setSelectedCategory(category.value)}
+                  className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
+                    selectedCategory === category.value
+                      ? 'bg-[#E6F3FF] text-[#0078D4] border-l-4 border-[#0078D4]'
+                      : 'text-[#323130] hover:bg-[#F3F2F1]'
+                  }`}
+                >
+                  {category.value === 'event' ? <Calendar className="w-4 h-4" /> :
+                   <Package className="w-4 h-4" />}
+                  {category.label}
+                </button>
               );
             }
 
@@ -198,14 +254,14 @@ export default function LeadsPage() {
           {/* Category Title Header */}
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-[#323130] mb-1">{categoryLabel}</h1>
-              <p className="text-[#605E5C] text-sm">Manage and track your {categoryLabel.toLowerCase()}</p>
+              <h1 className="text-3xl font-semibold text-[#323130] mb-1">Cold {categoryLabel}</h1>
+              <p className="text-[#605E5C] text-sm">Track your cold {categoryLabel.toLowerCase()}</p>
             </div>
             {leads.length > 0 && (
               <button
                 onClick={handleExportToExcel}
                 className="px-4 py-2 bg-[#107C10] text-white rounded text-sm font-medium hover:bg-[#0B5A08] transition-colors duration-150 flex items-center gap-2"
-                title={`Export ${categoryLabel} to Excel`}
+                title={`Export Cold ${categoryLabel} to Excel`}
               >
                 <Download className="w-4 h-4" />
                 Export to Excel
@@ -218,15 +274,15 @@ export default function LeadsPage() {
           {loading ? (
             <div className="p-12 text-center">
               <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[#0078D4]"></div>
-              <p className="mt-4 text-[#605E5C] text-sm">Loading {categoryLabel.toLowerCase()}...</p>
+              <p className="mt-4 text-[#605E5C] text-sm">Loading...</p>
             </div>
           ) : leads.length === 0 ? (
             <div className="p-12 text-center">
-              <p className="text-[#605E5C] text-base mb-4">No {categoryLabel.toLowerCase()} found</p>
+              <p className="text-[#605E5C] text-base mb-4">No cold {categoryLabel.toLowerCase()} found</p>
               <button
                 onClick={openAddFlow}
                 className="w-8 h-8 rounded-full bg-white border border-[#C8C6C4] hover:border-[#0078D4] hover:bg-[#F3F2F1] transition-colors duration-150 flex items-center justify-center group mx-auto"
-                title={`Add ${isLeadCategory ? 'Lead' : isEventCategory ? 'Event' : 'Supplier'}`}
+                title={`Add Cold ${isLeadCategory ? 'Lead' : isEventCategory ? 'Event' : 'Supplier'}`}
               >
                 <Plus className="w-4 h-4 text-[#605E5C] group-hover:text-[#0078D4]" />
               </button>
@@ -236,7 +292,6 @@ export default function LeadsPage() {
               <table className="table-auto" style={{minWidth: '1800px', width: '1800px'}}>
                 <thead className="bg-[#F3F2F1] border-b border-[#E1DFDD]">
                   <tr>
-                    {/* Dynamic headers based on category */}
                     {isLeadCategory && (
                       <>
                         <th className="px-2 py-2 text-left text-xs font-semibold text-[#605E5C] uppercase tracking-wide whitespace-nowrap">Date</th>
@@ -293,7 +348,6 @@ export default function LeadsPage() {
                 <tbody className="divide-y divide-[#E1DFDD]">
                   {leads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-[#F3F2F1] transition-colors duration-100">
-                      {/* Dynamic row data based on category */}
                       {isLeadCategory && (
                         <>
                           <td className="px-2 py-2 text-xs text-[#323130]">
@@ -340,36 +394,13 @@ export default function LeadsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2">
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => openActivityModal(lead)}
-                                className="px-2 py-1 bg-[#0078D4] text-white text-xs rounded font-medium hover:bg-[#005A9E] transition-colors duration-150 flex items-center gap-1"
-                              >
-                                <FileText className="w-3 h-3" />
-                                Log
-                              </button>
-                              <button
-                                onClick={() => openViewActivitiesModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View
-                              </button>
-                              <button
-                                onClick={() => openEditModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Pencil className="w-3 h-3" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => openDeleteModal(lead)}
-                                className="px-2 py-1 bg-white text-[#D13438] text-xs rounded font-medium hover:bg-[#FEF0F1] transition-colors duration-150 border border-[#D13438] flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </button>
-                            </div>
+                            <LeadActionButtons
+                              lead={lead}
+                              onLogActivity={openActivityModal}
+                              onViewActivities={openViewActivitiesModal}
+                              onEdit={openEditModal}
+                              onDelete={openDeleteModal}
+                            />
                           </td>
                         </>
                       )}
@@ -414,36 +445,13 @@ export default function LeadsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2">
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => openActivityModal(lead)}
-                                className="px-2 py-1 bg-[#0078D4] text-white text-xs rounded font-medium hover:bg-[#005A9E] transition-colors duration-150 flex items-center gap-1"
-                              >
-                                <FileText className="w-3 h-3" />
-                                Log
-                              </button>
-                              <button
-                                onClick={() => openViewActivitiesModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View
-                              </button>
-                              <button
-                                onClick={() => openEditModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Pencil className="w-3 h-3" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => openDeleteModal(lead)}
-                                className="px-2 py-1 bg-white text-[#D13438] text-xs rounded font-medium hover:bg-[#FEF0F1] transition-colors duration-150 border border-[#D13438] flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </button>
-                            </div>
+                            <LeadActionButtons
+                              lead={lead}
+                              onLogActivity={openActivityModal}
+                              onViewActivities={openViewActivitiesModal}
+                              onEdit={openEditModal}
+                              onDelete={openDeleteModal}
+                            />
                           </td>
                         </>
                       )}
@@ -483,36 +491,13 @@ export default function LeadsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2">
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => openActivityModal(lead)}
-                                className="px-2 py-1 bg-[#0078D4] text-white text-xs rounded font-medium hover:bg-[#005A9E] transition-colors duration-150 flex items-center gap-1"
-                              >
-                                <FileText className="w-3 h-3" />
-                                Log
-                              </button>
-                              <button
-                                onClick={() => openViewActivitiesModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View
-                              </button>
-                              <button
-                                onClick={() => openEditModal(lead)}
-                                className="px-2 py-1 bg-white text-[#323130] text-xs rounded font-medium hover:bg-[#F3F2F1] transition-colors duration-150 border border-[#C8C6C4] flex items-center gap-1"
-                              >
-                                <Pencil className="w-3 h-3" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => openDeleteModal(lead)}
-                                className="px-2 py-1 bg-white text-[#D13438] text-xs rounded font-medium hover:bg-[#FEF0F1] transition-colors duration-150 border border-[#D13438] flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Delete
-                              </button>
-                            </div>
+                            <LeadActionButtons
+                              lead={lead}
+                              onLogActivity={openActivityModal}
+                              onViewActivities={openViewActivitiesModal}
+                              onEdit={openEditModal}
+                              onDelete={openDeleteModal}
+                            />
                           </td>
                         </>
                       )}
@@ -529,7 +514,7 @@ export default function LeadsPage() {
               <button
                 onClick={openAddFlow}
                 className="w-8 h-8 rounded-full bg-white border border-[#C8C6C4] hover:border-[#0078D4] hover:bg-[#F3F2F1] transition-colors duration-150 flex items-center justify-center group"
-                title={`Add ${isLeadCategory ? 'Lead' : isEventCategory ? 'Event' : 'Supplier'}`}
+                title={`Add Cold ${isLeadCategory ? 'Lead' : isEventCategory ? 'Event' : 'Supplier'}`}
               >
                 <Plus className="w-4 h-4 text-[#605E5C] group-hover:text-[#0078D4]" />
               </button>
@@ -548,6 +533,7 @@ export default function LeadsPage() {
             fetchLeads();
             closeAddModal();
           }}
+          apiBasePath={API_BASE_PATH}
         />
       )}
       {showActivityModal && selectedLead && (
@@ -558,6 +544,7 @@ export default function LeadsPage() {
             setSelectedLead(null);
           }}
           onSuccess={fetchLeads}
+          apiBasePath={API_BASE_PATH}
         />
       )}
       {showViewActivitiesModal && selectedLead && (
@@ -567,6 +554,7 @@ export default function LeadsPage() {
             setShowViewActivitiesModal(false);
             setSelectedLead(null);
           }}
+          apiBasePath={API_BASE_PATH}
         />
       )}
       {showEditModal && selectedLead && (
@@ -581,6 +569,7 @@ export default function LeadsPage() {
             setShowEditModal(false);
             setSelectedLead(null);
           }}
+          apiBasePath={API_BASE_PATH}
         />
       )}
       {showDeleteModal && selectedLead && (
@@ -595,6 +584,7 @@ export default function LeadsPage() {
             setShowDeleteModal(false);
             setSelectedLead(null);
           }}
+          apiBasePath={API_BASE_PATH}
         />
       )}
     </div>
