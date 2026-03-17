@@ -113,7 +113,7 @@ export default function P3LoadingScreen({ onComplete }: P3LoadingScreenProps) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const { currentYear, monthName, monthNumber, days } = useMemo(() => {
+  const { currentYear, monthName, days } = useMemo(() => {
     const today = new Date();
     const todayDate = today.getDate();
     const month = today.getMonth();
@@ -144,7 +144,6 @@ export default function P3LoadingScreen({ onComplete }: P3LoadingScreenProps) {
   useEffect(() => {
     const el = container.current;
     if (!el) return;
-    let tl: gsap.core.Timeline;
 
     const cw = el.offsetWidth || 700;
     const ch = el.offsetHeight || 600;
@@ -178,11 +177,10 @@ export default function P3LoadingScreen({ onComplete }: P3LoadingScreenProps) {
     gsap.set([r1, r2, r3], { scale: 0, opacity: 0 });
     if (ring) gsap.set(ring, { opacity: 0, scale: 0.6 });
 
-    tl = gsap.timeline();
+    const tl = gsap.timeline();
 
     // 1. Day items cascade in first
     const sorted = gsap.utils.toArray(dayEls);
-    const currentDayDelay = curIdx * 0.15; // when the current day appears in the stagger
 
     tl.to(sorted, {
       opacity: 1, x: 0, y: 0,

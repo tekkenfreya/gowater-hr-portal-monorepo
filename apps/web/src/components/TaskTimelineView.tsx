@@ -139,13 +139,6 @@ export default function TaskTimelineView({
   };
 
   // Check if task was updated after creation (with 1 second tolerance)
-  const wasUpdated = (task: Task): boolean => {
-    const createdTs = getTimestamp(task.createdAt);
-    const updatedTs = getTimestamp(task.updatedAt);
-    // Consider updated if updatedAt is more than 1 second after createdAt
-    return updatedTs > 0 && createdTs > 0 && (updatedTs - createdTs) > 1000;
-  };
-
   const calculateProgress = (task: Task) => {
     if (!task.subTasks || task.subTasks.length === 0) return 0;
     const completed = task.subTasks.filter(st => st.status === 'completed').length;
@@ -478,7 +471,7 @@ export default function TaskTimelineView({
                   </h4>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {task.updates.slice().reverse().map((update, index) => (
+                  {task.updates.slice().reverse().map((update) => (
                     <div key={update.update_id} className="bg-white rounded-lg p-3 border border-blue-200">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-white">{update.user_name}</span>

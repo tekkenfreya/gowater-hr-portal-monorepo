@@ -31,7 +31,7 @@ interface TeamUser {
 }
 
 export default function AttendancePage() {
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const { isTimedIn, workDuration, checkInTime } = useAttendance();
   const [currentTime, setCurrentTime] = useState(new Date());
 

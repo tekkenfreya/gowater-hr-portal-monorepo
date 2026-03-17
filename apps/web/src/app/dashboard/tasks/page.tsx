@@ -21,7 +21,7 @@ interface StatusConfig {
 export default function TasksPage() {
   const { user, isLoading } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [showAddTask, setShowAddTask] = useState<'tasks' | 'pending' | 'in_progress' | 'completed' | null>(null);
   const [showReportTypeModal, setShowReportTypeModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);

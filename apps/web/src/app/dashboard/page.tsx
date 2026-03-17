@@ -50,8 +50,8 @@ function formatSubTaskStatus(status: string): string {
 
 export default function Dashboard() {
   const router = useRouter();
-  const { user, isLoading, logout, refetch } = useAuth();
-  const { isTimedIn, isOnBreak, workDuration, breakDuration, accumulatedBreakDuration, breakStartTime, checkInTime, handleTimeIn, handleTimeOut, handleStartBreak, handleEndBreak, fetchTodayAttendance } = useAttendance();
+  const { user, refetch } = useAuth();
+  const { isTimedIn, isOnBreak, workDuration, breakDuration, accumulatedBreakDuration, breakStartTime, checkInTime, handleTimeOut, handleStartBreak, handleEndBreak, fetchTodayAttendance } = useAttendance();
   // Announcements state
   const [announcements, setAnnouncements] = useState<Array<{
     id: number;
