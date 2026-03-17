@@ -1,6 +1,8 @@
 'use client';
 
 import { ReactNode } from 'react';
+import PageTransition from '@/components/PageTransition';
+import WaterBackground from '@/components/WaterBackground';
 
 interface PersistentShellProps {
   leftSidebar: ReactNode;
@@ -39,9 +41,13 @@ export default function PersistentShell({
         </div>
 
         {/* Main Content Area - Scrollable, ONLY this refreshes */}
-        <div className="flex-1 overflow-hidden ml-64 mr-16">
-          <main className="h-full p-2.5">
-            {children}
+        <div className="flex-1 overflow-hidden ml-64 relative">
+          {/* Water background — persistent across all pages */}
+          <WaterBackground />
+          <main className="h-full relative z-10">
+            <PageTransition>
+              {children}
+            </PageTransition>
           </main>
         </div>
       </div>

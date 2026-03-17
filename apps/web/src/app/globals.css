@@ -14,6 +14,30 @@ body {
    REUSABLE ANIMATIONS
    ======================================== */
 
+/* Attendance bar grow from left */
+@keyframes barGrow {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* Attendance row slide in */
+@keyframes rowSlideIn {
+  0% {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* Card Slide In with Rotation */
 @keyframes cardSlideIn {
   0% {

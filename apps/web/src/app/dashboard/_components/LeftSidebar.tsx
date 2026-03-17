@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User } from '@/types/auth';
+import { usePageTransition } from '@/contexts/PageTransitionContext';
 import {
   Home,
   Clock,
@@ -49,7 +50,8 @@ interface EmployeeWithStatus extends User {
  */
 export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: LeftSidebarProps) {
   const pathname = usePathname();
-  const [expandedItems, setExpandedItems] = useState<string[]>(['team']); // Team expanded by default
+  const { navigateTo } = usePageTransition();
+  const [expandedItems, setExpandedItems] = useState<string[]>(['team']);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [employees, setEmployees] = useState<EmployeeWithStatus[]>([]);
 
@@ -252,16 +254,16 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                           </div>
                         </div>
                       ) : (
-                        <Link
-                          href={item.href}
-                          className="flex-1 flex items-center px-3 py-3 text-sm font-bold uppercase tracking-[0.1em]"
+                        <button
+                          onClick={() => navigateTo(item.href)}
+                          className="flex-1 flex items-center px-3 py-3 text-sm font-bold uppercase tracking-[0.1em] text-left"
                           style={{ fontFamily: 'var(--font-geist-sans)' }}
                         >
                           <div className="flex items-center space-x-3">
                             <div className="w-5 h-5 flex-shrink-0">{item.icon}</div>
                             {!isCollapsed && <span>{item.label}</span>}
                           </div>
-                        </Link>
+                        </button>
                       )}
                       {!isCollapsed && (
                         <button
@@ -275,9 +277,9 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                       )}
                     </div>
                   ) : (
-                    <Link
-                      href={item.href}
-                      className={`group flex items-center px-3 py-3 text-sm font-bold uppercase tracking-[0.1em] rounded-lg transition-all duration-300 ease-out ${
+                    <button
+                      onClick={() => navigateTo(item.href)}
+                      className={`group flex items-center px-3 py-3 text-sm font-bold uppercase tracking-[0.1em] rounded-lg transition-all duration-300 ease-out w-full text-left ${
                         isActive(item.href)
                           ? 'bg-blue-600/20 text-white border-l-4 border-blue-500 shadow-md'
                           : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-1 hover:scale-[1.02] border-l-4 border-transparent'
@@ -288,7 +290,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                         <div className="w-5 h-5 flex-shrink-0">{item.icon}</div>
                         {!isCollapsed && <span>{item.label}</span>}
                       </div>
-                    </Link>
+                    </button>
                   )}
                 </div>
 
@@ -352,10 +354,10 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                     )}
                     {/* Regular Sub Items */}
                     {item.id !== 'team' && item.subItems && item.subItems.map((subItem) => (
-                      <Link
+                      <button
                         key={subItem.id}
-                        href={subItem.href}
-                        className={`flex items-center space-x-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded-lg transition-all duration-300 ${
+                        onClick={() => navigateTo(subItem.href)}
+                        className={`flex items-center space-x-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded-lg transition-all duration-300 w-full text-left ${
                           isActive(subItem.href)
                             ? 'bg-blue-600/20 text-white border-l-2 border-blue-400'
                             : 'text-gray-400 hover:bg-gray-700/50 hover:text-white hover:translate-x-1'
@@ -364,7 +366,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                       >
                         <div className="w-4 h-4 flex-shrink-0">{subItem.icon}</div>
                         <span>{subItem.label}</span>
-                      </Link>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -376,9 +378,9 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
         {/* Settings and Logout at Bottom */}
         <div className="relative mt-auto border-t border-gray-700/30">
           <div className="p-4 space-y-2">
-            <Link
-              href={settingsItem.href}
-              className={`group flex items-center justify-between px-3 py-3 text-sm font-bold uppercase tracking-[0.1em] rounded-lg transition-all duration-300 ease-out ${
+            <button
+              onClick={() => navigateTo(settingsItem.href)}
+              className={`group flex items-center justify-between px-3 py-3 text-sm font-bold uppercase tracking-[0.1em] rounded-lg transition-all duration-300 ease-out w-full text-left ${
                 isActive(settingsItem.href)
                   ? 'bg-blue-600/20 text-white border-l-4 border-blue-500 shadow-md'
                   : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-1 hover:scale-[1.02] border-l-4 border-transparent'
@@ -389,7 +391,7 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
                 <div className="w-5 h-5 flex-shrink-0">{settingsItem.icon}</div>
                 {!isCollapsed && <span>{settingsItem.label}</span>}
               </div>
-            </Link>
+            </button>
 
             <button
               onClick={() => setShowLogoutConfirm(true)}

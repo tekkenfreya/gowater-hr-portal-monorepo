@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import gsap from 'gsap';
 import BreakModal from '@/components/BreakModal';
 import ForcePasswordChangeModal from '@/components/ForcePasswordChangeModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -74,6 +75,7 @@ export default function Dashboard() {
     activeTasks: 0,
     hoursToday: 0
   });
+  const [dashboardTasks, setDashboardTasks] = useState<Task[]>([]);
 
   // Check-in modal state
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -136,6 +138,7 @@ export default function Dashboard() {
           task.status !== 'completed'
         );
         setTodayStats(prev => ({ ...prev, activeTasks: activeTasks.length }));
+        setDashboardTasks(activeTasks);
       }
     } catch (error) {
       logger.error('Failed to fetch today stats', error);
@@ -200,13 +203,11 @@ export default function Dashboard() {
           .map((task: Task) => {
             // Filter out completed subtasks from check-in view
             if (task.subTasks && task.subTasks.length > 0) {
-              const originalSubTaskCount = task.subTasks.length;
               const incompleteSubTasks = task.subTasks.filter(st => st.status !== 'completed');
 
               return {
                 ...task,
                 subTasks: incompleteSubTasks,
-                _hadSubTasks: originalSubTaskCount > 0, // Track if task originally had subtasks
                 _allSubTasksCompleted: incompleteSubTasks.length === 0
               };
             }
@@ -827,12 +828,7 @@ ${tasksSection}`;
     }
   };
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isLoading && user === null) {
-      router.push('/auth/login');
-    }
-  }, [user, isLoading, router]);
+  // Auth redirect handled by layout — no need to duplicate here
 
   // Fetch announcements and today's stats on mount
   useEffect(() => {
@@ -870,12 +866,37 @@ ${tasksSection}`;
     fetchWorkArrangement();
   }, [isTimedIn, currentWorkArrangement]);
 
+  // GSAP entrance animations
+  const dashContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!user || !dashContentRef.current) return;
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo('.dash-stat', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, stagger: 0.15, ease: 'power3.out' });
+      gsap.fromTo('.dash-actions', { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 0.3 });
+      gsap.fromTo('.dash-section', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, stagger: 0.2, delay: 0.5, ease: 'power2.out' });
+    }, dashContentRef);
+
+    return () => ctx.revert();
+  }, [user]);
+
   if (!user) {
     return null;
   }
 
   return (
     <>
+      {/* Breathing glow keyframe for login status */}
+      <style>{`
+        @keyframes breathe {
+          0%, 100% { box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+          50% { box-shadow: 0 0 20px rgba(34,197,94,0.8); }
+        }
+        .gw-gw-status-breathe {
+          animation: breathe 2s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Force Password Change Modal */}
       {user.force_password_reset && (
         <ForcePasswordChangeModal
@@ -887,262 +908,288 @@ ${tasksSection}`;
       )}
 
       {/* Dashboard Content */}
-      <div className="h-full flex flex-col bg-gray-50">
-          {/* Check-in Controls */}
-          <div className="px-6 py-4 bg-white border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                {!isTimedIn ? (
-                  <button
-                    onClick={handleOpenCheckInModal}
-                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
-                    style={{ fontFamily: 'var(--font-geist-sans)' }}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Login</span>
-                    </div>
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={handleOpenCheckOutModal}
-                      className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
-                      style={{ fontFamily: 'var(--font-geist-sans)' }}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        <span>Logout</span>
-                      </div>
-                    </button>
+      <div className="h-full flex flex-col relative overflow-hidden" ref={dashContentRef}>
 
-                    {!isOnBreak && (
+          {/* Home Page Content */}
+          <div className="flex-1 overflow-y-auto relative z-20">
+            {/* Single unified dashboard card — fills the entire content area */}
+            <div className="min-h-full overflow-hidden flex flex-col relative">
+
+              {/* Action Bar — Login/Logout/Break + Work Duration */}
+              <div className="dash-actions px-8 py-5 relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {!isTimedIn ? (
                       <button
-                        onClick={handleStartBreak}
-                        className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
+                        onClick={handleOpenCheckInModal}
+                        className="px-5 py-2.5 bg-green-600 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 text-sm hover:bg-green-700 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)]"
                         style={{ fontFamily: 'var(--font-geist-sans)' }}
                       >
                         <div className="flex items-center space-x-2">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <span>Start Break</span>
+                          <span>Login</span>
                         </div>
                       </button>
-                    )}
-                  </>
-                )}
-              </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleOpenCheckOutModal}
+                          className="px-5 py-2.5 bg-red-600 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 text-sm hover:bg-red-700 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+                          style={{ fontFamily: 'var(--font-geist-sans)' }}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            <span>Logout</span>
+                          </div>
+                        </button>
 
-              {/* Work Duration Display */}
-              {isTimedIn && (
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center space-x-2 text-gray-700">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-sm font-semibold uppercase tracking-wider" style={{ fontFamily: 'var(--font-geist-sans)' }}>
-                      Work Duration:
-                    </span>
-                    <span className="text-2xl font-bold text-blue-600 tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>
-                      {(workDuration / 3600).toFixed(2)} hrs
-                    </span>
+                        {!isOnBreak && (
+                          <button
+                            onClick={handleStartBreak}
+                            className="px-5 py-2.5 bg-orange-500 text-white font-bold uppercase tracking-wider rounded-lg transition-all duration-300 text-sm hover:bg-orange-600 hover:shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+                            style={{ fontFamily: 'var(--font-geist-sans)' }}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>Break</span>
+                            </div>
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {checkInTime && (
-                    <div className="text-sm text-gray-600">
-                      <span className="font-semibold">Checked in at:</span>{' '}
-                      <span className="font-bold text-gray-900">
-                        {new Date(checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+
+                  {/* Work Duration Display */}
+                  {isTimedIn && (
+                    <div className="flex items-center space-x-5">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-white/60" style={{ fontFamily: 'var(--font-geist-sans)', letterSpacing: '0.1em' }}>
+                          Duration
+                        </span>
+                        <span className="text-xl font-bold tabular-nums text-white" style={{ fontFamily: 'var(--font-geist-mono)', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}>
+                          {(workDuration / 3600).toFixed(2)} hrs
+                        </span>
+                      </div>
+                      {checkInTime && (
+                        <div className="text-xs text-white/50">
+                          In at{' '}
+                          <span className="font-bold text-white/80">
+                            {new Date(checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Home Page Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* Quick Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              {/* Check-in Status Card */}
-              <div className="rounded-xl p-6 bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    isTimedIn ? 'bg-green-500' : 'bg-gray-400'
-                  }`}>
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                </div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Login Status</p>
-                <p className={`text-2xl font-bold mb-1 ${isTimedIn ? 'text-green-600' : 'text-gray-600'}`}>
-                  {isTimedIn ? 'Logged In' : 'Not Logged In'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {isTimedIn ? `Since ${new Date(checkInTime!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : 'Click Login to start'}
-                </p>
               </div>
 
-              {/* Active Tasks Card */}
-              <div className="rounded-xl p-6 bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
+              {/* Stats Row — Edge Glow cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-8 py-4 relative z-10">
+                {/* Login Status */}
+                <div className="dash-stat flex items-center gap-4" style={{
+                  padding: '20px 24px',
+                                  }}>
+                  <div className={`w-3 h-3 rounded-full flex-shrink-0 ${isTimedIn ? 'bg-green-400 gw-status-breathe' : 'bg-white/30'}`} />
+                  <div>
+                    <p style={{ color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', fontSize: '11px', fontWeight: 500, textTransform: 'uppercase' }}>Login Status</p>
+                    <p className="text-xl font-bold mt-1" style={{ fontFamily: 'var(--font-geist-mono)', color: isTimedIn ? '#86efac' : 'rgba(255,255,255,0.6)', textShadow: isTimedIn ? '0 0 20px rgba(134,239,172,0.4)' : 'none' }}>
+                      {isTimedIn ? 'Logged In' : 'Not Logged In'}
+                    </p>
+                    <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '2px' }}>
+                      {isTimedIn ? `Since ${new Date(checkInTime!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : 'Click Login to start'}
+                    </p>
                   </div>
-                  {/* Copy Report Button - only show when timed in */}
+                </div>
+
+                {/* Active Tasks */}
+                <div className="dash-stat flex items-center gap-4" style={{
+                  padding: '20px 24px',
+                                  }}>
+                  <div className="flex-1">
+                    <p style={{ color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', fontSize: '11px', fontWeight: 500, textTransform: 'uppercase' }}>Active Tasks</p>
+                    <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: 'var(--font-geist-mono)', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}>{todayStats.activeTasks}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '2px' }}>Tasks for today</p>
+                  </div>
                   {isTimedIn && (
                     <button
                       onClick={handleCopyReportFromHome}
-                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors group relative"
+                      className="p-2 rounded-lg transition-colors group hover:bg-white/10"
                       title="Copy report to clipboard"
                     >
                       {homeReportCopied ? (
-                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-white/50 group-hover:text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                         </svg>
                       )}
                     </button>
                   )}
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Active Tasks</p>
-                <p className="text-4xl font-bold text-gray-900 mb-1">{todayStats.activeTasks}</p>
-                <p className="text-xs text-gray-500">Tasks for today</p>
-              </div>
 
-              {/* Hours Today Card */}
-              <div className="rounded-xl p-6 bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                    </svg>
+                {/* Hours Today */}
+                <div className="dash-stat flex items-center gap-4" style={{
+                  padding: '20px 24px',
+                                  }}>
+                  <div>
+                    <p style={{ color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', fontSize: '11px', fontWeight: 500, textTransform: 'uppercase' }}>Hours Today</p>
+                    <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: 'var(--font-geist-mono)', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}>{todayStats.hoursToday}h</p>
+                    <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '2px' }}>Total hours worked</p>
                   </div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-2">Hours Today</p>
-                <p className="text-4xl font-bold text-gray-900 mb-1">{todayStats.hoursToday}h</p>
-                <p className="text-xs text-gray-500">Total hours worked</p>
               </div>
-            </div>
-
-            {/* Announcements and Upcoming Events */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Announcements Section (Left 60% / 2 columns) */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-bold text-gray-900 flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              {/* Announcements + Tasks — bottom section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 px-8 py-6 flex-1 relative z-10">
+                {/* Announcements */}
+                <div className="dash-section">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-bold uppercase flex items-center" style={{ letterSpacing: '0.5px', color: 'rgba(255,255,255,0.5)' }}>
+                      <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                      </svg>
+                      Announcements
+                    </h2>
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => setShowCreateAnnouncementModal(true)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        Company Announcements
-                      </h2>
-                      {user?.role === 'admin' && (
-                        <button
-                          onClick={() => setShowCreateAnnouncementModal(true)}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          <span>Create</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    {isLoadingAnnouncements ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                      </div>
-                    ) : announcements.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500">
-                        <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                        </svg>
-                        <p>No announcements at this time</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {announcements.map((announcement) => (
-                          <div
-                            key={announcement.id}
-                            className={`p-4 rounded-lg border ${
-                              announcement.priority === 'urgent'
-                                ? 'bg-red-50 border-red-200'
-                                : announcement.priority === 'high'
-                                ? 'bg-orange-50 border-orange-200'
-                                : 'bg-gray-50 border-gray-200'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-semibold text-gray-900">{announcement.title}</h3>
-                              {announcement.priority === 'urgent' && (
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">
-                                  Urgent
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-700 mb-2">{announcement.content}</p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(announcement.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
+                        <span>Create</span>
+                      </button>
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* Upcoming Events Section (Right 40% / 1 column) */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-purple-100">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  {isLoadingAnnouncements ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : announcements.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400">
+                      <svg className="w-10 h-10 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                       </svg>
-                      Upcoming Events
+                      <p className="text-sm">No announcements</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 380px)' }}>
+                      {announcements.map((announcement) => (
+                        <div
+                          key={announcement.id}
+                          style={{
+                            borderLeft: announcement.priority === 'urgent' ? '3px solid #ef4444' : announcement.priority === 'high' ? '3px solid #f97316' : '3px solid rgba(56,189,248,0.4)',
+                            paddingLeft: '16px',
+                            paddingBottom: '16px',
+                            marginBottom: '4px',
+                                                      }}
+                        >
+                          <div className="flex items-start justify-between mb-1">
+                            <h3 className="font-semibold text-sm" style={{ color: '#fff' }}>{announcement.title}</h3>
+                            {announcement.priority === 'urgent' && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full" style={{ background: 'rgba(239,68,68,0.2)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>Urgent</span>
+                            )}
+                          </div>
+                          <p className="text-sm mb-2 line-clamp-2" style={{ color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>{announcement.content}</p>
+                          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                            {new Date(announcement.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Active Tasks */}
+                <div className="dash-section">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-bold uppercase flex items-center" style={{ letterSpacing: '0.5px', color: 'rgba(255,255,255,0.5)' }}>
+                      <svg className="w-4 h-4 mr-2" style={{ color: '#4ade80' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      Active Tasks
                     </h2>
+                    <button
+                      onClick={() => router.push('/dashboard/tasks')}
+                      className="text-xs font-medium" style={{ color: '#7dd3fc' }}
+                    >
+                      View All
+                    </button>
                   </div>
-                  <div className="p-6">
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {todayStats.activeTasks > 0 && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center mr-3">
-                              <span className="text-white font-bold text-sm">{todayStats.activeTasks}</span>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Tasks Due Today</p>
-                              <p className="text-xs text-gray-600">View in Tasks page</p>
+                  {dashboardTasks.length === 0 ? (
+                    <div className="text-center py-10" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      <svg className="w-10 h-10 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <p className="text-sm">No active tasks</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 380px)' }}>
+                      {dashboardTasks.map((task, index) => (
+                        <div key={task.id} style={{
+                          paddingBottom: '16px', marginBottom: '4px',
+                                                  }}>
+                          <div className="flex items-start">
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 mt-0.5" style={{ background: '#4ade80', color: '#052e16' }}>
+                              {index + 1}
+                            </span>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-sm" style={{ color: '#fff' }}>{task.title}</h4>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{
+                                  background: task.status === 'in_progress' ? 'rgba(56,189,248,0.2)' : task.status === 'pending' ? 'rgba(255,255,255,0.1)' : 'rgba(74,222,128,0.2)',
+                                  color: task.status === 'in_progress' ? '#7dd3fc' : task.status === 'pending' ? 'rgba(255,255,255,0.5)' : '#86efac',
+                                  border: `1px solid ${task.status === 'in_progress' ? 'rgba(56,189,248,0.3)' : task.status === 'pending' ? 'rgba(255,255,255,0.15)' : 'rgba(74,222,128,0.3)'}`,
+                                }}>
+                                  {task.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                                {task.priority && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{
+                                    background: task.priority === 'high' || task.priority === 'urgent' ? 'rgba(239,68,68,0.2)' : task.priority === 'medium' ? 'rgba(251,146,60,0.2)' : 'rgba(255,255,255,0.1)',
+                                    color: task.priority === 'high' || task.priority === 'urgent' ? '#fca5a5' : task.priority === 'medium' ? '#fdba74' : 'rgba(255,255,255,0.5)',
+                                    border: `1px solid ${task.priority === 'high' || task.priority === 'urgent' ? 'rgba(239,68,68,0.3)' : task.priority === 'medium' ? 'rgba(251,146,60,0.3)' : 'rgba(255,255,255,0.15)'}`,
+                                  }}>
+                                    {task.priority.toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              {task.subTasks && task.subTasks.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {task.subTasks.map((sub) => (
+                                    <div key={sub.id} className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                      <span className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0" style={{
+                                        background: sub.status === 'completed' ? '#4ade80' : 'transparent',
+                                        border: sub.status === 'completed' ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
+                                        color: sub.status === 'completed' ? '#052e16' : 'inherit',
+                                      }}>
+                                        {sub.status === 'completed' && (
+                                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        )}
+                                      </span>
+                                      <span style={{ textDecoration: sub.status === 'completed' ? 'line-through' : 'none', color: sub.status === 'completed' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.5)' }}>{sub.title}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      )}
-                      <div className="text-center py-8 text-gray-500">
-                        <svg className="w-10 h-10 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <p className="text-sm">No upcoming events</p>
-                      </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
+
             </div>
           </div>
       </div>

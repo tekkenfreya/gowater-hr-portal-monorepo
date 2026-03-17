@@ -6,7 +6,10 @@ import { DashboardLayoutProvider, useDashboardLayout } from '@/app/dashboard/_pr
 import PersistentShell from '@/app/dashboard/_components/PersistentShell';
 import LeftSidebar from '@/app/dashboard/_components/LeftSidebar';
 import TopBar from '@/app/dashboard/_components/TopBar';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import PixelDissolveLoader from '@/components/PixelDissolveLoader';
+import { PageTransitionProvider } from '@/contexts/PageTransitionContext';
 
 /**
  * DashboardLayoutContent - Inner component that consumes dashboard layout data
@@ -71,26 +74,33 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, isLoading } = useAuth();
+  const [showCurtain, setShowCurtain] = useState(true);
+  const curtainPlayed = useRef(false);
 
-  // Block ALL rendering while authentication is loading
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 bg-neutral-900 flex items-center justify-center">
-        <div className="animate-pulse text-white text-xl font-bold uppercase tracking-wider" style={{ fontFamily: 'var(--font-geist-sans)' }}>
-          Loading...
-        </div>
-      </div>
-    );
+  useEffect(() => {
+    if (!isLoading && user && !curtainPlayed.current) {
+      curtainPlayed.current = true;
+      const timer = setTimeout(() => setShowCurtain(false), 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, user]);
+
+  if (isLoading || !user) {
+    return <div className="fixed inset-0" style={{ backgroundColor: '#111827' }} />;
   }
 
-  // Auth complete: Render dashboard immediately
   return (
-    <AttendanceProvider>
-      <DashboardLayoutProvider user={user}>
-        <DashboardLayoutContent>
-          {children}
-        </DashboardLayoutContent>
-      </DashboardLayoutProvider>
-    </AttendanceProvider>
+    <>
+      {showCurtain && <PixelDissolveLoader />}
+      <PageTransitionProvider>
+        <AttendanceProvider>
+          <DashboardLayoutProvider user={user}>
+            <DashboardLayoutContent>
+              {children}
+            </DashboardLayoutContent>
+          </DashboardLayoutProvider>
+        </AttendanceProvider>
+      </PageTransitionProvider>
+    </>
   );
 }

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoginCredentials } from '@/types/auth';
+import P3LoadingScreen from '@/components/P3LoadingScreen';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showTransition, setShowTransition] = useState(false);
 
   // Clear any stale auth session on login page load
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        router.push('/dashboard');
+        setShowTransition(true);
       } else {
         setError(data.error || 'Login failed. Please check your credentials.');
       }
@@ -45,6 +47,14 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const handleTransitionComplete = useCallback(() => {
+    router.push('/dashboard');
+  }, [router]);
+
+  if (showTransition) {
+    return <P3LoadingScreen onComplete={handleTransitionComplete} />;
+  }
 
   return (
     <div className="min-h-screen flex">
