@@ -101,6 +101,13 @@ export default function DashboardScreen() {
   const [newTaskPriority, setNewTaskPriority] = useState<Task['priority']>('medium');
   const [newSubTasks, setNewSubTasks] = useState<NewSubTask[]>([]);
 
+  // Edit task
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<CheckInTask | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState<Task['priority']>('medium');
+  const [editSubTasks, setEditSubTasks] = useState<NewSubTask[]>([]);
+
   const [attendanceStatus, setAttendanceStatus] = useState<{
     isCheckedIn: boolean;
     checkInTime?: string;
@@ -442,7 +449,13 @@ const openCheckInModal = () => {
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    let report = `GoWater Start of Day Report
+    let report = '';
+
+    if (photoUrl) {
+      report += `${photoUrl}\n\n`;
+    }
+
+    report += `GoWater Start of Day Report
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -726,7 +739,13 @@ Today's Planned Tasks:`;
       }
     }
 
-    let report = `GoWater End of Day Report
+    let report = '';
+
+    if (photoUrl) {
+      report += `${photoUrl}\n\n`;
+    }
+
+    report += `GoWater End of Day Report
 
 Date: ${date}
 Employee: ${user?.employeeName || user?.name || 'N/A'}
@@ -817,6 +836,82 @@ Today's Task Updates:`;
 
   const removeSubTask = (id: string) => {
     setNewSubTasks(newSubTasks.filter(st => st.id !== id));
+  };
+
+  // Edit task handlers
+  const openEditTask = (task: CheckInTask) => {
+    setEditingTask(task);
+    setEditTaskTitle(task.title);
+    setEditTaskPriority(task.priority);
+    setEditSubTasks(
+      (task.subTasks || []).map(st => ({
+        id: st.id,
+        title: st.title,
+        notes: st.notes || '',
+      }))
+    );
+    setShowCheckInModal(false);
+    setTimeout(() => setShowEditTaskModal(true), 100);
+  };
+
+  const handleEditTask = async () => {
+    if (!editingTask || !editTaskTitle.trim()) {
+      Alert.alert('Error', 'Please enter a task title');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const subTasksToSave = editSubTasks
+        .filter(st => st.title.trim())
+        .map(st => ({
+          id: st.id,
+          title: st.title.trim(),
+          notes: st.notes?.trim() || '',
+          completed: false,
+        }));
+
+      const result = await tasksService.updateTask(editingTask.id, {
+        title: editTaskTitle.trim(),
+        priority: editTaskPriority,
+        subTasks: subTasksToSave,
+      });
+
+      if (result.success) {
+        setEditingTask(null);
+        setEditTaskTitle('');
+        setEditTaskPriority('medium');
+        setEditSubTasks([]);
+        setShowEditTaskModal(false);
+        await fetchTasks();
+        setTimeout(() => setShowCheckInModal(true), 100);
+        Alert.alert('Success', 'Task updated');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update task');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const addEditSubTask = () => {
+    setEditSubTasks([
+      ...editSubTasks,
+      { id: `temp-${Date.now()}`, title: '', notes: '' },
+    ]);
+  };
+
+  const updateEditSubTask = (id: string, field: 'title' | 'notes', value: string) => {
+    setEditSubTasks(
+      editSubTasks.map(st => (st.id === id ? { ...st, [field]: value } : st))
+    );
+  };
+
+  const removeEditSubTask = (id: string) => {
+    setEditSubTasks(editSubTasks.filter(st => st.id !== id));
   };
 
   // Helper functions for colors
@@ -1096,6 +1191,12 @@ Today's Task Updates:`;
                         </View>
                       </View>
                     </View>
+                    <TouchableOpacity
+                      style={styles.editTaskButton}
+                      onPress={() => openEditTask(task)}
+                    >
+                      <Text style={styles.editTaskButtonText}>Edit</Text>
+                    </TouchableOpacity>
                   </View>
 
                   {task.subTasks && task.subTasks.length > 0 && (
@@ -1242,6 +1343,121 @@ Today's Task Updates:`;
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.confirmButtonText}>Add Task</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Edit Task Modal */}
+      <Modal
+        visible={showEditTaskModal}
+        animationType="slide"
+        onRequestClose={() => setShowEditTaskModal(false)}
+      >
+        <View style={styles.fullScreenModal}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>Edit Task</Text>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            <Text style={styles.inputLabel}>Task Title</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter task title..."
+              placeholderTextColor="#6b7280"
+              value={editTaskTitle}
+              onChangeText={setEditTaskTitle}
+            />
+
+            <Text style={styles.inputLabel}>Priority</Text>
+            <View style={styles.priorityOptions}>
+              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[
+                    styles.priorityOption,
+                    editTaskPriority === p && styles.priorityOptionActive,
+                    { backgroundColor: editTaskPriority === p ? getPriorityBgColor(p) : '#1a2332' }
+                  ]}
+                  onPress={() => setEditTaskPriority(p)}
+                >
+                  <Text style={[
+                    styles.priorityOptionText,
+                    editTaskPriority === p && styles.priorityOptionTextActive
+                  ]}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.subTasksSection}>
+              <View style={styles.subTasksHeader}>
+                <Text style={styles.inputLabel}>Sub-tasks</Text>
+                <TouchableOpacity onPress={addEditSubTask}>
+                  <Text style={styles.addSubTaskText}>+ Add Sub-task</Text>
+                </TouchableOpacity>
+              </View>
+
+              {editSubTasks.map((subTask, index) => (
+                <View key={subTask.id} style={styles.newSubTaskItem}>
+                  <Text style={styles.subTaskIndex}>{index + 1}.</Text>
+                  <View style={styles.subTaskInputs}>
+                    <TextInput
+                      style={styles.subTaskTitleInput}
+                      placeholder="Sub-task title"
+                      placeholderTextColor="#6b7280"
+                      value={subTask.title}
+                      onChangeText={(text) => updateEditSubTask(subTask.id, 'title', text)}
+                    />
+                    <TextInput
+                      style={styles.subTaskNotesInput}
+                      placeholder="Notes (optional)"
+                      placeholderTextColor="#6b7280"
+                      value={subTask.notes}
+                      onChangeText={(text) => updateEditSubTask(subTask.id, 'notes', text)}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeSubTaskButton}
+                    onPress={() => removeEditSubTask(subTask.id)}
+                  >
+                    <Text style={styles.removeSubTaskText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelModalButton}
+              onPress={() => {
+                setEditingTask(null);
+                setEditTaskTitle('');
+                setEditTaskPriority('medium');
+                setEditSubTasks([]);
+                setShowEditTaskModal(false);
+                setTimeout(() => setShowCheckInModal(true), 100);
+              }}
+            >
+              <Text style={styles.cancelModalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.confirmButton, isProcessing && styles.buttonDisabled]}
+              onPress={handleEditTask}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.confirmButtonText}>Save Changes</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -2169,6 +2385,20 @@ const styles = StyleSheet.create({
   addTaskButtonText: {
     color: '#3b82f6',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  editTaskButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#eff6ff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    marginLeft: 8,
+  },
+  editTaskButtonText: {
+    color: '#3b82f6',
+    fontSize: 12,
     fontWeight: '600',
   },
 
