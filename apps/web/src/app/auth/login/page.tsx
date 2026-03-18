@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoginCredentials } from '@/types/auth';
+import { useAuth } from '@/hooks/useAuth';
 import P3LoadingScreen from '@/components/P3LoadingScreen';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [credentials, setCredentials] = useState<LoginCredentials>({
     username: '',
     password: ''
@@ -15,40 +17,37 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showTransition, setShowTransition] = useState(false);
-
-  // Clear any stale auth session on login page load
-  useEffect(() => {
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-  }, []);
+  const [showTransition, _setShowTransition] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('p3-active') === 'true';
+    }
+    return false;
+  });
+  const setShowTransition = (val: boolean) => {
+    if (val) {
+      sessionStorage.setItem('p3-active', 'true');
+    } else {
+      sessionStorage.removeItem('p3-active');
+    }
+    _setShowTransition(val);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: credentials.username, password: credentials.password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setShowTransition(true);
-      } else {
-        setError(data.error || 'Login failed. Please check your credentials.');
-      }
-    } catch {
-      setError('Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
+    const result = await login(credentials.username, credentials.password);
+    if (result.success) {
+      setShowTransition(true);
+    } else {
+      setError(result.error || 'Login failed. Please check your credentials.');
     }
+    setIsLoading(false);
   };
 
   const handleTransitionComplete = useCallback(() => {
+    sessionStorage.removeItem('p3-active');
     router.push('/dashboard');
   }, [router]);
 
