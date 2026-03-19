@@ -618,7 +618,7 @@ export default function LeadsPage() {
           )}
 
           {/* Add Button (shown when there are items) */}
-          {!loading && leads.length > 0 && (
+          {!displayLoading && displayLeads.length > 0 && (
             <div className="mt-3 flex justify-center">
               <button
                 onClick={openAddFlow}
