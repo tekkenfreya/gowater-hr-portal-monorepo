@@ -387,6 +387,19 @@ BEGIN
   END IF;
 END $$;
 
+-- 8. ADD_COLD_CATEGORY_TO_COLD_LEADS (2026-03-19)
+ALTER TABLE cold_leads ADD COLUMN IF NOT EXISTS cold_category TEXT DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_cold_leads_cold_category ON cold_leads(cold_category);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_cold_category_to_cold_leads') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_cold_category_to_cold_leads', 'Added cold_category column to cold_leads for sub-category filtering', 0);
+  END IF;
+END $$;
+
 -- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;

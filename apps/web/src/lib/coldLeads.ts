@@ -51,6 +51,7 @@ export class ColdLeadService {
       remarks: leadData.remarks || null,
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
+      cold_category: leadData.cold_category || null,
       created_by: employeeName,
       created_at: now,
       updated_at: now,
@@ -61,7 +62,7 @@ export class ColdLeadService {
     return lead;
   }
 
-  async getLeadsByCategory(category: LeadCategory): Promise<Lead[]> {
+  async getLeadsByCategory(category: LeadCategory, coldCategory?: string): Promise<Lead[]> {
     let orderByField = 'created_at';
     if (category === 'lead') {
       orderByField = 'date_of_interaction';
@@ -69,12 +70,21 @@ export class ColdLeadService {
       orderByField = 'event_date';
     }
 
-    const leads = await this.db.all('cold_leads', { category }, orderByField);
+    const conditions: Record<string, unknown> = { category };
+    if (coldCategory) {
+      conditions.cold_category = coldCategory;
+    }
+
+    const leads = await this.db.all('cold_leads', conditions, orderByField);
     return (leads || []) as Lead[];
   }
 
-  async getAllLeads(): Promise<Lead[]> {
-    const leads = await this.db.all('cold_leads', {}, 'created_at');
+  async getAllLeads(coldCategory?: string): Promise<Lead[]> {
+    const conditions: Record<string, unknown> = {};
+    if (coldCategory) {
+      conditions.cold_category = coldCategory;
+    }
+    const leads = await this.db.all('cold_leads', conditions, 'created_at');
     return (leads || []) as Lead[];
   }
 
@@ -124,6 +134,7 @@ export class ColdLeadService {
     if (updates.remarks !== undefined) updateData.remarks = updates.remarks || null;
     if (updates.disposition !== undefined) updateData.disposition = updates.disposition || null;
     if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to || null;
+    if (updates.cold_category !== undefined) updateData.cold_category = updates.cold_category || null;
 
     await this.db.update('cold_leads', updateData, { id: leadId });
   }
@@ -177,9 +188,22 @@ export class ColdLeadService {
 
   // ============ COMBINED QUERIES ============
 
-  async getLeadsWithActivities(category?: LeadCategory): Promise<LeadWithActivities[]> {
-    const whereClause = category ? `WHERE l.category = $1` : '';
-    const params = category ? [category] : [];
+  async getLeadsWithActivities(category?: LeadCategory, coldCategory?: string): Promise<LeadWithActivities[]> {
+    const conditions: string[] = [];
+    const params: string[] = [];
+    let paramIndex = 1;
+
+    if (category) {
+      conditions.push(`l.category = $${paramIndex}`);
+      params.push(category);
+      paramIndex++;
+    }
+    if (coldCategory) {
+      conditions.push(`l.cold_category = $${paramIndex}`);
+      params.push(coldCategory);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const sql = `
       SELECT
@@ -226,8 +250,8 @@ export class ColdLeadService {
     } catch (error) {
       logger.error('Failed to fetch cold leads with activities using optimized query, falling back', error);
       const leads = category
-        ? await this.getLeadsByCategory(category)
-        : await this.getAllLeads();
+        ? await this.getLeadsByCategory(category, coldCategory)
+        : await this.getAllLeads(coldCategory);
 
       const leadsWithActivities: LeadWithActivities[] = await Promise.all(
         leads.map(async (lead) => {

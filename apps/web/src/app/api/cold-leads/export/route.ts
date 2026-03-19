@@ -3,11 +3,12 @@ import jwt from 'jsonwebtoken';
 import { getColdLeadService } from '@/lib/coldLeads';
 import { logger } from '@/lib/logger';
 import * as XLSX from 'xlsx-js-style';
-import type { LeadCategory } from '@/types/leads';
+import type { LeadCategory, ColdCategory } from '@/types/leads';
 import { leadCategorySchema } from '@/lib/validation/schemas';
 import type { JWTPayload } from '@/lib/authHelper';
 
 const VALID_CATEGORIES: LeadCategory[] = ['lead', 'event', 'supplier'];
+const VALID_COLD_CATEGORIES: ColdCategory[] = ['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation'];
 
 function getTokenFromRequest(request: NextRequest): string | null {
   let token = request.cookies.get('auth-token')?.value;
@@ -47,6 +48,14 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const categoryParam = searchParams.get('category');
+    const coldCategoryParam = searchParams.get('cold_category') || undefined;
+
+    if (coldCategoryParam && !VALID_COLD_CATEGORIES.includes(coldCategoryParam as ColdCategory)) {
+      return NextResponse.json(
+        { error: `Invalid cold_category. Must be one of: ${VALID_COLD_CATEGORIES.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
     let category: LeadCategory | null = null;
     if (categoryParam) {
@@ -62,8 +71,8 @@ export async function GET(request: NextRequest) {
 
     const coldLeadService = getColdLeadService();
     const leads = category
-      ? await coldLeadService.getLeadsByCategory(category)
-      : await coldLeadService.getAllLeads();
+      ? await coldLeadService.getLeadsByCategory(category, coldCategoryParam)
+      : await coldLeadService.getAllLeads(coldCategoryParam);
 
     if (leads.length === 0) {
       return NextResponse.json(

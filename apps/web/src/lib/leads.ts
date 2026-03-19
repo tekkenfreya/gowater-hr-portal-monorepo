@@ -52,6 +52,7 @@ export class LeadService {
       remarks: leadData.remarks || null,
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
+      cold_category: null,
       created_by: employeeName,
       created_at: now,
       updated_at: now,

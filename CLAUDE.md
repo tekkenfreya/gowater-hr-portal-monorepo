@@ -96,9 +96,20 @@ Before making ANY changes, read the relevant docs:
 - No hacks, no shortcuts, no commented-out code, no dead code
 - No bloating — do not add dependencies, abstractions, or utilities unless directly required
 - No over-engineering — solve only what is asked, nothing more
+- **Simple tasks require simple solutions** — if a feature is adding items to an existing sidebar list, don't create new pages/routes/layouts. Follow the existing pattern. If Leads/Events/Supplier are buttons that switch content inline, new categories must do the same — not navigate to separate pages
+- Before creating new files, ask: can this be done by adding to an existing file? If yes, do that
+- Before creating new routes, ask: does the existing page already handle similar content? If yes, add to it
+- Don't create separate pages for content that belongs in the same view
+- No over-engineering — solve only what is asked, nothing more
 - No `any` types — use exact types from `@gowater/types` or define a precise local interface
 - No `console.log` left in production code — only `logger.error()` / `logger.info()` via `src/lib/logger.ts`
 - Every function does one thing
+
+### 7. AI Temperature — Precision First
+
+- **Development approach:** Claude must be precision-first and deterministic — follow existing patterns exactly, no creative liberties, no unsolicited refactoring or improvements
+- **LLM calls in this codebase:** None currently (AI lives in n8n, not in app code). If ever added: structured output → `temperature: 0`, creative → `temperature: 0.7` max
+- Never exceed `temperature: 0.7` in any LLM call
 
 ### 7. AI Temperature — Precision First
 
@@ -381,6 +392,8 @@ export async function GET(request: NextRequest) {
 - `AuthProvider` wraps the entire app in `src/app/layout.tsx`
 - Dashboard layout handles auth gating — individual pages must NOT have their own `router.push('/auth/login')` redirects
 - The context watches `pathname` changes and calls `verifyAuth()` when navigating to protected routes
+- **Login page must NOT use `useAuth().login()`** — it bypasses the context and uses a raw `fetch('/api/auth/login')` directly. Setting `authState.user` via the context during login causes parent re-renders that unmount the P3 loading screen. The cookie is set server-side; the dashboard verifies it on mount via `verifyAuth()`
+- **Never call `fetch('/api/auth/logout')` on login page mount** — it races with the login API and can clear the auth cookie after it's been set
 
 ### Dashboard Layout Architecture
 
@@ -810,6 +823,9 @@ Watermarks are generated server-side using **Satori** (JSX → SVG) and **Sharp*
 23. **Don't use `overflow-y-auto` on PersistentShell content div** - It breaks `h-full` propagation for child pages. Use `flex-1 overflow-hidden` on the shell, let each page manage its own scroll
 24. **Don't put two `style={{}}` on the same JSX element** - The second silently overwrites the first. Merge all styles into one object
 25. **Don't use `height: calc(100vh - Xpx)` on the shell** - Use `flex-1 overflow-hidden` instead. Fixed heights break the flex chain
+26. **Don't use `useAuth().login()` on the login page** - It sets `authState.user` which triggers parent re-renders and unmounts the P3 loading screen. Use raw `fetch('/api/auth/login')` instead. The cookie is set server-side; dashboard verifies on mount
+27. **Don't call `fetch('/api/auth/logout')` on login page mount** - It races with the login API and clears the cookie
+28. **Don't create separate pages/routes for content that belongs in an existing view** - If Leads/Events/Supplier are sidebar buttons on one page, new categories (Cold Leads sub-types) should be sidebar buttons on the same page, not separate routes
 
 ---
 
