@@ -341,7 +341,7 @@ export default function P3LoadingScreen({ onComplete }: P3LoadingScreenProps) {
           zIndex: 1,
         }}
       >
-        Visit Tonsuya Site
+        Team Meeting at 2:00 PM
       </div>
 
       {/* Diagonal white line */}
