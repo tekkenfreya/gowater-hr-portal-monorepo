@@ -4,12 +4,10 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoginCredentials } from '@/types/auth';
-import { useAuth } from '@/hooks/useAuth';
 import P3LoadingScreen from '@/components/P3LoadingScreen';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
   const [credentials, setCredentials] = useState<LoginCredentials>({
     username: '',
     password: ''
@@ -37,13 +35,28 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
 
-    const result = await login(credentials.username, credentials.password);
-    if (result.success) {
-      setShowTransition(true);
-    } else {
-      setError(result.error || 'Login failed. Please check your credentials.');
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: credentials.username,
+          password: credentials.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setShowTransition(true);
+      } else {
+        setError(data.error || 'Login failed. Please check your credentials.');
+      }
+    } catch {
+      setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleTransitionComplete = useCallback(() => {
