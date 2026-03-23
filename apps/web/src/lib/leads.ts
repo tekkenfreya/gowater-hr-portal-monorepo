@@ -52,12 +52,15 @@ export class LeadService {
       remarks: leadData.remarks || null,
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
+      cold_category: null,
       created_by: employeeName,
       created_at: now,
       updated_at: now,
     };
 
-    await this.db.insert('leads', lead as unknown as Record<string, unknown>);
+    // Exclude cold_category — the leads table does not have this column
+    const { cold_category: _, ...dbLead } = lead;
+    await this.db.insert('leads', dbLead as unknown as Record<string, unknown>);
 
     // Fire webhook for lead created
     getWebhookService().fireEvent('lead.created', {
