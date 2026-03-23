@@ -826,6 +826,7 @@ Watermarks are generated server-side using **Satori** (JSX → SVG) and **Sharp*
 26. **Don't use `useAuth().login()` on the login page** - It sets `authState.user` which triggers parent re-renders and unmounts the P3 loading screen. Use raw `fetch('/api/auth/login')` instead. The cookie is set server-side; dashboard verifies on mount
 27. **Don't call `fetch('/api/auth/logout')` on login page mount** - It races with the login API and clears the cookie
 28. **Don't create separate pages/routes for content that belongs in an existing view** - If Leads/Events/Supplier are sidebar buttons on one page, new categories (Cold Leads sub-types) should be sidebar buttons on the same page, not separate routes
+29. **Don't mix `leads` and `cold_leads` table columns** - The `leads` table does NOT have a `cold_category` column. The `cold_leads` table DOES. Regular Leads/Events/Supplier use `LeadService` → `/api/leads` → `leads` table. Cold Leads (Restaurants, LGU, Hotel, Microfinance, Foundation) use `ColdLeadService` → `/api/cold-leads` → `cold_leads` table. Never insert `cold_category` into the `leads` table
 
 ---
 

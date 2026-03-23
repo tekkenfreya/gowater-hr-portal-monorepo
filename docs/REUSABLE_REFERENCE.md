@@ -78,9 +78,17 @@ id, user_id, report_date, report_type, content, sent_to_whatsapp, created_at
 id, name, original_name, file_path, size, mime_type, category, uploaded_by, public_url, uploaded_at, updated_at
 
 -- leads (supports leads, events, and suppliers with different fields)
+-- NOTE: Does NOT have cold_category column — do not insert cold_category into this table
 id, category, date_of_interaction, lead_type, company_name, number_of_beneficiary, location, lead_source, event_name, event_type, venue, event_date, event_start_date, event_end_date, event_time, event_lead, number_of_attendees, event_report, supplier_name, supplier_location, supplier_product, price, unit_type, contact_person, mobile_number, email_address, product, status, remarks, disposition, assigned_to, created_by, created_at, updated_at
 
 -- lead_activities (KEY TABLE for tracking WHO did WHAT)
+id, lead_id, employee_name, activity_type, activity_description, start_date, end_date, status_update, created_at
+
+-- cold_leads (same schema as leads but with cold_category for sub-category filtering)
+-- Used by Cold Leads dropdown on /dashboard/task-assigned page
+id, category, date_of_interaction, lead_type, company_name, number_of_beneficiary, location, lead_source, event_name, event_type, venue, event_date, event_start_date, event_end_date, event_time, event_lead, number_of_attendees, event_report, supplier_name, supplier_location, supplier_product, price, unit_type, contact_person, mobile_number, email_address, product, status, remarks, disposition, assigned_to, cold_category, created_by, created_at, updated_at
+
+-- cold_lead_activities (same schema as lead_activities, references cold_leads)
 id, lead_id, employee_name, activity_type, activity_description, start_date, end_date, status_update, created_at
 
 -- notifications (NEW - Global notification system)
@@ -160,6 +168,9 @@ category: 'documents', 'images', 'videos', 'presentations', 'spreadsheets', 'arc
 
 -- Lead categories (3 main categories: leads, events, and suppliers)
 category: 'lead', 'event', 'supplier'
+
+-- Cold lead sub-categories (used in cold_leads table only)
+cold_category: 'restaurants', 'lgu', 'hotel', 'microfinance', 'foundation'
 
 -- Lead product types
 product: 'both', 'vending', 'dispenser'
@@ -324,6 +335,24 @@ status: 'pending', 'in_progress', 'resolved'
 - `getDashboardStats()` - Get boss dashboard statistics
 
 **Singleton Access:** `getLeadService()`
+
+### ColdLeadService (`src/lib/coldLeads.ts`)
+**Functions:**
+- `createLead(employeeName, leadData)` - Create new cold lead (inserts into `cold_leads` table)
+- `getLeadsByCategory(category, coldCategory?)` - Get cold leads by category and sub-category
+- `getAllLeads(coldCategory?)` - Get all cold leads
+- `getLeadById(leadId)` - Get single cold lead
+- `updateLead(leadId, updates)` - Update cold lead
+- `deleteLead(leadId)` - Delete cold lead and its activities
+- `logActivity(leadId, employeeName, activityData)` - Log activity on cold lead
+- `getActivitiesForLead(leadId)` - Get activities for a cold lead
+- `getAllActivities()` - Get all cold lead activities
+- `deleteActivity(activityId)` - Delete cold lead activity
+- `getLeadsWithActivities(category?, coldCategory?)` - Get cold leads with their activities
+
+**Singleton Access:** `getColdLeadService()`
+
+**IMPORTANT:** ColdLeadService uses `cold_leads` and `cold_lead_activities` tables (NOT `leads`/`lead_activities`). The `cold_leads` table has a `cold_category` column; the `leads` table does NOT.
 
 ### LeaveService (`src/lib/leave.ts`)
 **Functions:**
@@ -539,6 +568,20 @@ if (!auth.authenticated) {
 
 ### Lead Dashboard
 - `GET /api/leads/dashboard` - Get dashboard stats (requires 'can_view_analytics' permission)
+
+### Cold Leads (separate table: `cold_leads`)
+- `GET /api/cold-leads?category=lead&cold_category=restaurants` - Get cold leads by category and sub-category
+- `POST /api/cold-leads` - Create new cold lead (body includes `cold_category`)
+- `PUT /api/cold-leads` - Update cold lead
+- `DELETE /api/cold-leads?id=123` - Delete cold lead
+
+### Cold Lead Activities
+- `POST /api/cold-leads/activities` - Log activity on cold lead
+- `GET /api/cold-leads/activities?leadId=123` - Get activities for a cold lead
+- `DELETE /api/cold-leads/activities?id=456` - Delete cold lead activity
+
+### Cold Leads Export
+- `GET /api/cold-leads/export?category=lead&cold_category=restaurants` - Export cold leads as CSV
 
 ### Webhooks (NEW v5.4 - Admin only)
 - `GET /api/admin/webhooks` - List all webhooks (optional ?userId= filter)
@@ -1310,7 +1353,7 @@ export function useAuth() {
 - `BreakModal` - Modal for break time management
 
 ### Lead Pages (Task Assigned Section)
-- `/dashboard/task-assigned` - Main page with 3 category tabs: Leads, Events, and Suppliers (formerly /dashboard/leads)
+- `/dashboard/task-assigned` - Main page with 3 category buttons (Leads, Events, Supplier) + Cold Leads dropdown (Restaurants, LGU, Hotel, Microfinance, Foundation). Regular categories use `/api/leads` (leads table), Cold Leads use `/api/cold-leads` (cold_leads table)
 - `/dashboard/task-assigned/analytics` - Activity dashboard with employee leaderboard and stats (requires 'can_view_analytics' permission)
 - `/dashboard/task-assigned/activity-monitor` - Real-time activity monitoring (requires 'can_view_activity_monitor' permission)
 
