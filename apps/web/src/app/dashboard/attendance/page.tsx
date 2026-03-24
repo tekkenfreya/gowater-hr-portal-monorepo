@@ -160,9 +160,18 @@ export default function AttendancePage() {
     }
   }, [activeTab, selectedUserIndex, teamUsers, currentWeekStart, isAdmin]);
 
+  // Format local date as YYYY-MM-DD without UTC conversion
+  // toISOString() converts to UTC which shifts the date in PH timezone (UTC+8)
+  const toLocalDateString = (d: Date): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const fetchWeeklyAttendance = async () => {
     try {
-      const startDateStr = currentWeekStart.toISOString().split('T')[0];
+      const startDateStr = toLocalDateString(currentWeekStart);
       const response = await fetch(`/api/attendance/weekly?startDate=${startDateStr}`);
       if (response.ok) {
         const data = await response.json();
@@ -192,10 +201,10 @@ export default function AttendancePage() {
   const fetchTeamAttendance = async (userId: number) => {
     setIsLoadingTeamAttendance(true);
     try {
-      const startDateStr = currentWeekStart.toISOString().split('T')[0];
+      const startDateStr = toLocalDateString(currentWeekStart);
       const endDate = new Date(currentWeekStart);
       endDate.setDate(currentWeekStart.getDate() + 6);
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const endDateStr = toLocalDateString(endDate);
 
       const response = await fetch(`/api/admin/attendance?userId=${userId}&startDate=${startDateStr}&endDate=${endDateStr}`);
       if (response.ok) {
@@ -208,11 +217,10 @@ export default function AttendancePage() {
         for (let i = 0; i < 7; i++) {
           const date = new Date(currentWeekStart);
           date.setDate(currentWeekStart.getDate() + i);
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = toLocalDateString(date);
 
           const record = attendanceRecords.find((r: { date: string }) => {
-            const recordDate = new Date(r.date).toISOString().split('T')[0];
-            return recordDate === dateStr;
+            return r.date === dateStr || new Date(r.date).toDateString() === date.toDateString();
           });
 
           if (record) {
