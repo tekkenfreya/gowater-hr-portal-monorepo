@@ -366,8 +366,8 @@ export default function AttendancePage() {
       startDate.setMonth(endDate.getMonth() - 1);
     }
 
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    const startDateStr = toLocalDateStr(startDate);
+    const endDateStr = toLocalDateStr(endDate);
 
     window.location.href = `/api/attendance/export?startDate=${startDateStr}&endDate=${endDateStr}`;
     setShowExportModal(false);
