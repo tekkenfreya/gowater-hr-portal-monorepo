@@ -14,11 +14,14 @@ interface TeamAttendanceData {
   status: 'present' | 'absent';
 }
 
+const toLocalDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export default function TeamAttendancePage() {
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
   const [teamData, setTeamData] = useState<TeamAttendanceData[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toLocalDateStr(new Date()));
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [loading, setLoading] = useState(true);
 
@@ -138,7 +141,7 @@ export default function TeamAttendancePage() {
           <div className="flex items-end">
             <button
               onClick={() => {
-                setSelectedDate(new Date().toISOString().split('T')[0]);
+                setSelectedDate(toLocalDateStr(new Date()));
                 setSelectedDepartment('all');
               }}
               className="px-4 py-2 text-sm font-medium text-gray-800 hover:text-gray-900 transition-colors"
