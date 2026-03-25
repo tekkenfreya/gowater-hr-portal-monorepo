@@ -1206,7 +1206,7 @@ export default function AttendancePage() {
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap">
                                 {!isSunday && (
-                                  hasAttendance && attendance.id ? (
+                                  attendance.id ? (
                                     <button
                                       onClick={() => handleEditAttendance(attendance)}
                                       className="p-1.5 text-cyan-400 rounded-lg transition-colors"
