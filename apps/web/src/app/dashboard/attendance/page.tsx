@@ -212,10 +212,10 @@ export default function AttendancePage() {
         for (let i = 0; i < 7; i++) {
           const date = new Date(currentWeekStart);
           date.setDate(currentWeekStart.getDate() + i);
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = toLocalDateStr(date);
 
           const record = attendanceRecords.find((r: { date: string }) => {
-            const recordDate = new Date(r.date).toISOString().split('T')[0];
+            const recordDate = r.date.split('T')[0];
             return recordDate === dateStr;
           });
 
