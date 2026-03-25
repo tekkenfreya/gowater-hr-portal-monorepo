@@ -303,13 +303,17 @@ export default function AttendancePage() {
     const selectedUser = teamUsers[selectedUserIndex];
     if (!selectedUser) return;
 
+    // Use local date string to avoid timezone issues
+    const dateObj = new Date(date + 'T00:00:00');
+    const localDate = toLocalDateString(dateObj);
+
     try {
       const response = await fetch('/api/admin/attendance/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: selectedUser.id,
-          date: date,
+          date: localDate,
           checkInTime: null,
           checkOutTime: null,
           status: 'present',
@@ -321,6 +325,20 @@ export default function AttendancePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // If record already exists, refresh and open edit modal for it
+        if (data.error?.includes('already exists')) {
+          await fetchTeamAttendance(selectedUser.id);
+          // Find the existing record from refreshed data
+          const existingRecord = teamWeeklyAttendance.find(a => {
+            const aDate = new Date(a.date + 'T00:00:00');
+            return toLocalDateString(aDate) === localDate;
+          });
+          if (existingRecord?.id) {
+            setEditingAttendance(existingRecord);
+            setEditModalOpen(true);
+            return;
+          }
+        }
         alert(data.error || 'Failed to create attendance record');
         return;
       }
@@ -329,10 +347,11 @@ export default function AttendancePage() {
       await fetchTeamAttendance(selectedUser.id);
 
       // Open edit modal with the newly created record
+      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
       const newAttendance: WeeklyAttendanceData = {
         id: data.attendanceId,
-        date: date,
-        day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        date: localDate,
+        day: dayName,
         totalHours: 0,
         status: 'present',
         checkInTime: undefined,
@@ -1138,6 +1157,7 @@ export default function AttendancePage() {
                           const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                           const isSunday = date.getDay() === 0;
                           const isToday = date.toDateString() === currentTime.toDateString();
+                          const hasRecord = !!attendance.id;
                           const hasAttendance = attendance.checkInTime;
 
                           return (
@@ -1214,7 +1234,7 @@ export default function AttendancePage() {
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap">
                                 {!isSunday && (
-                                  hasAttendance && attendance.id ? (
+                                  hasRecord ? (
                                     <button
                                       onClick={() => handleEditAttendance(attendance)}
                                       className="p-1.5 text-cyan-400 rounded-lg transition-colors"
