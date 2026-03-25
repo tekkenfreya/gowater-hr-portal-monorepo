@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { getAttendanceService } from '@/lib/attendance';
+import { getPhilippineDateString } from '@/lib/timezone';
 import { logger } from '@/lib/logger';
 
 async function verifyAuth(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('startDate') || new Date().toISOString().split('T')[0];
+    const startDate = searchParams.get('startDate') || getPhilippineDateString();
 
     const attendanceService = getAttendanceService();
     const weeklyAttendance = await attendanceService.getWeeklyAttendance(user.id, startDate);
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const summary = await attendanceService.getAttendanceSummary(
       user.id, 
       startDate, 
-      endDate.toISOString().split('T')[0]
+      getPhilippineDateString(endDate)
     );
 
     return NextResponse.json({

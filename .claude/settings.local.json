@@ -24,7 +24,10 @@
       "Bash(sips -g all '/Users/a11/Projects/gowater-hr-portal-monorepo/apps/web/public/gowater new logo.png')",
       "Bash(sips:*)",
       "Bash(git checkout:*)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "WebFetch(domain:portal.gowater.ph)",
+      "WebFetch(domain:gowater-hr-portal-monorepo.vercel.app)",
+      "Bash(nslookup portal.gowater.ph)"
     ]
   }
 }

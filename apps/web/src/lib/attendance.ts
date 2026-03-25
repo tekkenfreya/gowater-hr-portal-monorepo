@@ -306,7 +306,7 @@ export class AttendanceService {
       
       const records = await this.db.all('attendance', {
         user_id: userId,
-        date_range: [startDate, endDate.toISOString().split('T')[0]]
+        date_range: [startDate, getPhilippineDateString(endDate)]
       }, 'date');
 
       return records.map(record => ({

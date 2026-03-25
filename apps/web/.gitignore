@@ -54,3 +54,4 @@ nul
 
 # Reports (may contain sensitive data - top-level Reports folder only)
 /Reports/
+.env*.local
