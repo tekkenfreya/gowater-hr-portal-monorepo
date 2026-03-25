@@ -531,7 +531,7 @@ export default function AttendancePage() {
 
                   // Check for saved attendance data for this day
                   const savedAttendance = weeklyAttendance.find(a => {
-                    const attDate = new Date(a.date);
+                    const attDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
                     return attDate.toDateString() === date.toDateString();
                   });
 
@@ -903,7 +903,7 @@ export default function AttendancePage() {
                         const isToday = date.toDateString() === currentTime.toDateString();
 
                         const savedAttendance = weeklyAttendance.find(a => {
-                          const attDate = new Date(a.date);
+                          const attDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
                           return attDate.toDateString() === date.toDateString();
                         });
 
@@ -1153,7 +1153,8 @@ export default function AttendancePage() {
                       </thead>
                       <tbody>
                         {teamWeeklyAttendance.map((attendance) => {
-                          const date = new Date(attendance.date);
+                          const dateStr = attendance.date.includes('T') ? attendance.date : attendance.date + 'T00:00:00';
+                          const date = new Date(dateStr);
                           const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                           const isSunday = date.getDay() === 0;
                           const isToday = date.toDateString() === currentTime.toDateString();
