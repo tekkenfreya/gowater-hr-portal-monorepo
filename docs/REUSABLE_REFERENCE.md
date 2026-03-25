@@ -281,12 +281,23 @@ status: 'pending', 'in_progress', 'resolved'
 
 **Singleton Access:** `getAttendanceService()`
 
-**IMPORTANT — Date formatting for API queries:** Never use `toISOString().split('T')[0]` to build date strings for attendance queries. In PH timezone (UTC+8), `toISOString()` shifts dates back one day (midnight local = previous day in UTC). Use local formatting instead:
+**IMPORTANT — Date formatting and parsing:**
+
+1. **Never use `toISOString().split('T')[0]`** for date strings. In PH timezone (UTC+8), `toISOString()` shifts dates back one day. Use local formatting on client:
 ```tsx
-const toLocalDateString = (d: Date): string => {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-};
+const toLocalDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 ```
+On server (Vercel runs UTC), use `getPhilippineDateString()` from `src/lib/timezone.ts`.
+
+2. **Never use `new Date("YYYY-MM-DD")` directly** — Safari returns Invalid Date. Always use `safeParse()` from `src/lib/timezone.ts`:
+```tsx
+import { safeParse } from '@/lib/timezone'; // not exported yet — use formatPhilippineTime which uses it internally
+// Or inline: new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+```
+Safari also fails on PostgreSQL timestamptz format `"2026-03-21 01:00:00+00"` — the space must be replaced with `T`.
+
+3. **All `formatPhilippine*` functions** in `src/lib/timezone.ts` use `safeParse()` internally and are Safari-safe.
 
 ### AttendanceAutomationService (`src/lib/attendanceAutomation.ts`)
 **Functions:**
