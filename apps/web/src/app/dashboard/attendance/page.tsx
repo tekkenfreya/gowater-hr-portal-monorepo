@@ -317,6 +317,11 @@ export default function AttendancePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // If record already exists, refresh and open edit modal
+        if (data.error?.includes('already exists')) {
+          await fetchTeamAttendance(selectedUser.id);
+          return;
+        }
         alert(data.error || 'Failed to create attendance record');
         return;
       }
@@ -1210,7 +1215,7 @@ export default function AttendancePage() {
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap">
                                 {!isSunday && (
-                                  hasAttendance && attendance.id ? (
+                                  attendance.id ? (
                                     <button
                                       onClick={() => handleEditAttendance(attendance)}
                                       className="p-1.5 text-cyan-400 rounded-lg transition-colors"
