@@ -160,18 +160,13 @@ export default function AttendancePage() {
     }
   }, [activeTab, selectedUserIndex, teamUsers, currentWeekStart, isAdmin]);
 
-  // Format local date as YYYY-MM-DD without UTC conversion
-  // toISOString() converts to UTC which shifts the date in PH timezone (UTC+8)
-  const toLocalDateString = (d: Date): string => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // Format date as YYYY-MM-DD using local time (not UTC)
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   const fetchWeeklyAttendance = async () => {
     try {
-      const startDateStr = toLocalDateString(currentWeekStart);
+      const startDateStr = toLocalDateStr(currentWeekStart);
       const response = await fetch(`/api/attendance/weekly?startDate=${startDateStr}`);
       if (response.ok) {
         const data = await response.json();
@@ -201,10 +196,10 @@ export default function AttendancePage() {
   const fetchTeamAttendance = async (userId: number) => {
     setIsLoadingTeamAttendance(true);
     try {
-      const startDateStr = toLocalDateString(currentWeekStart);
+      const startDateStr = toLocalDateStr(currentWeekStart);
       const endDate = new Date(currentWeekStart);
       endDate.setDate(currentWeekStart.getDate() + 6);
-      const endDateStr = toLocalDateString(endDate);
+      const endDateStr = toLocalDateStr(endDate);
 
       const response = await fetch(`/api/admin/attendance?userId=${userId}&startDate=${startDateStr}&endDate=${endDateStr}`);
       if (response.ok) {
@@ -217,10 +212,11 @@ export default function AttendancePage() {
         for (let i = 0; i < 7; i++) {
           const date = new Date(currentWeekStart);
           date.setDate(currentWeekStart.getDate() + i);
-          const dateStr = toLocalDateString(date);
+          const dateStr = date.toISOString().split('T')[0];
 
           const record = attendanceRecords.find((r: { date: string }) => {
-            return r.date === dateStr || new Date(r.date).toDateString() === date.toDateString();
+            const recordDate = new Date(r.date).toISOString().split('T')[0];
+            return recordDate === dateStr;
           });
 
           if (record) {
@@ -303,17 +299,13 @@ export default function AttendancePage() {
     const selectedUser = teamUsers[selectedUserIndex];
     if (!selectedUser) return;
 
-    // Use local date string to avoid timezone issues
-    const dateObj = new Date(date + 'T00:00:00');
-    const localDate = toLocalDateString(dateObj);
-
     try {
       const response = await fetch('/api/admin/attendance/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: selectedUser.id,
-          date: localDate,
+          date: date,
           checkInTime: null,
           checkOutTime: null,
           status: 'present',
@@ -325,20 +317,6 @@ export default function AttendancePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        // If record already exists, refresh and open edit modal for it
-        if (data.error?.includes('already exists')) {
-          await fetchTeamAttendance(selectedUser.id);
-          // Find the existing record from refreshed data
-          const existingRecord = teamWeeklyAttendance.find(a => {
-            const aDate = new Date(a.date + 'T00:00:00');
-            return toLocalDateString(aDate) === localDate;
-          });
-          if (existingRecord?.id) {
-            setEditingAttendance(existingRecord);
-            setEditModalOpen(true);
-            return;
-          }
-        }
         alert(data.error || 'Failed to create attendance record');
         return;
       }
@@ -347,11 +325,10 @@ export default function AttendancePage() {
       await fetchTeamAttendance(selectedUser.id);
 
       // Open edit modal with the newly created record
-      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
       const newAttendance: WeeklyAttendanceData = {
         id: data.attendanceId,
-        date: localDate,
-        day: dayName,
+        date: date,
+        day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
         totalHours: 0,
         status: 'present',
         checkInTime: undefined,
@@ -531,7 +508,7 @@ export default function AttendancePage() {
 
                   // Check for saved attendance data for this day
                   const savedAttendance = weeklyAttendance.find(a => {
-                    const attDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
+                    const attDate = new Date(a.date);
                     return attDate.toDateString() === date.toDateString();
                   });
 
@@ -903,7 +880,7 @@ export default function AttendancePage() {
                         const isToday = date.toDateString() === currentTime.toDateString();
 
                         const savedAttendance = weeklyAttendance.find(a => {
-                          const attDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
+                          const attDate = new Date(a.date);
                           return attDate.toDateString() === date.toDateString();
                         });
 
@@ -1153,12 +1130,10 @@ export default function AttendancePage() {
                       </thead>
                       <tbody>
                         {teamWeeklyAttendance.map((attendance) => {
-                          const dateStr = attendance.date.includes('T') ? attendance.date : attendance.date + 'T00:00:00';
-                          const date = new Date(dateStr);
+                          const date = new Date(attendance.date);
                           const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                           const isSunday = date.getDay() === 0;
                           const isToday = date.toDateString() === currentTime.toDateString();
-                          const hasRecord = !!attendance.id;
                           const hasAttendance = attendance.checkInTime;
 
                           return (
@@ -1235,7 +1210,7 @@ export default function AttendancePage() {
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap">
                                 {!isSunday && (
-                                  hasRecord ? (
+                                  hasAttendance && attendance.id ? (
                                     <button
                                       onClick={() => handleEditAttendance(attendance)}
                                       className="p-1.5 text-cyan-400 rounded-lg transition-colors"
