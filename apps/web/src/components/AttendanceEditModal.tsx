@@ -41,6 +41,7 @@ export default function AttendanceEditModal({
     if (!isoString) return '';
     try {
       const date = new Date(isoString);
+      if (isNaN(date.getTime())) return '';
       return date.toTimeString().slice(0, 5); // HH:mm format
     } catch {
       return '';

@@ -15,17 +15,22 @@ export function formatPhilippineTime(
   dateString: string | Date,
   options?: Intl.DateTimeFormatOptions
 ): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return '--';
 
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    timeZone: PHILIPPINE_TIMEZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-    ...options
-  };
+    const defaultOptions: Intl.DateTimeFormatOptions = {
+      timeZone: PHILIPPINE_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      ...options
+    };
 
-  return date.toLocaleTimeString('en-US', defaultOptions);
+    return date.toLocaleTimeString('en-US', defaultOptions);
+  } catch {
+    return '--';
+  }
 }
 
 /**
@@ -34,17 +39,22 @@ export function formatPhilippineTime(
  * @returns Formatted date and time string in Philippine Time
  */
 export function formatPhilippineDateTime(dateString: string | Date): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return '--';
 
-  return date.toLocaleString('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
+    return date.toLocaleString('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return '--';
+  }
 }
 
 /**
@@ -53,14 +63,19 @@ export function formatPhilippineDateTime(dateString: string | Date): string {
  * @returns Formatted date string in Philippine Time
  */
 export function formatPhilippineDate(dateString: string | Date): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  try {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(date.getTime())) return '--';
 
-  return date.toLocaleDateString('en-US', {
-    timeZone: PHILIPPINE_TIMEZONE,
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
+    return date.toLocaleDateString('en-US', {
+      timeZone: PHILIPPINE_TIMEZONE,
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch {
+    return '--';
+  }
 }
 
 /**
