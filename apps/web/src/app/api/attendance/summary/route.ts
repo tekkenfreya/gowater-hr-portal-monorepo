@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { getAttendanceService } from '@/lib/attendance';
-import { getPhilippineDateString } from '@/lib/timezone';
 import { logger } from '@/lib/logger';
 
 async function verifyAuth(request: NextRequest) {
@@ -30,26 +29,29 @@ export async function GET(request: NextRequest) {
     const today = new Date();
 
     if (period === 'week') {
+      // Current week (Sunday to Saturday)
       const currentDay = today.getDay();
       const sunday = new Date(today);
       sunday.setDate(today.getDate() - currentDay);
-      startDate = getPhilippineDateString(sunday);
+      startDate = sunday.toISOString().split('T')[0];
 
       const saturday = new Date(sunday);
       saturday.setDate(sunday.getDate() + 6);
-      endDate = getPhilippineDateString(saturday);
+      endDate = saturday.toISOString().split('T')[0];
     } else if (period === 'month') {
+      // Current month
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      startDate = getPhilippineDateString(firstDay);
+      startDate = firstDay.toISOString().split('T')[0];
 
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      endDate = getPhilippineDateString(lastDay);
+      endDate = lastDay.toISOString().split('T')[0];
     } else if (period === 'year') {
+      // Current year
       const firstDay = new Date(today.getFullYear(), 0, 1);
-      startDate = getPhilippineDateString(firstDay);
+      startDate = firstDay.toISOString().split('T')[0];
 
       const lastDay = new Date(today.getFullYear(), 11, 31);
-      endDate = getPhilippineDateString(lastDay);
+      endDate = lastDay.toISOString().split('T')[0];
     } else {
       return NextResponse.json(
         { error: 'Invalid period. Use: week, month, or year' },

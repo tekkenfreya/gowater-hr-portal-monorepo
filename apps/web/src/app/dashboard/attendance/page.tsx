@@ -160,13 +160,9 @@ export default function AttendancePage() {
     }
   }, [activeTab, selectedUserIndex, teamUsers, currentWeekStart, isAdmin]);
 
-  // Format date as YYYY-MM-DD using local time (not UTC)
-  const toLocalDateStr = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
   const fetchWeeklyAttendance = async () => {
     try {
-      const startDateStr = toLocalDateStr(currentWeekStart);
+      const startDateStr = currentWeekStart.toISOString().split('T')[0];
       const response = await fetch(`/api/attendance/weekly?startDate=${startDateStr}`);
       if (response.ok) {
         const data = await response.json();
@@ -196,10 +192,10 @@ export default function AttendancePage() {
   const fetchTeamAttendance = async (userId: number) => {
     setIsLoadingTeamAttendance(true);
     try {
-      const startDateStr = toLocalDateStr(currentWeekStart);
+      const startDateStr = currentWeekStart.toISOString().split('T')[0];
       const endDate = new Date(currentWeekStart);
       endDate.setDate(currentWeekStart.getDate() + 6);
-      const endDateStr = toLocalDateStr(endDate);
+      const endDateStr = endDate.toISOString().split('T')[0];
 
       const response = await fetch(`/api/admin/attendance?userId=${userId}&startDate=${startDateStr}&endDate=${endDateStr}`);
       if (response.ok) {
@@ -212,10 +208,10 @@ export default function AttendancePage() {
         for (let i = 0; i < 7; i++) {
           const date = new Date(currentWeekStart);
           date.setDate(currentWeekStart.getDate() + i);
-          const dateStr = toLocalDateStr(date);
+          const dateStr = date.toISOString().split('T')[0];
 
           const record = attendanceRecords.find((r: { date: string }) => {
-            const recordDate = r.date.split('T')[0];
+            const recordDate = new Date(r.date).toISOString().split('T')[0];
             return recordDate === dateStr;
           });
 
@@ -317,11 +313,6 @@ export default function AttendancePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        // If record already exists, refresh and open edit modal
-        if (data.error?.includes('already exists')) {
-          await fetchTeamAttendance(selectedUser.id);
-          return;
-        }
         alert(data.error || 'Failed to create attendance record');
         return;
       }
@@ -366,8 +357,8 @@ export default function AttendancePage() {
       startDate.setMonth(endDate.getMonth() - 1);
     }
 
-    const startDateStr = toLocalDateStr(startDate);
-    const endDateStr = toLocalDateStr(endDate);
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
 
     window.location.href = `/api/attendance/export?startDate=${startDateStr}&endDate=${endDateStr}`;
     setShowExportModal(false);
@@ -1215,7 +1206,7 @@ export default function AttendancePage() {
                               </td>
                               <td className="px-5 py-4 whitespace-nowrap">
                                 {!isSunday && (
-                                  attendance.id ? (
+                                  hasAttendance && attendance.id ? (
                                     <button
                                       onClick={() => handleEditAttendance(attendance)}
                                       className="p-1.5 text-cyan-400 rounded-lg transition-colors"

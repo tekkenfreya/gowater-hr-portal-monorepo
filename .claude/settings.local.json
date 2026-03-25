@@ -6,7 +6,25 @@
       "Bash(npm install:*)",
       "Bash(pnpm add:*)",
       "Bash(pnpm type-check:*)",
-      "Bash(pnpm -r type-check:*)"
+      "Bash(pnpm -r type-check:*)",
+      "Bash(xargs ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git clone:*)",
+      "Bash(find /Users/a11/Projects/atelier-project-full/ -name *.xcodeproj -o -name *.swift -o -name Package.swift)",
+      "Bash(xcodegen --version)",
+      "Bash(xcodegen generate:*)",
+      "Bash(xcodebuild -project GoWater.xcodeproj -scheme GoWater -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project GoWater.xcodeproj -scheme GoWater -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build)",
+      "Bash(open:*)",
+      "Bash(npx skills:*)",
+      "Bash(wc:*)",
+      "Bash(identify '/Users/a11/Projects/gowater-hr-portal-monorepo/apps/web/public/gowater new logo.png')",
+      "Bash(sips -g all '/Users/a11/Projects/gowater-hr-portal-monorepo/apps/web/public/gowater new logo.png')",
+      "Bash(sips:*)",
+      "Bash(git checkout:*)",
+      "Bash(gh api:*)"
     ]
   }
 }

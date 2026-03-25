@@ -16,7 +16,6 @@ export function formatPhilippineTime(
   options?: Intl.DateTimeFormatOptions
 ): string {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-  if (isNaN(date.getTime())) return '--';
 
   const defaultOptions: Intl.DateTimeFormatOptions = {
     timeZone: PHILIPPINE_TIMEZONE,

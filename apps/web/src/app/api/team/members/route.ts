@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { getDb } from '@/lib/supabase';
-import { getPhilippineDateString } from '@/lib/timezone';
 
 /**
  * GET /api/team/members
@@ -31,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     // Get all active users with today's attendance status
     const db = getDb();
-    const today = getPhilippineDateString();
+    const today = new Date().toISOString().split('T')[0];
 
     const query = `
       SELECT

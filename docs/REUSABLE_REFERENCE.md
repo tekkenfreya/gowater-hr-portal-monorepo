@@ -281,6 +281,13 @@ status: 'pending', 'in_progress', 'resolved'
 
 **Singleton Access:** `getAttendanceService()`
 
+**IMPORTANT — Date formatting for API queries:** Never use `toISOString().split('T')[0]` to build date strings for attendance queries. In PH timezone (UTC+8), `toISOString()` shifts dates back one day (midnight local = previous day in UTC). Use local formatting instead:
+```tsx
+const toLocalDateString = (d: Date): string => {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+```
+
 ### AttendanceAutomationService (`src/lib/attendanceAutomation.ts`)
 **Functions:**
 - `getAutomationSettings(userId?)` - Get automation settings for user or global

@@ -39,9 +39,12 @@ export default function AttendanceEditModal({
   // Helper to extract time from ISO string
   const extractTime = (isoString?: string): string => {
     if (!isoString) return '';
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '';
-    return date.toTimeString().slice(0, 5); // HH:mm format
+    try {
+      const date = new Date(isoString);
+      return date.toTimeString().slice(0, 5); // HH:mm format
+    } catch {
+      return '';
+    }
   };
 
   // Initialize form with current values
@@ -61,9 +64,7 @@ export default function AttendanceEditModal({
     if (!timeStr) return undefined;
     try {
       const [hours, minutes] = timeStr.split(':').map(Number);
-      const safeDateStr = dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00';
-      const dateObj = new Date(safeDateStr);
-      if (isNaN(dateObj.getTime())) return undefined;
+      const dateObj = new Date(dateStr);
       dateObj.setHours(hours, minutes, 0, 0);
       return dateObj.toISOString();
     } catch {
@@ -153,7 +154,7 @@ export default function AttendanceEditModal({
 
         <div className="mb-4 p-3 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-800">
-            <span className="font-semibold">Date:</span> {new Date(date.includes('T') ? date : date + 'T00:00:00').toLocaleDateString('en-US', {
+            <span className="font-semibold">Date:</span> {new Date(date).toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { getAttendanceService } from '@/lib/attendance';
-import { getPhilippineDateString } from '@/lib/timezone';
 import { logger } from '@/lib/logger';
 
 async function verifyAuth(request: NextRequest) {
@@ -37,7 +36,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       attendance: todayAttendance || {
         userId: user.id,
-        date: getPhilippineDateString(),
+        date: new Date().toISOString().split('T')[0],
         checkInTime: null,
         checkOutTime: null,
         totalHours: 0,

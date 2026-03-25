@@ -827,6 +827,7 @@ Watermarks are generated server-side using **Satori** (JSX → SVG) and **Sharp*
 27. **Don't call `fetch('/api/auth/logout')` on login page mount** - It races with the login API and clears the cookie
 28. **Don't create separate pages/routes for content that belongs in an existing view** - If Leads/Events/Supplier are sidebar buttons on one page, new categories (Cold Leads sub-types) should be sidebar buttons on the same page, not separate routes
 29. **Don't mix `leads` and `cold_leads` table columns** - The `leads` table does NOT have a `cold_category` column. The `cold_leads` table DOES. Regular Leads/Events/Supplier use `LeadService` → `/api/leads` → `leads` table. Cold Leads (Restaurants, LGU, Hotel, Microfinance, Foundation) use `ColdLeadService` → `/api/cold-leads` → `cold_leads` table. Never insert `cold_category` into the `leads` table
+30. **Don't use `toISOString().split('T')[0]` to get a date string for API queries** - `toISOString()` converts to UTC, which shifts the date back one day in PH timezone (UTC+8). Midnight local PH = previous day 16:00 UTC. Always use local date formatting: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`. This applies to any date used in API query parameters, date range filters, or date comparisons
 
 ---
 
