@@ -36,10 +36,17 @@ export default function AttendanceEditModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Safari-safe date parser
+  const safeParse = (s: string): Date => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s.trim())) return new Date(s + 'T00:00:00');
+    if (/^\d{4}-\d{2}-\d{2} /.test(s)) return new Date(s.replace(' ', 'T'));
+    return new Date(s);
+  };
+
   // Helper to extract time from ISO string
   const extractTime = (isoString?: string): string => {
     if (!isoString) return '';
-    const date = new Date(isoString);
+    const date = safeParse(isoString);
     if (isNaN(date.getTime())) return '';
     return date.toTimeString().slice(0, 5); // HH:mm format
   };
@@ -61,8 +68,7 @@ export default function AttendanceEditModal({
     if (!timeStr) return undefined;
     try {
       const [hours, minutes] = timeStr.split(':').map(Number);
-      const safeDateStr = dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00';
-      const dateObj = new Date(safeDateStr);
+      const dateObj = safeParse(dateStr);
       if (isNaN(dateObj.getTime())) return undefined;
       dateObj.setHours(hours, minutes, 0, 0);
       return dateObj.toISOString();
@@ -96,17 +102,18 @@ export default function AttendanceEditModal({
         return;
       }
 
+      const payload = {
+        attendanceId,
+        requestedCheckInTime: hasCheckInChange ? combineDateTime(date, checkInTime) : undefined,
+        requestedCheckOutTime: hasCheckOutChange ? combineDateTime(date, checkOutTime) : undefined,
+        requestedBreakStartTime: hasBreakStartChange ? combineDateTime(date, breakStartTime) : undefined,
+        requestedBreakEndTime: hasBreakEndChange ? combineDateTime(date, breakEndTime) : undefined,
+        reason: reason.trim()
+      };
       const response = await fetch('/api/attendance/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          attendanceId,
-          requestedCheckInTime: hasCheckInChange ? combineDateTime(date, checkInTime) : undefined,
-          requestedCheckOutTime: hasCheckOutChange ? combineDateTime(date, checkOutTime) : undefined,
-          requestedBreakStartTime: hasBreakStartChange ? combineDateTime(date, breakStartTime) : undefined,
-          requestedBreakEndTime: hasBreakEndChange ? combineDateTime(date, breakEndTime) : undefined,
-          reason: reason.trim()
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -153,7 +160,7 @@ export default function AttendanceEditModal({
 
         <div className="mb-4 p-3 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-800">
-            <span className="font-semibold">Date:</span> {new Date(date.includes('T') ? date : date + 'T00:00:00').toLocaleDateString('en-US', {
+            <span className="font-semibold">Date:</span> {safeParse(date).toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',

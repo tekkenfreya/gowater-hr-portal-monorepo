@@ -6,6 +6,25 @@
 const PHILIPPINE_TIMEZONE = 'Asia/Manila';
 
 /**
+ * Safari-safe date parser.
+ * Safari fails on date-only strings like "2026-03-21" — requires "2026-03-21T00:00:00".
+ * Also handles PostgreSQL timestamptz format like "2026-03-21 01:00:00+00".
+ */
+function safeParse(input: string | Date): Date {
+  if (input instanceof Date) return input;
+  const s = input.trim();
+  // Date-only: "2026-03-21" → append T00:00:00
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return new Date(s + 'T00:00:00');
+  }
+  // PostgreSQL timestamptz: "2026-03-21 01:00:00+00" → replace space with T
+  if (/^\d{4}-\d{2}-\d{2} /.test(s)) {
+    return new Date(s.replace(' ', 'T'));
+  }
+  return new Date(s);
+}
+
+/**
  * Format a date/time string to Philippine Time
  * @param dateString - ISO date string from database
  * @param options - Intl.DateTimeFormatOptions
@@ -15,7 +34,7 @@ export function formatPhilippineTime(
   dateString: string | Date,
   options?: Intl.DateTimeFormatOptions
 ): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const date = safeParse(dateString);
   if (isNaN(date.getTime())) return '--';
 
   const defaultOptions: Intl.DateTimeFormatOptions = {
@@ -35,7 +54,7 @@ export function formatPhilippineTime(
  * @returns Formatted date and time string in Philippine Time
  */
 export function formatPhilippineDateTime(dateString: string | Date): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const date = safeParse(dateString);
 
   return date.toLocaleString('en-US', {
     timeZone: PHILIPPINE_TIMEZONE,
@@ -54,7 +73,7 @@ export function formatPhilippineDateTime(dateString: string | Date): string {
  * @returns Formatted date string in Philippine Time
  */
 export function formatPhilippineDate(dateString: string | Date): string {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const date = safeParse(dateString);
 
   return date.toLocaleDateString('en-US', {
     timeZone: PHILIPPINE_TIMEZONE,
@@ -81,7 +100,7 @@ export function getCurrentPhilippineTime(): Date {
  * @returns Hour (0-23) in Philippine timezone
  */
 export function getPhilippineHour(dateString: string | Date): number {
-  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  const date = safeParse(dateString);
 
   const phTimeString = date.toLocaleString('en-US', {
     timeZone: PHILIPPINE_TIMEZONE,
