@@ -101,6 +101,7 @@ const baseLeadSchema = z.object({
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
   cold_category: coldCategorySchema.optional(),
+  hot_category: coldCategorySchema.optional(),
 });
 
 // Lead-specific schema

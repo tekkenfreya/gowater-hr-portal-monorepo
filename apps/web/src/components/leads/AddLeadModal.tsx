@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LeadCategory, ProductType, LeadFormData, ColdCategory } from '@/types/leads';
+import { LeadCategory, ProductType, LeadFormData, ColdCategory, HotCategory } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import { X } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface AddLeadModalProps {
   onSuccess: () => void;
   apiBasePath?: string;
   defaultColdCategory?: ColdCategory;
+  defaultHotCategory?: HotCategory;
 }
 
 const PRODUCT_OPTIONS: { value: ProductType; label: string }[] = [
@@ -63,7 +64,7 @@ const DISPOSITION_OPTIONS = [
   { value: 'for-negotiation', label: 'For Further Negotiation' },
 ];
 
-export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath = '/api/leads', defaultColdCategory }: AddLeadModalProps) {
+export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath = '/api/leads', defaultColdCategory, defaultHotCategory }: AddLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     category,
     // LEAD FIELDS
@@ -100,6 +101,7 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
     disposition: '',
     assigned_to: '',
     cold_category: defaultColdCategory,
+    hot_category: defaultHotCategory,
   });
   const [loading, setLoading] = useState(false);
 

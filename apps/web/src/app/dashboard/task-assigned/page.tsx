@@ -36,11 +36,21 @@ const COLD_SUBCATEGORIES = [
   { value: 'foundation', label: 'Foundation' },
 ] as const;
 
+const HOT_SUBCATEGORIES = [
+  { value: 'restaurants', label: 'Restaurants' },
+  { value: 'lgu', label: 'LGU' },
+  { value: 'hotel', label: 'Hotel' },
+  { value: 'microfinance', label: 'Microfinance' },
+  { value: 'foundation', label: 'Foundation' },
+] as const;
+
 export default function LeadsPage() {
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<LeadCategory>('lead');
   const [coldLeadsExpanded, setColdLeadsExpanded] = useState(false);
+  const [hotLeadsExpanded, setHotLeadsExpanded] = useState(false);
   const [selectedColdCategory, setSelectedColdCategory] = useState<string | null>(null);
+  const [selectedHotCategory, setSelectedHotCategory] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategoryForAdd, setSelectedCategoryForAdd] = useState<LeadCategory | null>(null);
@@ -55,8 +65,12 @@ export default function LeadsPage() {
   const [coldLeads, setColdLeads] = useState<Lead[]>([]);
   const [coldLoading, setColdLoading] = useState(false);
 
+  // Hot leads state
+  const [hotLeads, setHotLeads] = useState<Lead[]>([]);
+  const [hotLoading, setHotLoading] = useState(false);
+
   useEffect(() => {
-    if (!selectedColdCategory) {
+    if (!selectedColdCategory && !selectedHotCategory) {
       fetchLeads();
     }
   }, [selectedCategory]);
@@ -66,6 +80,12 @@ export default function LeadsPage() {
       fetchColdLeads();
     }
   }, [selectedColdCategory, selectedCategory]);
+
+  useEffect(() => {
+    if (selectedHotCategory) {
+      fetchHotLeads();
+    }
+  }, [selectedHotCategory, selectedCategory]);
 
   const fetchLeads = async () => {
     try {
@@ -100,6 +120,24 @@ export default function LeadsPage() {
       logger.error('Error fetching cold leads', error);
     } finally {
       setColdLoading(false);
+    }
+  };
+
+  const fetchHotLeads = async () => {
+    try {
+      setHotLoading(true);
+      const response = await fetch(`/api/hot-leads?category=${selectedCategory}&hot_category=${selectedHotCategory}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setHotLeads(data.leads);
+      } else {
+        logger.error('Failed to fetch hot leads', data.error);
+      }
+    } catch (error) {
+      logger.error('Error fetching hot leads', error);
+    } finally {
+      setHotLoading(false);
     }
   };
 
@@ -178,10 +216,10 @@ export default function LeadsPage() {
   const isEventCategory = selectedCategory === 'event';
   const isSupplierCategory = selectedCategory === 'supplier';
   const categoryLabel = CATEGORIES.find(c => c.value === selectedCategory)?.label || '';
-  const displayLeads = selectedColdCategory ? coldLeads : leads;
-  const displayLoading = selectedColdCategory ? coldLoading : loading;
-  const apiBasePath = selectedColdCategory ? '/api/cold-leads' : '/api/leads';
-  const refreshData = selectedColdCategory ? fetchColdLeads : fetchLeads;
+  const displayLeads = selectedHotCategory ? hotLeads : selectedColdCategory ? coldLeads : leads;
+  const displayLoading = selectedHotCategory ? hotLoading : selectedColdCategory ? coldLoading : loading;
+  const apiBasePath = selectedHotCategory ? '/api/hot-leads' : selectedColdCategory ? '/api/cold-leads' : '/api/leads';
+  const refreshData = selectedHotCategory ? fetchHotLeads : selectedColdCategory ? fetchColdLeads : fetchLeads;
 
   return (
     <div className="flex-1 flex h-full">
@@ -201,13 +239,13 @@ export default function LeadsPage() {
           {CATEGORIES.map((category) => (
             <button
               key={category.value}
-              onClick={() => { setSelectedCategory(category.value); setSelectedColdCategory(null); }}
+              onClick={() => { setSelectedCategory(category.value); setSelectedColdCategory(null); setSelectedHotCategory(null); }}
               className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
-                selectedCategory === category.value && !selectedColdCategory
+                selectedCategory === category.value && !selectedColdCategory && !selectedHotCategory
                   ? 'text-cyan-400 border-l-4 border-cyan-400'
                   : 'hover:bg-white/5'
               }`}
-              style={{ color: selectedCategory === category.value && !selectedColdCategory ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
+              style={{ color: selectedCategory === category.value && !selectedColdCategory && !selectedHotCategory ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
             >
               {category.value === 'lead' ? <Building2 className="w-4 h-4" /> :
                category.value === 'event' ? <Calendar className="w-4 h-4" /> :
@@ -237,7 +275,7 @@ export default function LeadsPage() {
               {COLD_SUBCATEGORIES.map((sub) => (
                 <button
                   key={sub.value}
-                  onClick={() => setSelectedColdCategory(sub.value)}
+                  onClick={() => { setSelectedColdCategory(sub.value); setSelectedHotCategory(null); }}
                   className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
                     selectedColdCategory === sub.value
                       ? 'text-cyan-400'
@@ -246,6 +284,44 @@ export default function LeadsPage() {
                   style={{
                     color: selectedColdCategory === sub.value ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
                     backgroundColor: selectedColdCategory === sub.value ? 'rgba(125,211,252,0.1)' : undefined,
+                  }}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Hot Leads Dropdown */}
+        <div className="space-y-0.5">
+          <button
+            onClick={() => setHotLeadsExpanded((prev) => !prev)}
+            className="w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 hover:bg-white/5"
+            style={{ color: 'rgba(255,255,255,0.9)' }}
+          >
+            <FileText className="w-4 h-4" style={{ color: '#f97316' }} />
+            Hot Leads
+            <ChevronDown
+              className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${
+                hotLeadsExpanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {hotLeadsExpanded && (
+            <div className="ml-4 space-y-0.5">
+              {HOT_SUBCATEGORIES.map((sub) => (
+                <button
+                  key={sub.value}
+                  onClick={() => { setSelectedHotCategory(sub.value); setSelectedColdCategory(null); }}
+                  className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
+                    selectedHotCategory === sub.value
+                      ? 'text-orange-400'
+                      : 'hover:bg-white/5'
+                  }`}
+                  style={{
+                    color: selectedHotCategory === sub.value ? '#fb923c' : 'rgba(255,255,255,0.6)',
+                    backgroundColor: selectedHotCategory === sub.value ? 'rgba(249,115,22,0.1)' : undefined,
                   }}
                 >
                   {sub.label}
@@ -263,12 +339,16 @@ export default function LeadsPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-semibold text-white mb-1">
-                {selectedColdCategory
+                {selectedHotCategory
+                  ? `Hot ${categoryLabel} — ${HOT_SUBCATEGORIES.find(s => s.value === selectedHotCategory)?.label}`
+                  : selectedColdCategory
                   ? `Cold ${categoryLabel} — ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
                   : categoryLabel}
               </h1>
               <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                {selectedColdCategory
+                {selectedHotCategory
+                  ? `Hot leads for ${HOT_SUBCATEGORIES.find(s => s.value === selectedHotCategory)?.label}`
+                  : selectedColdCategory
                   ? `Cold leads for ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
                   : `Manage and track your ${categoryLabel.toLowerCase()}`}
               </p>
@@ -645,6 +725,7 @@ export default function LeadsPage() {
             closeAddModal();
           }}
           {...(selectedColdCategory ? { defaultColdCategory: selectedColdCategory as import('@/types/leads').ColdCategory } : {})}
+          {...(selectedHotCategory ? { defaultHotCategory: selectedHotCategory as import('@/types/leads').HotCategory } : {})}
         />
       )}
       {showActivityModal && selectedLead && (

@@ -1,5 +1,6 @@
 export type LeadCategory = 'lead' | 'event' | 'supplier';
 export type ColdCategory = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
+export type HotCategory = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
 export type ProductType = 'both' | 'vending' | 'dispenser';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'site-visit' | 'follow-up' | 'remark' | 'other' | 'active-supplier' | 'recording' | 'checking';
 
@@ -44,6 +45,7 @@ export interface Lead {
   disposition: string | null;
   assigned_to: string | null; // Employee name
   cold_category: ColdCategory | null; // Sub-category for cold leads (restaurants, lgu, hotel, microfinance, foundation)
+  hot_category: HotCategory | null; // Sub-category for hot leads (restaurants, lgu, hotel, microfinance, foundation)
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -107,6 +109,7 @@ export interface LeadFormData {
   disposition?: string;
   assigned_to?: string;
   cold_category?: ColdCategory;
+  hot_category?: HotCategory;
 }
 
 export interface ActivityFormData {
