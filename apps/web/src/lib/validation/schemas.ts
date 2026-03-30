@@ -87,6 +87,9 @@ const emailSchema = z.string()
   .toLowerCase()
   .optional();
 
+// Cold lead sub-categories
+const coldCategorySchema = z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']);
+
 // Base lead schema (shared fields)
 const baseLeadSchema = z.object({
   contact_person: z.string().max(255).optional(),
@@ -97,6 +100,7 @@ const baseLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
+  cold_category: coldCategorySchema.optional(),
 });
 
 // Lead-specific schema
