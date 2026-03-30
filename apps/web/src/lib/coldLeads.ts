@@ -52,12 +52,15 @@ export class ColdLeadService {
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
       cold_category: leadData.cold_category || null,
+      hot_category: null,
       created_by: employeeName,
       created_at: now,
       updated_at: now,
     };
 
-    await this.db.insert('cold_leads', lead as unknown as Record<string, unknown>);
+    // Exclude hot_category — the cold_leads table does not have this column
+    const { hot_category: _, ...dbLead } = lead;
+    await this.db.insert('cold_leads', dbLead as unknown as Record<string, unknown>);
 
     return lead;
   }
