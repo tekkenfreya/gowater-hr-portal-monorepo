@@ -83,11 +83,14 @@ export async function POST(request: NextRequest) {
       locationText = `${parseFloat(latitude).toFixed(6)}, ${parseFloat(longitude).toFixed(6)}`;
     }
 
-    // Upload to Cloudinary with watermark
+    // Skip server-side watermark if client sent skipWatermark flag (iOS sends pre-watermarked images)
+    const skipWatermark = formData.get('skipWatermark') as string | null;
+    const hasWatermarkData = !skipWatermark && (timestamp || latitude || longitude || address || employeeName || photoType);
+
     const result = await uploadToCloudinary(buffer, {
       folder: `gowater/checkin-photos/${user.id}`,
       publicId: `${photoType || 'checkin'}_${Date.now()}`,
-      watermark: {
+      watermark: hasWatermarkData ? {
         locationText,
         timestamp: watermarkTimestamp,
         employeeName: employeeName || undefined,
@@ -96,7 +99,7 @@ export async function POST(request: NextRequest) {
         breakDuration: breakDurationStr ? parseInt(breakDurationStr) : undefined,
         workLocation: workLocation || undefined,
         breakPhase: breakPhase as 'start' | 'end' | undefined,
-      },
+      } : undefined,
       photoType: photoType || 'checkin'
     });
 
