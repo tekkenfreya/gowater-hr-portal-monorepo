@@ -67,7 +67,7 @@ export class ColdLeadService {
     if (category === 'lead') {
       orderByField = 'date_of_interaction';
     } else if (category === 'event') {
-      orderByField = 'event_date';
+      orderByField = 'event_start_date';
     }
 
     const conditions: Record<string, unknown> = { category };

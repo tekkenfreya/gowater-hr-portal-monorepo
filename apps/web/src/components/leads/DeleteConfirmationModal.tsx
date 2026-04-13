@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Lead } from '@/types/leads';
+import { logger } from '@/lib/logger';
 import { X, AlertTriangle } from 'lucide-react';
 
 interface DeleteConfirmationModalProps {
@@ -39,11 +40,11 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess, apiB
         if (response.ok) {
           setActivityCount(data.activities.length);
         } else {
-          console.error('Failed to fetch activities', data.error);
+          logger.error('Failed to fetch activities', data.error);
           setActivityCount(0);
         }
       } catch (error) {
-        console.error('Error fetching activities', error);
+        logger.error('Error fetching activities', error);
         setActivityCount(0);
       } finally {
         setLoadingActivities(false);
@@ -72,11 +73,11 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess, apiB
         onClose();
       } else {
         alert(`Failed to delete ${entityType}: ${data.error}`);
-        console.error(`Failed to delete ${entityType}`, data.error);
+        logger.error(`Failed to delete ${entityType}`, data.error);
       }
     } catch (error) {
       alert(`An error occurred while deleting the ${entityType}`);
-      console.error(`Error deleting ${entityType}`, error);
+      logger.error(`Error deleting ${entityType}`, error);
     } finally {
       setLoading(false);
     }

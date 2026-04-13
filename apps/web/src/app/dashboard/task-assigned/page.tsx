@@ -134,14 +134,6 @@ export default function LeadsPage() {
     setShowDeleteModal(true);
   };
 
-  const handleEditSuccess = () => {
-    fetchLeads(); // Refresh the leads list
-  };
-
-  const handleDeleteSuccess = () => {
-    fetchLeads(); // Refresh the leads list
-  };
-
   const handleExportToExcel = async () => {
     try {
       const exportUrl = selectedColdCategory
@@ -373,7 +365,7 @@ export default function LeadsPage() {
                       {isLeadCategory && (
                         <>
                           <td className="px-2 py-2 text-xs text-white/90">
-                            {lead.date_of_interaction ? new Date(lead.date_of_interaction).toLocaleDateString() : 'N/A'}
+                            {new Date(lead.date_of_interaction || lead.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">
                             <div className="truncate" title={lead.lead_type || ''}>

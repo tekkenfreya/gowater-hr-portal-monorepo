@@ -67,7 +67,7 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
   const [formData, setFormData] = useState<LeadFormData>({
     category,
     // LEAD FIELDS
-    date_of_interaction: '',
+    date_of_interaction: new Date().toISOString().split('T')[0],
     lead_type: 'company',
     company_name: '',
     contact_person: '',

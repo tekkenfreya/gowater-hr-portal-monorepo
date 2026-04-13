@@ -78,7 +78,7 @@ export class LeadService {
     if (category === 'lead') {
       orderByField = 'date_of_interaction';
     } else if (category === 'event') {
-      orderByField = 'event_date';
+      orderByField = 'event_start_date';
     }
 
     const leads = await this.db.all('leads', { category }, orderByField);
@@ -217,10 +217,10 @@ export class LeadService {
    * Uses a single query with LEFT JOIN instead of N separate queries
    */
   async getLeadsWithActivities(category?: LeadCategory): Promise<LeadWithActivities[]> {
-    // Build WHERE clause
-    const whereClause = category ? `WHERE l.category = '${category}'` : '';
+    const params: string[] = [];
+    const whereClause = category ? `WHERE l.category = $1` : '';
+    if (category) params.push(category);
 
-    // Single query with LEFT JOIN to get all leads with their activities
     const sql = `
       SELECT
         l.*,
@@ -252,7 +252,7 @@ export class LeadService {
     }
 
     try {
-      const results = await this.db.executeRawSQL<QueryResult>(sql);
+      const results = await this.db.executeRawSQL<QueryResult>(sql, params);
 
       return results.map((row) => {
         const activities: LeadActivity[] = JSON.parse(row.activities_json || '[]');

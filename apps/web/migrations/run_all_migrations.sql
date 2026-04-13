@@ -400,6 +400,18 @@ BEGIN
   END IF;
 END $$;
 
+-- 9. BACKFILL_COLD_CATEGORY_HOTEL (2026-04-13)
+-- Rows inserted before cold_category was wired through validation were saved with NULL.
+-- All affected rows were added under the Hotel sub-category.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'backfill_cold_category_hotel') THEN
+    UPDATE cold_leads SET cold_category = 'hotel' WHERE cold_category IS NULL;
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('backfill_cold_category_hotel', 'Backfilled NULL cold_category rows as hotel', 0);
+  END IF;
+END $$;
+
 -- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;

@@ -97,6 +97,7 @@ const baseLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
+  cold_category: z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']).optional(),
 });
 
 // Lead-specific schema
@@ -198,6 +199,7 @@ export const updateLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
+  cold_category: z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']).optional(),
 });
 
 // ================================================================
