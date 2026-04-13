@@ -144,7 +144,10 @@ export default function LeadsPage() {
 
   const handleExportToExcel = async () => {
     try {
-      const response = await fetch(`/api/leads/export?category=${selectedCategory}`);
+      const exportUrl = selectedColdCategory
+        ? `/api/cold-leads/export?category=${selectedCategory}&cold_category=${selectedColdCategory}`
+        : `/api/leads/export?category=${selectedCategory}`;
+      const response = await fetch(exportUrl);
 
       if (!response.ok) {
         const data = await response.json();
