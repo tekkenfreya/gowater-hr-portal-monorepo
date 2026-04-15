@@ -133,15 +133,23 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
         onSuccess();
         onClose();
       } else {
-        alert(`Failed to create ${type}: ${data.error}`);
-        logger.error(`Failed to create ${type}`, data.error);
+        alert(formatServerError(data, `Failed to create ${type}`));
+        logger.error(`Failed to create ${type}`, data);
       }
     } catch (error) {
-      alert(`An error occurred while creating the ${type}`);
+      alert(`Network error while creating ${type}. Please check your connection and try again.`);
       logger.error(`Error creating ${type}`, error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatServerError = (data: { error?: string; details?: Record<string, string[]> }, fallback: string): string => {
+    if (data?.details) {
+      const lines = Object.entries(data.details).map(([field, msgs]) => `• ${field}: ${msgs.join(', ')}`);
+      if (lines.length > 0) return `${fallback}:\n\n${lines.join('\n')}`;
+    }
+    return data?.error ? `${fallback}: ${data.error}` : fallback;
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {

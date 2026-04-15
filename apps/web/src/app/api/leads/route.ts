@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { LeadFormData, LeadType, Pipeline, Industry } from '@/types/leads';
 import { createLeadSchema, updateLeadSchema } from '@/lib/validation/schemas';
 import { safeParseBody, createErrorResponse } from '@/lib/validation/middleware';
+import { describeDbError } from '@/lib/validation/dbErrors';
 
 interface JWTPayload {
   userId: number;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error('Error fetching leads', error);
     return NextResponse.json(
-      { error: 'Failed to fetch leads' },
+      { error: describeDbError(error, 'Failed to fetch leads') },
       { status: 500 }
     );
   }
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error creating lead', error);
     return NextResponse.json(
-      { error: 'Failed to create lead' },
+      { error: describeDbError(error, 'Failed to create lead') },
       { status: 500 }
     );
   }
@@ -99,7 +100,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     logger.error('Error updating lead', error);
     return NextResponse.json(
-      { error: 'Failed to update lead' },
+      { error: describeDbError(error, 'Failed to update lead') },
       { status: 500 }
     );
   }
@@ -131,7 +132,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     logger.error('Error deleting lead', error);
     return NextResponse.json(
-      { error: 'Failed to delete lead' },
+      { error: describeDbError(error, 'Failed to delete lead') },
       { status: 500 }
     );
   }

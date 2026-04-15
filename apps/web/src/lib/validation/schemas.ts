@@ -76,79 +76,92 @@ export const leadStatusSchema = z.enum([
   'rejected'
 ]);
 
-// Phone number validation (flexible for international formats)
 const phoneNumberSchema = z.string()
-  .regex(/^[\d\s\-\+\(\)]+$/, 'Invalid phone number format')
-  .min(10, 'Phone number must be at least 10 digits')
-  .max(20, 'Phone number must be less than 20 characters')
+  .regex(/^[\d\s\-\+\(\)]+$/, 'Mobile number can only contain digits, spaces, and - + ( )')
+  .min(10, 'Mobile number must be at least 10 digits')
+  .max(20, 'Mobile number must be 20 characters or fewer')
   .optional();
 
-// Email validation
 const emailSchema = z.string()
-  .email('Invalid email address')
-  .max(255, 'Email must be less than 255 characters')
+  .email('Email address is not valid (example: name@company.com)')
+  .max(255, 'Email address must be 255 characters or fewer')
   .toLowerCase()
   .optional();
 
-// Base lead schema (shared fields)
+const dateStringSchema = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .optional();
+
+const numericStringSchema = (field: string) => z.string()
+  .regex(/^[\d\s,\-]*$/, `${field} must contain only digits (ranges like 50-100 are OK)`)
+  .max(50, `${field} must be 50 characters or fewer`)
+  .optional();
+
 const baseLeadSchema = z.object({
   pipeline: pipelineSchema.optional(),
   industry: industrySchema.optional(),
-  contact_person: z.string().max(255).optional(),
+  contact_person: z.string().max(255, 'Contact person name must be 255 characters or fewer').optional(),
   mobile_number: phoneNumberSchema,
   email_address: emailSchema,
   product: productTypeSchema.optional(),
   status: leadStatusSchema.optional(),
-  remarks: z.string().max(1000).optional(),
-  disposition: z.string().max(500).optional(),
-  assigned_to: z.string().max(255).optional(),
+  remarks: z.string().max(1000, 'Remarks must be 1000 characters or fewer').optional(),
+  disposition: z.string().max(500, 'Disposition must be 500 characters or fewer').optional(),
+  assigned_to: z.string().max(255, 'Assigned-to name must be 255 characters or fewer').optional(),
 });
 
-// Type-specific schemas
 const leadSpecificSchema = z.object({
   type: z.literal('lead'),
-  date_of_interaction: z.string().max(255).optional(),
-  lead_type: z.string().max(50).optional(),
-  company_name: z.string().max(255).optional(),
-  number_of_beneficiary: z.string().max(50).optional(),
-  location: z.string().max(255).optional(),
-  lead_source: z.string().max(255).optional(),
+  date_of_interaction: dateStringSchema,
+  lead_type: z.string().max(50, 'Lead type must be 50 characters or fewer').optional(),
+  company_name: z.string().max(255, 'Company name must be 255 characters or fewer').optional(),
+  number_of_beneficiary: numericStringSchema('Number of beneficiary'),
+  location: z.string().max(255, 'Location must be 255 characters or fewer').optional(),
+  lead_source: z.string().max(255, 'Lead source must be 255 characters or fewer').optional(),
 }).refine((data) => {
   if (data.lead_type === 'company' && (!data.company_name || data.company_name.trim() === '')) {
     return false;
   }
   return true;
 }, {
-  message: 'Company name is required for company/organization leads',
+  message: 'Company name is required when Lead Type is Company/Organization',
   path: ['company_name'],
 });
 
 const eventSpecificSchema = z.object({
   type: z.literal('event'),
   event_name: z.string()
-    .min(1, 'Event name is required for events')
-    .max(255)
+    .min(1, 'Event name is required')
+    .max(255, 'Event name must be 255 characters or fewer')
     .trim(),
-  event_type: z.string().max(255).optional(),
-  venue: z.string().max(255).optional(),
-  event_start_date: z.string().max(255).optional(),
-  event_end_date: z.string().max(255).optional(),
-  event_time: z.string().max(50).optional(),
-  event_lead: z.string().max(255).optional(),
-  number_of_attendees: z.string().max(50).optional(),
-  event_report: z.string().max(500).optional(),
+  event_type: z.string().max(255, 'Event type must be 255 characters or fewer').optional(),
+  venue: z.string().max(255, 'Venue must be 255 characters or fewer').optional(),
+  event_start_date: dateStringSchema,
+  event_end_date: dateStringSchema,
+  event_time: z.string().max(50, 'Event time must be 50 characters or fewer').optional(),
+  event_lead: z.string().max(255, 'Event lead must be 255 characters or fewer').optional(),
+  number_of_attendees: numericStringSchema('Number of attendees'),
+  event_report: z.string().max(500, 'Event report path must be 500 characters or fewer').optional(),
+}).refine((data) => {
+  if (data.event_start_date && data.event_end_date) {
+    return new Date(data.event_end_date) >= new Date(data.event_start_date);
+  }
+  return true;
+}, {
+  message: 'Event end date must be on or after the start date',
+  path: ['event_end_date'],
 });
 
 const supplierSpecificSchema = z.object({
   type: z.literal('supplier'),
   supplier_name: z.string()
-    .min(1, 'Supplier name is required for suppliers')
-    .max(255)
+    .min(1, 'Supplier name is required')
+    .max(255, 'Supplier name must be 255 characters or fewer')
     .trim(),
-  supplier_location: z.string().max(255).optional(),
-  supplier_product: z.string().max(255).optional(),
-  price: z.string().max(50).optional(),
-  unit_type: z.string().max(50).optional(),
+  supplier_location: z.string().max(255, 'Supplier location must be 255 characters or fewer').optional(),
+  supplier_product: z.string().max(255, 'Supplier product must be 255 characters or fewer').optional(),
+  price: z.string().max(50, 'Price must be 50 characters or fewer').optional(),
+  unit_type: z.string().max(50, 'Unit type must be 50 characters or fewer').optional(),
 });
 
 export const createLeadSchema = z.discriminatedUnion('type', [
