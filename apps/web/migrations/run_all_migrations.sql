@@ -323,14 +323,18 @@ BEGIN
 END $$;
 
 -- ============================================================
--- COLD LEADS & COLD LEAD ACTIVITIES
--- Same schema as leads/lead_activities but for cold leads
+-- LEADS & LEAD ACTIVITIES (unified, 2026-04-15)
+-- One table covers warm/cold/hot pipelines for lead/event/supplier types.
+-- Industry is set only for cold leads (restaurants, lgu, hotel, microfinance, foundation).
+-- The old cold_leads and hot_leads tables were consolidated into this one on 2026-04-15.
+-- Backups renamed to leads_backup_{warm|cold|hot}_2026_04_15 in the same migration.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS cold_leads (
+CREATE TABLE IF NOT EXISTS leads (
   id                    TEXT PRIMARY KEY,
-  category              TEXT NOT NULL CHECK (category IN ('lead', 'event', 'supplier')),
-  date_of_interaction   DATE,
+  type                  TEXT NOT NULL CHECK (type IN ('lead', 'event', 'supplier')),
+  pipeline              TEXT NOT NULL CHECK (pipeline IN ('warm', 'cold', 'hot')),
+  industry              TEXT CHECK (industry IN ('restaurants', 'lgu', 'hotel', 'microfinance', 'foundation')),
   lead_type             TEXT,
   company_name          TEXT,
   number_of_beneficiary TEXT,
@@ -339,7 +343,6 @@ CREATE TABLE IF NOT EXISTS cold_leads (
   event_name            TEXT,
   event_type            TEXT,
   venue                 TEXT,
-  event_date            DATE,
   event_start_date      DATE,
   event_end_date        DATE,
   event_time            TEXT,
@@ -360,43 +363,36 @@ CREATE TABLE IF NOT EXISTS cold_leads (
   disposition           TEXT,
   assigned_to           TEXT,
   created_by            TEXT NOT NULL,
-  created_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS cold_lead_activities (
+CREATE TABLE IF NOT EXISTS lead_activities (
   id                    TEXT PRIMARY KEY,
-  lead_id               TEXT NOT NULL REFERENCES cold_leads(id) ON DELETE CASCADE,
+  lead_id               TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
   employee_name         TEXT NOT NULL,
   activity_type         TEXT NOT NULL,
   activity_description  TEXT NOT NULL,
   start_date            DATE,
   end_date              DATE,
   status_update         TEXT,
-  created_at            TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE cold_leads             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cold_lead_activities   ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_leads_type              ON leads(type);
+CREATE INDEX IF NOT EXISTS idx_leads_pipeline          ON leads(pipeline);
+CREATE INDEX IF NOT EXISTS idx_leads_industry          ON leads(industry);
+CREATE INDEX IF NOT EXISTS idx_leads_type_pipeline     ON leads(type, pipeline);
+CREATE INDEX IF NOT EXISTS idx_lead_activities_lead    ON lead_activities(lead_id);
+
+ALTER TABLE leads            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lead_activities  ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_cold_leads') THEN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'unify_leads_2026_04_15') THEN
     INSERT INTO migration_log (migration_name, description, affected_records)
-    VALUES ('add_cold_leads', 'Added cold_leads and cold_lead_activities tables', 0);
-  END IF;
-END $$;
-
--- 8. ADD_COLD_CATEGORY_TO_COLD_LEADS (2026-03-19)
-ALTER TABLE cold_leads ADD COLUMN IF NOT EXISTS cold_category TEXT DEFAULT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_cold_leads_cold_category ON cold_leads(cold_category);
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_cold_category_to_cold_leads') THEN
-    INSERT INTO migration_log (migration_name, description, affected_records)
-    VALUES ('add_cold_category_to_cold_leads', 'Added cold_category column to cold_leads for sub-category filtering', 0);
+    VALUES ('unify_leads_2026_04_15', 'Unified leads/cold_leads/hot_leads into one leads table with pipeline+industry', 0);
   END IF;
 END $$;
 

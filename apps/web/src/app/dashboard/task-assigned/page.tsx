@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Lead, LeadCategory } from '@/types/leads';
+import { Lead, LeadType, Pipeline, Industry } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import AddLeadModal from '@/components/leads/AddLeadModal';
 import EditLeadModal from '@/components/leads/EditLeadModal';
@@ -11,7 +11,7 @@ import ViewActivitiesModal from '@/components/leads/ViewActivitiesModal';
 import DeleteConfirmationModal from '@/components/leads/DeleteConfirmationModal';
 import { Plus, Building2, Calendar, FileText, Eye, Package, Pencil, Trash2, Download, Snowflake, ChevronDown } from 'lucide-react';
 
-const CATEGORIES: { value: LeadCategory; label: string }[] = [
+const TYPES: { value: LeadType; label: string }[] = [
   { value: 'lead', label: 'Leads' },
   { value: 'event', label: 'Events' },
   { value: 'supplier', label: 'Supplier' },
@@ -28,32 +28,23 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
 };
 const DEFAULT_STATUS_STYLE = { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.6)', border: 'rgba(255,255,255,0.15)' };
 
-const COLD_SUBCATEGORIES = [
+const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: 'restaurants', label: 'Restaurants' },
   { value: 'lgu', label: 'LGU' },
   { value: 'hotel', label: 'Hotel' },
   { value: 'microfinance', label: 'Microfinance' },
   { value: 'foundation', label: 'Foundation' },
-] as const;
-
-const HOT_SUBCATEGORIES = [
-  { value: 'restaurants', label: 'Restaurants' },
-  { value: 'lgu', label: 'LGU' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'microfinance', label: 'Microfinance' },
-  { value: 'foundation', label: 'Foundation' },
-] as const;
+];
 
 export default function LeadsPage() {
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<LeadCategory>('lead');
+  const [selectedType, setSelectedType] = useState<LeadType>('lead');
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline>('warm');
+  const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
   const [coldLeadsExpanded, setColdLeadsExpanded] = useState(false);
   const [hotLeadsExpanded, setHotLeadsExpanded] = useState(false);
-  const [selectedColdCategory, setSelectedColdCategory] = useState<string | null>(null);
-  const [selectedHotCategory, setSelectedHotCategory] = useState<string | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategoryForAdd, setSelectedCategoryForAdd] = useState<LeadCategory | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -61,38 +52,15 @@ export default function LeadsPage() {
   const [showViewActivitiesModal, setShowViewActivitiesModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  // Cold leads state
-  const [coldLeads, setColdLeads] = useState<Lead[]>([]);
-  const [coldLoading, setColdLoading] = useState(false);
-
-  // Hot leads state
-  const [hotLeads, setHotLeads] = useState<Lead[]>([]);
-  const [hotLoading, setHotLoading] = useState(false);
-
-  useEffect(() => {
-    if (!selectedColdCategory && !selectedHotCategory) {
-      fetchLeads();
-    }
-  }, [selectedCategory]);
-
-  useEffect(() => {
-    if (selectedColdCategory) {
-      fetchColdLeads();
-    }
-  }, [selectedColdCategory, selectedCategory]);
-
-  useEffect(() => {
-    if (selectedHotCategory) {
-      fetchHotLeads();
-    }
-  }, [selectedHotCategory, selectedCategory]);
+  const pipeline: Pipeline = selectedPipeline;
 
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/leads?category=${selectedCategory}`);
+      const params = new URLSearchParams({ type: selectedType, pipeline });
+      if (selectedIndustry) params.set('industry', selectedIndustry);
+      const response = await fetch(`/api/leads?${params.toString()}`);
       const data = await response.json();
-
       if (response.ok) {
         setLeads(data.leads);
       } else {
@@ -105,51 +73,16 @@ export default function LeadsPage() {
     }
   };
 
-  const fetchColdLeads = async () => {
-    try {
-      setColdLoading(true);
-      const response = await fetch(`/api/cold-leads?category=${selectedCategory}&cold_category=${selectedColdCategory}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setColdLeads(data.leads);
-      } else {
-        logger.error('Failed to fetch cold leads', data.error);
-      }
-    } catch (error) {
-      logger.error('Error fetching cold leads', error);
-    } finally {
-      setColdLoading(false);
-    }
-  };
-
-  const fetchHotLeads = async () => {
-    try {
-      setHotLoading(true);
-      const response = await fetch(`/api/hot-leads?category=${selectedCategory}&hot_category=${selectedHotCategory}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setHotLeads(data.leads);
-      } else {
-        logger.error('Failed to fetch hot leads', data.error);
-      }
-    } catch (error) {
-      logger.error('Error fetching hot leads', error);
-    } finally {
-      setHotLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchLeads();
+  }, [selectedType, selectedPipeline, selectedIndustry]);
 
   const openAddFlow = () => {
-    // Directly open the add modal with the current category
-    setSelectedCategoryForAdd(selectedCategory);
     setShowAddModal(true);
   };
 
   const closeAddModal = () => {
     setShowAddModal(false);
-    setSelectedCategoryForAdd(null);
   };
 
   const openActivityModal = (lead: Lead) => {
@@ -172,17 +105,11 @@ export default function LeadsPage() {
     setShowDeleteModal(true);
   };
 
-  const handleEditSuccess = () => {
-    fetchLeads(); // Refresh the leads list
-  };
-
-  const handleDeleteSuccess = () => {
-    fetchLeads(); // Refresh the leads list
-  };
-
   const handleExportToExcel = async () => {
     try {
-      const response = await fetch(`/api/leads/export?category=${selectedCategory}`);
+      const params = new URLSearchParams({ type: selectedType, pipeline });
+      if (selectedIndustry) params.set('industry', selectedIndustry);
+      const response = await fetch(`/api/leads/export?${params.toString()}`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -212,14 +139,14 @@ export default function LeadsPage() {
     }
   };
 
-  const isLeadCategory = selectedCategory === 'lead';
-  const isEventCategory = selectedCategory === 'event';
-  const isSupplierCategory = selectedCategory === 'supplier';
-  const categoryLabel = CATEGORIES.find(c => c.value === selectedCategory)?.label || '';
-  const displayLeads = selectedHotCategory ? hotLeads : selectedColdCategory ? coldLeads : leads;
-  const displayLoading = selectedHotCategory ? hotLoading : selectedColdCategory ? coldLoading : loading;
-  const apiBasePath = selectedHotCategory ? '/api/hot-leads' : selectedColdCategory ? '/api/cold-leads' : '/api/leads';
-  const refreshData = selectedHotCategory ? fetchHotLeads : selectedColdCategory ? fetchColdLeads : fetchLeads;
+  const isLeadCategory = selectedType === 'lead';
+  const isEventCategory = selectedType === 'event';
+  const isSupplierCategory = selectedType === 'supplier';
+  const categoryLabel = TYPES.find(c => c.value === selectedType)?.label || '';
+  const displayLeads = leads;
+  const displayLoading = loading;
+  const apiBasePath = '/api/leads';
+  const refreshData = fetchLeads;
 
   return (
     <div className="flex-1 flex h-full">
@@ -234,29 +161,30 @@ export default function LeadsPage() {
           Add Item
         </button>
 
-        {/* Type Categories */}
+        {/* Warm: Leads / Events / Supplier */}
         <nav className="space-y-1 mb-4">
-          {CATEGORIES.map((category) => (
-            <button
-              key={category.value}
-              onClick={() => { setSelectedCategory(category.value); setSelectedColdCategory(null); setSelectedHotCategory(null); }}
-              className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
-                selectedCategory === category.value && !selectedColdCategory && !selectedHotCategory
-                  ? 'text-cyan-400 border-l-4 border-cyan-400'
-                  : 'hover:bg-white/5'
-              }`}
-              style={{ color: selectedCategory === category.value && !selectedColdCategory && !selectedHotCategory ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
-            >
-              {category.value === 'lead' ? <Building2 className="w-4 h-4" /> :
-               category.value === 'event' ? <Calendar className="w-4 h-4" /> :
-               <Package className="w-4 h-4" />}
-              {category.label}
-            </button>
-          ))}
+          {TYPES.map((t) => {
+            const isActive = selectedPipeline === 'warm' && selectedType === t.value;
+            return (
+              <button
+                key={t.value}
+                onClick={() => { setSelectedType(t.value); setSelectedPipeline('warm'); setSelectedIndustry(null); }}
+                className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
+                  isActive ? 'text-cyan-400 border-l-4 border-cyan-400' : 'hover:bg-white/5'
+                }`}
+                style={{ color: isActive ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
+              >
+                {t.value === 'lead' ? <Building2 className="w-4 h-4" /> :
+                 t.value === 'event' ? <Calendar className="w-4 h-4" /> :
+                 <Package className="w-4 h-4" />}
+                {t.label}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Cold Leads Dropdown */}
-        <div className="space-y-0.5">
+        {/* Cold Leads: by industry */}
+        <div className="space-y-0.5 mb-2">
           <button
             onClick={() => setColdLeadsExpanded((prev) => !prev)}
             className="w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 hover:bg-white/5"
@@ -265,68 +193,66 @@ export default function LeadsPage() {
             <Snowflake className="w-4 h-4" />
             Cold Leads
             <ChevronDown
-              className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${
-                coldLeadsExpanded ? 'rotate-180' : ''
-              }`}
+              className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${coldLeadsExpanded ? 'rotate-180' : ''}`}
             />
           </button>
           {coldLeadsExpanded && (
             <div className="ml-4 space-y-0.5">
-              {COLD_SUBCATEGORIES.map((sub) => (
-                <button
-                  key={sub.value}
-                  onClick={() => { setSelectedColdCategory(sub.value); setSelectedHotCategory(null); }}
-                  className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
-                    selectedColdCategory === sub.value
-                      ? 'text-cyan-400'
-                      : 'hover:bg-white/5'
-                  }`}
-                  style={{
-                    color: selectedColdCategory === sub.value ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
-                    backgroundColor: selectedColdCategory === sub.value ? 'rgba(125,211,252,0.1)' : undefined,
-                  }}
-                >
-                  {sub.label}
-                </button>
-              ))}
+              {INDUSTRIES.map((ind) => {
+                const isActive = selectedPipeline === 'cold' && selectedIndustry === ind.value;
+                return (
+                  <button
+                    key={ind.value}
+                    onClick={() => { setSelectedType('lead'); setSelectedPipeline('cold'); setSelectedIndustry(ind.value); }}
+                    className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
+                      isActive ? 'text-cyan-400' : 'hover:bg-white/5'
+                    }`}
+                    style={{
+                      color: isActive ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
+                      backgroundColor: isActive ? 'rgba(125,211,252,0.1)' : undefined,
+                    }}
+                  >
+                    {ind.label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Hot Leads Dropdown */}
+        {/* Hot Leads: by industry */}
         <div className="space-y-0.5">
           <button
             onClick={() => setHotLeadsExpanded((prev) => !prev)}
             className="w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 hover:bg-white/5"
             style={{ color: 'rgba(255,255,255,0.9)' }}
           >
-            <FileText className="w-4 h-4" style={{ color: '#f97316' }} />
+            <span className="w-4 h-4 text-[#f59e0b]">🔥</span>
             Hot Leads
             <ChevronDown
-              className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${
-                hotLeadsExpanded ? 'rotate-180' : ''
-              }`}
+              className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${hotLeadsExpanded ? 'rotate-180' : ''}`}
             />
           </button>
           {hotLeadsExpanded && (
             <div className="ml-4 space-y-0.5">
-              {HOT_SUBCATEGORIES.map((sub) => (
-                <button
-                  key={sub.value}
-                  onClick={() => { setSelectedHotCategory(sub.value); setSelectedColdCategory(null); }}
-                  className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
-                    selectedHotCategory === sub.value
-                      ? 'text-orange-400'
-                      : 'hover:bg-white/5'
-                  }`}
-                  style={{
-                    color: selectedHotCategory === sub.value ? '#fb923c' : 'rgba(255,255,255,0.6)',
-                    backgroundColor: selectedHotCategory === sub.value ? 'rgba(249,115,22,0.1)' : undefined,
-                  }}
-                >
-                  {sub.label}
-                </button>
-              ))}
+              {INDUSTRIES.map((ind) => {
+                const isActive = selectedPipeline === 'hot' && selectedIndustry === ind.value;
+                return (
+                  <button
+                    key={ind.value}
+                    onClick={() => { setSelectedType('lead'); setSelectedPipeline('hot'); setSelectedIndustry(ind.value); }}
+                    className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
+                      isActive ? 'text-orange-400' : 'hover:bg-white/5'
+                    }`}
+                    style={{
+                      color: isActive ? '#fb923c' : 'rgba(255,255,255,0.6)',
+                      backgroundColor: isActive ? 'rgba(251,146,60,0.1)' : undefined,
+                    }}
+                  >
+                    {ind.label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -339,17 +265,13 @@ export default function LeadsPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-semibold text-white mb-1">
-                {selectedHotCategory
-                  ? `Hot ${categoryLabel} — ${HOT_SUBCATEGORIES.find(s => s.value === selectedHotCategory)?.label}`
-                  : selectedColdCategory
-                  ? `Cold ${categoryLabel} — ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
+                {selectedIndustry
+                  ? `${selectedPipeline === 'hot' ? 'Hot' : 'Cold'} ${categoryLabel} — ${INDUSTRIES.find(s => s.value === selectedIndustry)?.label}`
                   : categoryLabel}
               </h1>
               <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                {selectedHotCategory
-                  ? `Hot leads for ${HOT_SUBCATEGORIES.find(s => s.value === selectedHotCategory)?.label}`
-                  : selectedColdCategory
-                  ? `Cold leads for ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
+                {selectedIndustry
+                  ? `${selectedPipeline === 'hot' ? 'Hot' : 'Cold'} leads for ${INDUSTRIES.find(s => s.value === selectedIndustry)?.label}`
                   : `Manage and track your ${categoryLabel.toLowerCase()}`}
               </p>
             </div>
@@ -392,7 +314,7 @@ export default function LeadsPage() {
                     {/* Dynamic headers based on category */}
                     {isLeadCategory && (
                       <>
-                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Type</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Company Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}># Beneficiary</th>
@@ -410,9 +332,10 @@ export default function LeadsPage() {
                     )}
                     {isEventCategory && (
                       <>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Event Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Venue</th>
-                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Event Date</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Time</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Contact</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Mobile</th>
@@ -427,6 +350,7 @@ export default function LeadsPage() {
                     )}
                     {isSupplierCategory && (
                       <>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Supplier Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Location</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Product</th>
@@ -449,8 +373,8 @@ export default function LeadsPage() {
                       {/* Dynamic row data based on category */}
                       {isLeadCategory && (
                         <>
-                          <td className="px-2 py-2 text-xs text-white/90">
-                            {lead.date_of_interaction ? new Date(lead.date_of_interaction).toLocaleDateString() : 'N/A'}
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {new Date(lead.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">
                             <div className="truncate" title={lead.lead_type || ''}>
@@ -535,6 +459,9 @@ export default function LeadsPage() {
                       )}
                       {isEventCategory && (
                         <>
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {new Date(lead.created_at).toLocaleDateString()}
+                          </td>
                           <td className="px-2 py-2 max-w-[150px]">
                             <div className="font-medium text-white/90 text-xs truncate" title={lead.event_name || ''}>{lead.event_name || 'N/A'}</div>
                           </td>
@@ -543,8 +470,10 @@ export default function LeadsPage() {
                               {lead.venue || 'N/A'}
                             </div>
                           </td>
-                          <td className="px-2 py-2 text-xs text-white/90">
-                            {lead.event_date ? new Date(lead.event_date).toLocaleDateString() : 'N/A'}
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {lead.event_start_date
+                              ? new Date(lead.event_start_date).toLocaleDateString()
+                              : 'N/A'}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">{lead.event_time || 'N/A'}</td>
                           <td className="px-2 py-2 text-xs text-white/90 max-w-[120px]">
@@ -616,6 +545,9 @@ export default function LeadsPage() {
                       )}
                       {isSupplierCategory && (
                         <>
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {new Date(lead.created_at).toLocaleDateString()}
+                          </td>
                           <td className="px-2 py-2 max-w-[150px]">
                             <div className="font-medium text-white/90 text-xs truncate" title={lead.supplier_name || ''}>{lead.supplier_name || 'N/A'}</div>
                           </td>
@@ -715,17 +647,17 @@ export default function LeadsPage() {
       </div>
 
       {/* Modals */}
-      {showAddModal && selectedCategoryForAdd && (
+      {showAddModal && (
         <AddLeadModal
-          category={selectedCategoryForAdd}
+          type={selectedType}
+          pipeline={pipeline}
+          industry={selectedIndustry || undefined}
           apiBasePath={apiBasePath}
           onClose={closeAddModal}
           onSuccess={() => {
             refreshData();
             closeAddModal();
           }}
-          {...(selectedColdCategory ? { defaultColdCategory: selectedColdCategory as import('@/types/leads').ColdCategory } : {})}
-          {...(selectedHotCategory ? { defaultHotCategory: selectedHotCategory as import('@/types/leads').HotCategory } : {})}
         />
       )}
       {showActivityModal && selectedLead && (

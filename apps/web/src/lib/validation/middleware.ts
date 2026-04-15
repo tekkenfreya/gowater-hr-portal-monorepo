@@ -45,6 +45,44 @@ export type ValidationResult<T> = ValidationSuccess<T> | ValidationError;
  * }
  * const { username, password } = result.data;
  */
+const FIELD_LABELS: Record<string, string> = {
+  type: 'Category',
+  pipeline: 'Pipeline',
+  industry: 'Industry',
+  lead_type: 'Lead Type',
+  company_name: 'Company Name',
+  number_of_beneficiary: 'Number of Beneficiary',
+  location: 'Location',
+  lead_source: 'Lead Source',
+  event_name: 'Event Name',
+  event_type: 'Event Type',
+  venue: 'Venue',
+  event_start_date: 'Event Start Date',
+  event_end_date: 'Event End Date',
+  event_time: 'Event Time',
+  event_lead: 'Event Lead',
+  number_of_attendees: 'Number of Attendees',
+  event_report: 'Event Report',
+  supplier_name: 'Supplier Name',
+  supplier_location: 'Supplier Location',
+  supplier_product: 'Supplier Product',
+  price: 'Price',
+  unit_type: 'Unit Type',
+  contact_person: 'Contact Person',
+  mobile_number: 'Mobile Number',
+  email_address: 'Email Address',
+  product: 'Product',
+  status: 'Status',
+  remarks: 'Remarks',
+  disposition: 'Disposition',
+  assigned_to: 'Assigned To',
+};
+
+function labelFor(path: PropertyKey[]): string {
+  const key = path.map(String).join('.');
+  return FIELD_LABELS[key] || key;
+}
+
 export function validateBody<T>(
   schema: ZodSchema<T>,
   data: unknown
@@ -52,34 +90,22 @@ export function validateBody<T>(
   const result = schema.safeParse(data);
 
   if (result.success) {
-    return {
-      success: true,
-      data: result.data,
-    };
+    return { success: true, data: result.data };
   }
 
-  // Validation failed - format errors
   const details: Record<string, string[]> = {};
   result.error.issues.forEach((issue) => {
     const path = issue.path.join('.');
-    if (!details[path]) {
-      details[path] = [];
-    }
+    if (!details[path]) details[path] = [];
     details[path].push(issue.message);
   });
 
-  // Create a simple error message from the first error
   const firstError = result.error.issues[0];
   const errorMessage = firstError
-    ? `${firstError.path.join('.')}: ${firstError.message}`
+    ? `${labelFor(firstError.path)}: ${firstError.message}`
     : 'Validation failed';
 
-  return {
-    success: false,
-    error: errorMessage,
-    details,
-    status: 400,
-  };
+  return { success: false, error: errorMessage, details, status: 400 };
 }
 
 /**

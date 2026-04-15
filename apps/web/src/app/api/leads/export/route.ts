@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { getLeadService } from '@/lib/leads';
 import { logger } from '@/lib/logger';
 import * as XLSX from 'xlsx-js-style';
-import type { LeadCategory } from '@/types/leads';
+import type { LeadType, Pipeline, Industry } from '@/types/leads';
 
 interface JWTPayload {
   userId: number;
@@ -43,13 +43,16 @@ export async function GET(request: NextRequest) {
     jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
 
     const searchParams = request.nextUrl.searchParams;
-    const category = searchParams.get('category') as LeadCategory | null;
+    const type = searchParams.get('type') as LeadType | null;
+    const pipeline = searchParams.get('pipeline') as Pipeline | null;
+    const industry = searchParams.get('industry') as Industry | null;
 
-    // Fetch leads data
     const leadService = getLeadService();
-    const leads = category
-      ? await leadService.getLeadsByCategory(category)
-      : await leadService.getAllLeads();
+    const leads = await leadService.getLeads({
+      type: type || undefined,
+      pipeline: pipeline || undefined,
+      industry: industry || undefined,
+    });
 
     if (leads.length === 0) {
       return NextResponse.json(
@@ -61,10 +64,9 @@ export async function GET(request: NextRequest) {
     // Determine columns based on category
     let worksheetData: Record<string, string | number>[] = [];
 
-    if (category === 'lead') {
+    if (type === 'lead') {
       // Lead-specific columns
       worksheetData = leads.map(lead => ({
-        'Date of Interaction': lead.date_of_interaction ? new Date(lead.date_of_interaction).toLocaleDateString() : 'N/A',
         'Type': lead.lead_type || 'N/A',
         'Company/Organization Name': lead.company_name || 'N/A',
         '# Beneficiary': lead.number_of_beneficiary || 'N/A',
@@ -81,12 +83,13 @@ export async function GET(request: NextRequest) {
         'Created By': lead.created_by,
         'Created At': new Date(lead.created_at).toLocaleString(),
       }));
-    } else if (category === 'event') {
+    } else if (type === 'event') {
       // Event-specific columns
       worksheetData = leads.map(lead => ({
         'Event Name': lead.event_name || 'N/A',
         'Venue': lead.venue || 'N/A',
-        'Event Date': lead.event_date ? new Date(lead.event_date).toLocaleDateString() : 'N/A',
+        'Event Start Date': lead.event_start_date ? new Date(lead.event_start_date).toLocaleDateString() : 'N/A',
+        'Event End Date': lead.event_end_date ? new Date(lead.event_end_date).toLocaleDateString() : 'N/A',
         'Event Time': lead.event_time || 'N/A',
         'Number of Attendees': lead.number_of_attendees || 'N/A',
         'Contact Person': lead.contact_person || 'N/A',
@@ -100,7 +103,7 @@ export async function GET(request: NextRequest) {
         'Created By': lead.created_by,
         'Created At': new Date(lead.created_at).toLocaleString(),
       }));
-    } else if (category === 'supplier') {
+    } else if (type === 'supplier') {
       // Supplier-specific columns
       worksheetData = leads.map(lead => ({
         'Supplier Name': lead.supplier_name || 'N/A',
@@ -122,7 +125,7 @@ export async function GET(request: NextRequest) {
       // All categories - include category column and common fields
       worksheetData = leads.map(lead => {
         const baseData: Record<string, string | number> = {
-          'Category': lead.category.charAt(0).toUpperCase() + lead.category.slice(1),
+          'Category': lead.type.charAt(0).toUpperCase() + lead.type.slice(1),
           'Status': lead.status,
           'Assigned To': lead.assigned_to || 'Unassigned',
           'Contact Person': lead.contact_person || 'N/A',
@@ -135,7 +138,7 @@ export async function GET(request: NextRequest) {
         };
 
         // Add category-specific fields
-        if (lead.category === 'lead') {
+        if (lead.type === 'lead') {
           return {
             ...baseData,
             'Company Name': lead.company_name || 'N/A',
@@ -143,15 +146,15 @@ export async function GET(request: NextRequest) {
             'Lead Source': lead.lead_source || 'N/A',
             'Product Interest': lead.product || 'N/A',
           };
-        } else if (lead.category === 'event') {
+        } else if (lead.type === 'event') {
           return {
             ...baseData,
             'Event Name': lead.event_name || 'N/A',
             'Venue': lead.venue || 'N/A',
-            'Event Date': lead.event_date ? new Date(lead.event_date).toLocaleDateString() : 'N/A',
+            'Event Start Date': lead.event_start_date ? new Date(lead.event_start_date).toLocaleDateString() : 'N/A',
             'Product Needed': lead.product || 'N/A',
           };
-        } else if (lead.category === 'supplier') {
+        } else if (lead.type === 'supplier') {
           return {
             ...baseData,
             'Supplier Name': lead.supplier_name || 'N/A',
@@ -164,10 +167,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Determine export title
-    const exportTitle = category
-      ? `${category.charAt(0).toUpperCase() + category.slice(1)}s Export`
-      : 'All Leads Export';
+    const titleParts: string[] = [];
+    if (pipeline) titleParts.push(pipeline.charAt(0).toUpperCase() + pipeline.slice(1));
+    if (industry) titleParts.push(industry.charAt(0).toUpperCase() + industry.slice(1));
+    if (type) titleParts.push(type.charAt(0).toUpperCase() + type.slice(1) + 's');
+    const exportTitle = titleParts.length > 0 ? titleParts.join(' ') + ' Export' : 'All Leads Export';
     const exportDate = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -325,10 +329,7 @@ export async function GET(request: NextRequest) {
       { hpt: 28 }, // Header row - taller for bold headers
     ];
 
-    // Set sheet name based on category
-    const sheetName = category
-      ? category.charAt(0).toUpperCase() + category.slice(1) + 's'
-      : 'All Data';
+    const sheetName = type ? type.charAt(0).toUpperCase() + type.slice(1) + 's' : 'All Data';
 
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
@@ -340,9 +341,11 @@ export async function GET(request: NextRequest) {
 
     // Set filename
     const timestamp = new Date().toISOString().split('T')[0];
-    const filename = category
-      ? `${category}s-export-${timestamp}.xlsx`
-      : `all-leads-export-${timestamp}.xlsx`;
+    const filenameParts: string[] = [];
+    if (pipeline) filenameParts.push(pipeline);
+    if (industry) filenameParts.push(industry);
+    if (type) filenameParts.push(type + 's');
+    const filename = (filenameParts.length > 0 ? filenameParts.join('-') : 'all-leads') + `-export-${timestamp}.xlsx`;
 
     // Return Excel file response
     return new NextResponse(buffer, {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Lead, ActivityType, ActivityFormData } from '@/types/leads';
+import { logger } from '@/lib/logger';
 import { X, Phone, Mail, Users, Building, ClipboardCheck, FileText, Sparkles, Info, CheckCircle, Package, ClipboardList } from 'lucide-react';
 
 interface LogActivityModalProps {
@@ -35,14 +36,14 @@ const STATUS_OPTIONS = [
   { value: 'contacted', label: 'Contacted' },
   { value: 'quoted', label: 'Quoted' },
   { value: 'negotiating', label: 'Negotiating' },
-  { value: 'closed', label: 'Closed Deal' },
+  { value: 'closed-deal', label: 'Closed Deal' },
   { value: 'rejected', label: 'Rejected' },
 ];
 
 export default function LogActivityModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: LogActivityModalProps) {
   // Determine which activity types to show based on lead category
-  const activityTypes = lead.category === 'supplier' ? SUPPLIER_ACTIVITY_TYPES : LEAD_EVENT_ACTIVITY_TYPES;
-  const defaultActivityType = lead.category === 'supplier' ? 'active-supplier' : 'call';
+  const activityTypes = lead.type === 'supplier' ? SUPPLIER_ACTIVITY_TYPES : LEAD_EVENT_ACTIVITY_TYPES;
+  const defaultActivityType = lead.type === 'supplier' ? 'active-supplier' : 'call';
 
   const [formData, setFormData] = useState<ActivityFormData>({
     activity_type: defaultActivityType as ActivityType,
@@ -80,11 +81,11 @@ export default function LogActivityModal({ lead, onClose, onSuccess, apiBasePath
         onClose();
       } else {
         alert(`Failed to log activity: ${data.error}`);
-        console.error('Failed to log activity', data.error);
+        logger.error('Failed to log activity', data.error);
       }
     } catch (error) {
       alert('An error occurred while logging the activity');
-      console.error('Error logging activity', error);
+      logger.error('Error logging activity', error);
     } finally {
       setLoading(false);
     }

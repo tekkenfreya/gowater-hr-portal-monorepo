@@ -34,7 +34,7 @@ interface RecentActivity {
   activity_type: string;
   activity_description: string;
   lead_name: string;
-  lead_category: string;
+  lead_type: string;
   lead_status: string;
   created_at: string;
 }
@@ -44,7 +44,7 @@ interface StaleLead {
   company_name: string | null;
   event_name: string | null;
   supplier_name: string | null;
-  category: string;
+  type: string;
   status: string;
   assigned_to: string | null;
   activity_count: number;

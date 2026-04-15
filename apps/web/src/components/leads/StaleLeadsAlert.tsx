@@ -6,7 +6,7 @@ interface StaleLead {
   company_name: string | null;
   event_name: string | null;
   supplier_name: string | null;
-  category: string;
+  type: string;
   status: string;
   assigned_to: string | null;
   activity_count: number;
@@ -135,7 +135,7 @@ export default function StaleLeadsAlert({ staleData, daysThreshold }: StaleLeads
                                 {leadName}
                               </h4>
                               <span className="px-2 py-0.5 rounded text-xs font-medium uppercase bg-[#E6F3FF] text-[#0078D4]">
-                                {lead.category}
+                                {lead.type}
                               </span>
                               <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#F3F2F1] text-[#605E5C]">
                                 {lead.status}
