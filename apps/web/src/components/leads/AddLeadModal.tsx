@@ -1,16 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { LeadCategory, ProductType, LeadFormData, ColdCategory } from '@/types/leads';
+import { LeadType, Pipeline, Industry, ProductType, LeadFormData } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import { X } from 'lucide-react';
 
 interface AddLeadModalProps {
-  category: LeadCategory;
+  type: LeadType;
+  pipeline?: Pipeline;
+  industry?: Industry;
   onClose: () => void;
   onSuccess: () => void;
   apiBasePath?: string;
-  defaultColdCategory?: ColdCategory;
 }
 
 const PRODUCT_OPTIONS: { value: ProductType; label: string }[] = [
@@ -63,10 +64,11 @@ const DISPOSITION_OPTIONS = [
   { value: 'for-negotiation', label: 'For Further Negotiation' },
 ];
 
-export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath = '/api/leads', defaultColdCategory }: AddLeadModalProps) {
+export default function AddLeadModal({ type, pipeline = 'warm', industry, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
-    category,
-    // LEAD FIELDS
+    type,
+    pipeline,
+    industry,
     date_of_interaction: new Date().toISOString().split('T')[0],
     lead_type: 'company',
     company_name: '',
@@ -74,24 +76,20 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
     number_of_beneficiary: '',
     location: '',
     lead_source: '',
-    // EVENT FIELDS
     event_name: '',
     event_type: '',
     venue: '',
-    event_date: '', // deprecated
     event_start_date: '',
     event_end_date: '',
     event_time: '',
     event_lead: '',
     number_of_attendees: '',
     event_report: '',
-    // SUPPLIER FIELDS
     supplier_name: '',
     supplier_location: '',
     supplier_product: '',
     price: '',
     unit_type: '',
-    // SHARED FIELDS
     mobile_number: '',
     email_address: '',
     product: undefined,
@@ -99,7 +97,6 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
     remarks: '',
     disposition: '',
     assigned_to: '',
-    cold_category: defaultColdCategory,
   });
   const [loading, setLoading] = useState(false);
 
@@ -107,17 +104,17 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
     e.preventDefault();
 
     // Validate based on category
-    if (category === 'lead' && formData.lead_type === 'company' && !formData.company_name?.trim()) {
+    if (type === 'lead' && formData.lead_type === 'company' && !formData.company_name?.trim()) {
       alert('Company name is required for company/organization leads');
       return;
     }
 
-    if (category === 'event' && !formData.event_name?.trim()) {
+    if (type === 'event' && !formData.event_name?.trim()) {
       alert('Event name is required for events');
       return;
     }
 
-    if (category === 'supplier' && !formData.supplier_name?.trim()) {
+    if (type === 'supplier' && !formData.supplier_name?.trim()) {
       alert('Supplier name is required for supplier');
       return;
     }
@@ -136,12 +133,12 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
         onSuccess();
         onClose();
       } else {
-        alert(`Failed to create ${category}: ${data.error}`);
-        logger.error(`Failed to create ${category}`, data.error);
+        alert(`Failed to create ${type}: ${data.error}`);
+        logger.error(`Failed to create ${type}`, data.error);
       }
     } catch (error) {
-      alert(`An error occurred while creating the ${category}`);
-      logger.error(`Error creating ${category}`, error);
+      alert(`An error occurred while creating the ${type}`);
+      logger.error(`Error creating ${type}`, error);
     } finally {
       setLoading(false);
     }
@@ -152,9 +149,9 @@ export default function AddLeadModal({ category, onClose, onSuccess, apiBasePath
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const isLead = category === 'lead';
-  const isEvent = category === 'event';
-  const isSupplier = category === 'supplier';
+  const isLead = type === 'lead';
+  const isEvent = type === 'event';
+  const isSupplier = type === 'supplier';
   const modalTitle = isLead ? 'Add New Lead' : isEvent ? 'Add New Event' : 'Add New Supplier';
   const submitButtonText = loading ? 'Creating...' : isLead ? 'Create Lead' : isEvent ? 'Create Event' : 'Create Supplier';
 

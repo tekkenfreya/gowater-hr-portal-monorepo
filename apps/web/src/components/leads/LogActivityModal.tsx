@@ -42,8 +42,8 @@ const STATUS_OPTIONS = [
 
 export default function LogActivityModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: LogActivityModalProps) {
   // Determine which activity types to show based on lead category
-  const activityTypes = lead.category === 'supplier' ? SUPPLIER_ACTIVITY_TYPES : LEAD_EVENT_ACTIVITY_TYPES;
-  const defaultActivityType = lead.category === 'supplier' ? 'active-supplier' : 'call';
+  const activityTypes = lead.type === 'supplier' ? SUPPLIER_ACTIVITY_TYPES : LEAD_EVENT_ACTIVITY_TYPES;
+  const defaultActivityType = lead.type === 'supplier' ? 'active-supplier' : 'call';
 
   const [formData, setFormData] = useState<ActivityFormData>({
     activity_type: defaultActivityType as ActivityType,

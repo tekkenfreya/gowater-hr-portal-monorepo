@@ -1,13 +1,20 @@
-export type LeadCategory = 'lead' | 'event' | 'supplier';
-export type ColdCategory = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
+export type LeadType = 'lead' | 'event' | 'supplier';
+export type Pipeline = 'warm' | 'cold' | 'hot';
+export type Industry = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
 export type ProductType = 'both' | 'vending' | 'dispenser';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'site-visit' | 'follow-up' | 'remark' | 'other' | 'active-supplier' | 'recording' | 'checking';
 
+// Legacy alias — remove callers over time
+export type LeadCategory = LeadType;
+export type ColdCategory = Industry;
+
 export interface Lead {
   id: string;
-  category: LeadCategory;
+  type: LeadType;
+  pipeline: Pipeline;
+  industry: Industry | null;
 
-  // LEAD-SPECIFIC FIELDS (used when category = 'lead')
+  // LEAD-SPECIFIC FIELDS (used when type = 'lead')
   date_of_interaction: string | null;
   lead_type: string | null;
   company_name: string | null;
@@ -15,26 +22,25 @@ export interface Lead {
   location: string | null;
   lead_source: string | null;
 
-  // EVENT-SPECIFIC FIELDS (used when category = 'event')
+  // EVENT-SPECIFIC FIELDS (used when type = 'event')
   event_name: string | null;
-  event_type: string | null; // NEW
+  event_type: string | null;
   venue: string | null;
-  event_date: string | null; // DEPRECATED - use event_start_date
-  event_start_date: string | null; // NEW
-  event_end_date: string | null; // NEW
+  event_start_date: string | null;
+  event_end_date: string | null;
   event_time: string | null;
-  event_lead: string | null; // NEW
+  event_lead: string | null;
   number_of_attendees: string | null;
-  event_report: string | null; // NEW - file path
+  event_report: string | null;
 
-  // SUPPLIER-SPECIFIC FIELDS (used when category = 'supplier')
+  // SUPPLIER-SPECIFIC FIELDS (used when type = 'supplier')
   supplier_name: string | null;
   supplier_location: string | null;
   supplier_product: string | null;
   price: string | null;
   unit_type: string | null;
 
-  // SHARED FIELDS (used by leads, events, and suppliers)
+  // SHARED FIELDS
   contact_person: string | null;
   mobile_number: string | null;
   email_address: string | null;
@@ -42,8 +48,7 @@ export interface Lead {
   status: string;
   remarks: string | null;
   disposition: string | null;
-  assigned_to: string | null; // Employee name
-  cold_category: ColdCategory | null; // Sub-category for cold leads (restaurants, lgu, hotel, microfinance, foundation)
+  assigned_to: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -68,9 +73,11 @@ export interface LeadWithActivities extends Lead {
 }
 
 export interface LeadFormData {
-  category: LeadCategory;
+  type: LeadType;
+  pipeline?: Pipeline;
+  industry?: Industry;
 
-  // LEAD-SPECIFIC FIELDS
+  // LEAD-SPECIFIC
   date_of_interaction?: string;
   lead_type?: string;
   company_name?: string;
@@ -78,11 +85,10 @@ export interface LeadFormData {
   location?: string;
   lead_source?: string;
 
-  // EVENT-SPECIFIC FIELDS
+  // EVENT-SPECIFIC
   event_name?: string;
   event_type?: string;
   venue?: string;
-  event_date?: string; // DEPRECATED
   event_start_date?: string;
   event_end_date?: string;
   event_time?: string;
@@ -90,14 +96,14 @@ export interface LeadFormData {
   number_of_attendees?: string;
   event_report?: string;
 
-  // SUPPLIER-SPECIFIC FIELDS
+  // SUPPLIER-SPECIFIC
   supplier_name?: string;
   supplier_location?: string;
   supplier_product?: string;
   price?: string;
   unit_type?: string;
 
-  // SHARED FIELDS
+  // SHARED
   contact_person?: string;
   mobile_number?: string;
   email_address?: string;
@@ -106,7 +112,6 @@ export interface LeadFormData {
   remarks?: string;
   disposition?: string;
   assigned_to?: string;
-  cold_category?: ColdCategory;
 }
 
 export interface ActivityFormData {
@@ -124,7 +129,7 @@ export interface DashboardStats {
   activities_today: number;
   closed_deals: number;
   by_category: {
-    category: LeadCategory;
+    category: LeadType;
     count: number;
     percentage: number;
   }[];
@@ -141,6 +146,6 @@ export interface DashboardStats {
     site_visits: number;
     leads_assigned: number;
   }[];
-  recent_activities: (LeadActivity & { company_name: string; category: LeadCategory })[];
+  recent_activities: (LeadActivity & { company_name: string; category: LeadType })[];
   stale_leads: LeadWithActivities[];
 }

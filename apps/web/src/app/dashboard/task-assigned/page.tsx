@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Lead, LeadCategory } from '@/types/leads';
+import { Lead, LeadType, Pipeline, Industry } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import AddLeadModal from '@/components/leads/AddLeadModal';
 import EditLeadModal from '@/components/leads/EditLeadModal';
@@ -11,7 +11,7 @@ import ViewActivitiesModal from '@/components/leads/ViewActivitiesModal';
 import DeleteConfirmationModal from '@/components/leads/DeleteConfirmationModal';
 import { Plus, Building2, Calendar, FileText, Eye, Package, Pencil, Trash2, Download, Snowflake, ChevronDown } from 'lucide-react';
 
-const CATEGORIES: { value: LeadCategory; label: string }[] = [
+const TYPES: { value: LeadType; label: string }[] = [
   { value: 'lead', label: 'Leads' },
   { value: 'event', label: 'Events' },
   { value: 'supplier', label: 'Supplier' },
@@ -28,22 +28,21 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
 };
 const DEFAULT_STATUS_STYLE = { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.6)', border: 'rgba(255,255,255,0.15)' };
 
-const COLD_SUBCATEGORIES = [
+const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: 'restaurants', label: 'Restaurants' },
   { value: 'lgu', label: 'LGU' },
   { value: 'hotel', label: 'Hotel' },
   { value: 'microfinance', label: 'Microfinance' },
   { value: 'foundation', label: 'Foundation' },
-] as const;
+];
 
 export default function LeadsPage() {
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<LeadCategory>('lead');
+  const [selectedType, setSelectedType] = useState<LeadType>('lead');
   const [coldLeadsExpanded, setColdLeadsExpanded] = useState(false);
-  const [selectedColdCategory, setSelectedColdCategory] = useState<string | null>(null);
+  const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategoryForAdd, setSelectedCategoryForAdd] = useState<LeadCategory | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -51,28 +50,15 @@ export default function LeadsPage() {
   const [showViewActivitiesModal, setShowViewActivitiesModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  // Cold leads state
-  const [coldLeads, setColdLeads] = useState<Lead[]>([]);
-  const [coldLoading, setColdLoading] = useState(false);
-
-  useEffect(() => {
-    if (!selectedColdCategory) {
-      fetchLeads();
-    }
-  }, [selectedCategory]);
-
-  useEffect(() => {
-    if (selectedColdCategory) {
-      fetchColdLeads();
-    }
-  }, [selectedColdCategory, selectedCategory]);
+  const pipeline: Pipeline = selectedIndustry ? 'cold' : 'warm';
 
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/leads?category=${selectedCategory}`);
+      const params = new URLSearchParams({ type: selectedType, pipeline });
+      if (selectedIndustry) params.set('industry', selectedIndustry);
+      const response = await fetch(`/api/leads?${params.toString()}`);
       const data = await response.json();
-
       if (response.ok) {
         setLeads(data.leads);
       } else {
@@ -85,33 +71,16 @@ export default function LeadsPage() {
     }
   };
 
-  const fetchColdLeads = async () => {
-    try {
-      setColdLoading(true);
-      const response = await fetch(`/api/cold-leads?category=${selectedCategory}&cold_category=${selectedColdCategory}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setColdLeads(data.leads);
-      } else {
-        logger.error('Failed to fetch cold leads', data.error);
-      }
-    } catch (error) {
-      logger.error('Error fetching cold leads', error);
-    } finally {
-      setColdLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchLeads();
+  }, [selectedType, selectedIndustry]);
 
   const openAddFlow = () => {
-    // Directly open the add modal with the current category
-    setSelectedCategoryForAdd(selectedCategory);
     setShowAddModal(true);
   };
 
   const closeAddModal = () => {
     setShowAddModal(false);
-    setSelectedCategoryForAdd(null);
   };
 
   const openActivityModal = (lead: Lead) => {
@@ -136,10 +105,9 @@ export default function LeadsPage() {
 
   const handleExportToExcel = async () => {
     try {
-      const exportUrl = selectedColdCategory
-        ? `/api/cold-leads/export?category=${selectedCategory}&cold_category=${selectedColdCategory}`
-        : `/api/leads/export?category=${selectedCategory}`;
-      const response = await fetch(exportUrl);
+      const params = new URLSearchParams({ type: selectedType, pipeline });
+      if (selectedIndustry) params.set('industry', selectedIndustry);
+      const response = await fetch(`/api/leads/export?${params.toString()}`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -169,14 +137,14 @@ export default function LeadsPage() {
     }
   };
 
-  const isLeadCategory = selectedCategory === 'lead';
-  const isEventCategory = selectedCategory === 'event';
-  const isSupplierCategory = selectedCategory === 'supplier';
-  const categoryLabel = CATEGORIES.find(c => c.value === selectedCategory)?.label || '';
-  const displayLeads = selectedColdCategory ? coldLeads : leads;
-  const displayLoading = selectedColdCategory ? coldLoading : loading;
-  const apiBasePath = selectedColdCategory ? '/api/cold-leads' : '/api/leads';
-  const refreshData = selectedColdCategory ? fetchColdLeads : fetchLeads;
+  const isLeadCategory = selectedType === 'lead';
+  const isEventCategory = selectedType === 'event';
+  const isSupplierCategory = selectedType === 'supplier';
+  const categoryLabel = TYPES.find(c => c.value === selectedType)?.label || '';
+  const displayLeads = leads;
+  const displayLoading = loading;
+  const apiBasePath = '/api/leads';
+  const refreshData = fetchLeads;
 
   return (
     <div className="flex-1 flex h-full">
@@ -191,28 +159,28 @@ export default function LeadsPage() {
           Add Item
         </button>
 
-        {/* Type Categories */}
+        {/* Warm: Leads / Events / Supplier */}
         <nav className="space-y-1 mb-4">
-          {CATEGORIES.map((category) => (
+          {TYPES.map((t) => (
             <button
-              key={category.value}
-              onClick={() => { setSelectedCategory(category.value); setSelectedColdCategory(null); }}
+              key={t.value}
+              onClick={() => { setSelectedType(t.value); setSelectedIndustry(null); }}
               className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
-                selectedCategory === category.value && !selectedColdCategory
+                selectedType === t.value && !selectedIndustry
                   ? 'text-cyan-400 border-l-4 border-cyan-400'
                   : 'hover:bg-white/5'
               }`}
-              style={{ color: selectedCategory === category.value && !selectedColdCategory ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
+              style={{ color: selectedType === t.value && !selectedIndustry ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
             >
-              {category.value === 'lead' ? <Building2 className="w-4 h-4" /> :
-               category.value === 'event' ? <Calendar className="w-4 h-4" /> :
+              {t.value === 'lead' ? <Building2 className="w-4 h-4" /> :
+               t.value === 'event' ? <Calendar className="w-4 h-4" /> :
                <Package className="w-4 h-4" />}
-              {category.label}
+              {t.label}
             </button>
           ))}
         </nav>
 
-        {/* Cold Leads Dropdown */}
+        {/* Cold Leads: by industry */}
         <div className="space-y-0.5">
           <button
             onClick={() => setColdLeadsExpanded((prev) => !prev)}
@@ -229,21 +197,21 @@ export default function LeadsPage() {
           </button>
           {coldLeadsExpanded && (
             <div className="ml-4 space-y-0.5">
-              {COLD_SUBCATEGORIES.map((sub) => (
+              {INDUSTRIES.map((ind) => (
                 <button
-                  key={sub.value}
-                  onClick={() => setSelectedColdCategory(sub.value)}
+                  key={ind.value}
+                  onClick={() => { setSelectedType('lead'); setSelectedIndustry(ind.value); }}
                   className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
-                    selectedColdCategory === sub.value
+                    selectedIndustry === ind.value
                       ? 'text-cyan-400'
                       : 'hover:bg-white/5'
                   }`}
                   style={{
-                    color: selectedColdCategory === sub.value ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
-                    backgroundColor: selectedColdCategory === sub.value ? 'rgba(125,211,252,0.1)' : undefined,
+                    color: selectedIndustry === ind.value ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
+                    backgroundColor: selectedIndustry === ind.value ? 'rgba(125,211,252,0.1)' : undefined,
                   }}
                 >
-                  {sub.label}
+                  {ind.label}
                 </button>
               ))}
             </div>
@@ -258,13 +226,13 @@ export default function LeadsPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-semibold text-white mb-1">
-                {selectedColdCategory
-                  ? `Cold ${categoryLabel} — ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
+                {selectedIndustry
+                  ? `Cold ${categoryLabel} — ${INDUSTRIES.find(s => s.value === selectedIndustry)?.label}`
                   : categoryLabel}
               </h1>
               <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                {selectedColdCategory
-                  ? `Cold leads for ${COLD_SUBCATEGORIES.find(s => s.value === selectedColdCategory)?.label}`
+                {selectedIndustry
+                  ? `Cold leads for ${INDUSTRIES.find(s => s.value === selectedIndustry)?.label}`
                   : `Manage and track your ${categoryLabel.toLowerCase()}`}
               </p>
             </div>
@@ -459,7 +427,9 @@ export default function LeadsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">
-                            {lead.event_date ? new Date(lead.event_date).toLocaleDateString() : 'N/A'}
+                            {lead.event_start_date
+                              ? new Date(lead.event_start_date).toLocaleDateString()
+                              : new Date(lead.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">{lead.event_time || 'N/A'}</td>
                           <td className="px-2 py-2 text-xs text-white/90 max-w-[120px]">
@@ -630,16 +600,17 @@ export default function LeadsPage() {
       </div>
 
       {/* Modals */}
-      {showAddModal && selectedCategoryForAdd && (
+      {showAddModal && (
         <AddLeadModal
-          category={selectedCategoryForAdd}
+          type={selectedType}
+          pipeline={pipeline}
+          industry={selectedIndustry || undefined}
           apiBasePath={apiBasePath}
           onClose={closeAddModal}
           onSuccess={() => {
             refreshData();
             closeAddModal();
           }}
-          {...(selectedColdCategory ? { defaultColdCategory: selectedColdCategory as import('@/types/leads').ColdCategory } : {})}
         />
       )}
       {showActivityModal && selectedLead && (

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getLeadService } from '@/lib/leads';
 import { logger } from '@/lib/logger';
-import { LeadFormData, LeadCategory } from '@/types/leads';
+import { LeadFormData, LeadType, Pipeline, Industry } from '@/types/leads';
 import { createLeadSchema, updateLeadSchema } from '@/lib/validation/schemas';
 import { safeParseBody, createErrorResponse } from '@/lib/validation/middleware';
 
@@ -23,12 +23,16 @@ export async function GET(request: NextRequest) {
     jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
 
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category') as LeadCategory | null;
+    const type = searchParams.get('type') as LeadType | null;
+    const pipeline = searchParams.get('pipeline') as Pipeline | null;
+    const industry = searchParams.get('industry') as Industry | null;
 
     const leadService = getLeadService();
-    const leads = category
-      ? await leadService.getLeadsByCategory(category)
-      : await leadService.getAllLeads();
+    const leads = await leadService.getLeads({
+      type: type || undefined,
+      pipeline: pipeline || undefined,
+      industry: industry || undefined,
+    });
 
     return NextResponse.json({ leads, message: 'Leads fetched successfully' });
   } catch (error) {

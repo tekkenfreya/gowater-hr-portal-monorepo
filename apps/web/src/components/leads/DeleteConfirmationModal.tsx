@@ -20,14 +20,14 @@ export default function DeleteConfirmationModal({ lead, onClose, onSuccess, apiB
 
   // Get the display name based on category
   const entityName =
-    lead.category === 'lead'
+    lead.type === 'lead'
       ? lead.company_name
-      : lead.category === 'event'
+      : lead.type === 'event'
       ? lead.event_name
       : lead.supplier_name;
 
   const entityType =
-    lead.category === 'lead' ? 'lead' : lead.category === 'event' ? 'event' : 'supplier';
+    lead.type === 'lead' ? 'lead' : lead.type === 'event' ? 'event' : 'supplier';
 
   // Fetch activity count on mount
   useEffect(() => {

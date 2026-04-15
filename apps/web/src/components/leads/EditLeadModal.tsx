@@ -38,7 +38,7 @@ const STATUS_OPTIONS = [
 
 export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: EditLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
-    category: lead.category,
+    type: lead.type,
     // LEAD FIELDS
     date_of_interaction: lead.date_of_interaction || '',
     lead_type: lead.lead_type || '',
@@ -49,7 +49,8 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     // EVENT FIELDS
     event_name: lead.event_name || '',
     venue: lead.venue || '',
-    event_date: lead.event_date || '',
+    event_start_date: lead.event_start_date || '',
+    event_end_date: lead.event_end_date || '',
     event_time: lead.event_time || '',
     number_of_attendees: lead.number_of_attendees || '',
     // SUPPLY FIELDS
@@ -74,17 +75,17 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     e.preventDefault();
 
     // Validate based on category
-    if (lead.category === 'lead' && !formData.company_name?.trim()) {
+    if (lead.type === 'lead' && !formData.company_name?.trim()) {
       alert('Company name is required for leads');
       return;
     }
 
-    if (lead.category === 'event' && !formData.event_name?.trim()) {
+    if (lead.type === 'event' && !formData.event_name?.trim()) {
       alert('Event name is required for events');
       return;
     }
 
-    if (lead.category === 'supplier' && !formData.supplier_name?.trim()) {
+    if (lead.type === 'supplier' && !formData.supplier_name?.trim()) {
       alert('Supplier name is required for suppliers');
       return;
     }
@@ -106,12 +107,12 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
         onSuccess();
         onClose();
       } else {
-        alert(`Failed to update ${lead.category}: ${data.error}`);
-        logger.error(`Failed to update ${lead.category}`, data.error);
+        alert(`Failed to update ${lead.type}: ${data.error}`);
+        logger.error(`Failed to update ${lead.type}`, data.error);
       }
     } catch (error) {
-      alert(`An error occurred while updating the ${lead.category}`);
-      logger.error(`Error updating ${lead.category}`, error);
+      alert(`An error occurred while updating the ${lead.type}`);
+      logger.error(`Error updating ${lead.type}`, error);
     } finally {
       setLoading(false);
     }
@@ -122,9 +123,9 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const isLead = lead.category === 'lead';
-  const isEvent = lead.category === 'event';
-  const isSupply = lead.category === 'supplier';
+  const isLead = lead.type === 'lead';
+  const isEvent = lead.type === 'event';
+  const isSupply = lead.type === 'supplier';
   const modalTitle = isLead ? 'Edit Lead' : isEvent ? 'Edit Event' : 'Edit Supplier';
   const submitButtonText = loading ? 'Saving...' : 'Save Changes';
 
@@ -273,16 +274,28 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                 />
               </div>
 
-              {/* Event Date */}
-              <div>
-                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Event Date</label>
-                <input
-                  type="date"
-                  name="event_date"
-                  value={formData.event_date}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                />
+              {/* Event Start / End Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Event Start Date</label>
+                  <input
+                    type="date"
+                    name="event_start_date"
+                    value={formData.event_start_date || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Event End Date</label>
+                  <input
+                    type="date"
+                    name="event_end_date"
+                    value={formData.event_end_date || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                  />
+                </div>
               </div>
 
               {/* Event Time */}

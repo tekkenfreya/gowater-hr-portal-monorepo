@@ -62,7 +62,10 @@ export const changePasswordSchema = z.object({
 // ================================================================
 
 // Shared enums
-export const leadCategorySchema = z.enum(['lead', 'event', 'supplier']);
+export const leadTypeSchema = z.enum(['lead', 'event', 'supplier']);
+export const leadCategorySchema = leadTypeSchema; // legacy alias
+export const pipelineSchema = z.enum(['warm', 'cold', 'hot']);
+export const industrySchema = z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']);
 export const productTypeSchema = z.enum(['both', 'vending', 'dispenser']);
 export const leadStatusSchema = z.enum([
   'not-started',
@@ -89,6 +92,8 @@ const emailSchema = z.string()
 
 // Base lead schema (shared fields)
 const baseLeadSchema = z.object({
+  pipeline: pipelineSchema.optional(),
+  industry: industrySchema.optional(),
   contact_person: z.string().max(255).optional(),
   mobile_number: phoneNumberSchema,
   email_address: emailSchema,
@@ -97,12 +102,11 @@ const baseLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
-  cold_category: z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']).optional(),
 });
 
-// Lead-specific schema
+// Type-specific schemas
 const leadSpecificSchema = z.object({
-  category: z.literal('lead'),
+  type: z.literal('lead'),
   date_of_interaction: z.string().max(255).optional(),
   lead_type: z.string().max(50).optional(),
   company_name: z.string().max(255).optional(),
@@ -110,7 +114,6 @@ const leadSpecificSchema = z.object({
   location: z.string().max(255).optional(),
   lead_source: z.string().max(255).optional(),
 }).refine((data) => {
-  // Company name is required only when lead_type is 'company'
   if (data.lead_type === 'company' && (!data.company_name || data.company_name.trim() === '')) {
     return false;
   }
@@ -120,30 +123,27 @@ const leadSpecificSchema = z.object({
   path: ['company_name'],
 });
 
-// Event-specific schema
 const eventSpecificSchema = z.object({
-  category: z.literal('event'),
+  type: z.literal('event'),
   event_name: z.string()
     .min(1, 'Event name is required for events')
-    .max(255, 'Event name must be less than 255 characters')
+    .max(255)
     .trim(),
   event_type: z.string().max(255).optional(),
   venue: z.string().max(255).optional(),
-  event_date: z.string().optional(), // DEPRECATED - kept for backward compatibility
   event_start_date: z.string().max(255).optional(),
   event_end_date: z.string().max(255).optional(),
   event_time: z.string().max(50).optional(),
   event_lead: z.string().max(255).optional(),
   number_of_attendees: z.string().max(50).optional(),
-  event_report: z.string().max(500).optional(), // File path
+  event_report: z.string().max(500).optional(),
 });
 
-// Supplier-specific schema
 const supplierSpecificSchema = z.object({
-  category: z.literal('supplier'),
+  type: z.literal('supplier'),
   supplier_name: z.string()
     .min(1, 'Supplier name is required for suppliers')
-    .max(255, 'Supplier name must be less than 255 characters')
+    .max(255)
     .trim(),
   supplier_location: z.string().max(255).optional(),
   supplier_product: z.string().max(255).optional(),
@@ -151,8 +151,7 @@ const supplierSpecificSchema = z.object({
   unit_type: z.string().max(50).optional(),
 });
 
-// Discriminated union for lead creation
-export const createLeadSchema = z.discriminatedUnion('category', [
+export const createLeadSchema = z.discriminatedUnion('type', [
   leadSpecificSchema.merge(baseLeadSchema),
   eventSpecificSchema.merge(baseLeadSchema),
   supplierSpecificSchema.merge(baseLeadSchema),
@@ -161,9 +160,10 @@ export const createLeadSchema = z.discriminatedUnion('category', [
 // Update lead schema (all fields optional except ID)
 export const updateLeadSchema = z.object({
   id: z.string().min(1, 'Lead ID is required'),
-  category: leadCategorySchema.optional(),
+  type: leadTypeSchema.optional(),
+  pipeline: pipelineSchema.optional(),
+  industry: industrySchema.optional(),
 
-  // Lead fields
   date_of_interaction: z.string().max(255).optional(),
   lead_type: z.string().max(50).optional(),
   company_name: z.string().max(255).optional(),
@@ -171,11 +171,9 @@ export const updateLeadSchema = z.object({
   location: z.string().max(255).optional(),
   lead_source: z.string().max(255).optional(),
 
-  // Event fields
   event_name: z.string().max(255).optional(),
   event_type: z.string().max(255).optional(),
   venue: z.string().max(255).optional(),
-  event_date: z.string().optional(), // DEPRECATED
   event_start_date: z.string().max(255).optional(),
   event_end_date: z.string().max(255).optional(),
   event_time: z.string().max(50).optional(),
@@ -183,14 +181,12 @@ export const updateLeadSchema = z.object({
   number_of_attendees: z.string().max(50).optional(),
   event_report: z.string().max(500).optional(),
 
-  // Supplier fields
   supplier_name: z.string().max(255).optional(),
   supplier_location: z.string().max(255).optional(),
   supplier_product: z.string().max(255).optional(),
   price: z.string().max(50).optional(),
   unit_type: z.string().max(50).optional(),
 
-  // Shared fields
   contact_person: z.string().max(255).optional(),
   mobile_number: phoneNumberSchema,
   email_address: emailSchema,
@@ -199,7 +195,6 @@ export const updateLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
-  cold_category: z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']).optional(),
 });
 
 // ================================================================

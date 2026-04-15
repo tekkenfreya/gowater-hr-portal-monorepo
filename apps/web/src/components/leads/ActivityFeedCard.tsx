@@ -8,7 +8,7 @@ interface ActivityFeedCardProps {
     activity_type: string;
     activity_description: string;
     lead_name: string;
-    lead_category: string;
+    lead_type: string;
     lead_status: string;
     created_at: string;
   };
@@ -96,8 +96,8 @@ export default function ActivityFeedCard({ activity }: ActivityFeedCardProps) {
           <span className="font-medium text-[#323130] text-sm truncate">
             {activity.lead_name}
           </span>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${getCategoryColor(activity.lead_category)}`}>
-            {activity.lead_category}
+          <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${getCategoryColor(activity.lead_type)}`}>
+            {activity.lead_type}
           </span>
         </div>
 
