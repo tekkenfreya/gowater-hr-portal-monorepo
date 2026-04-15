@@ -197,18 +197,6 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                 />
               </div>
 
-              {/* Date of Interaction */}
-              <div>
-                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Date of Interaction</label>
-                <input
-                  type="date"
-                  name="date_of_interaction"
-                  value={formData.date_of_interaction}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                />
-              </div>
-
               {/* Lead Type */}
               <div>
                 <label className="block text-sm font-semibold text-[#323130] mb-1.5">Lead Type</label>

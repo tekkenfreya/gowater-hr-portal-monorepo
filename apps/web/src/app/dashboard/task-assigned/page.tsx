@@ -276,7 +276,6 @@ export default function LeadsPage() {
                     {isLeadCategory && (
                       <>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
-                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date of Interaction</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Type</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Company Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}># Beneficiary</th>
@@ -337,11 +336,6 @@ export default function LeadsPage() {
                         <>
                           <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
                             {new Date(lead.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
-                            {lead.date_of_interaction
-                              ? new Date(lead.date_of_interaction).toLocaleDateString()
-                              : 'N/A'}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">
                             <div className="truncate" title={lead.lead_type || ''}>
