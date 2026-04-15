@@ -67,7 +67,6 @@ export async function GET(request: NextRequest) {
     if (type === 'lead') {
       // Lead-specific columns
       worksheetData = leads.map(lead => ({
-        'Date of Interaction': lead.date_of_interaction ? new Date(lead.date_of_interaction).toLocaleDateString() : 'N/A',
         'Type': lead.lead_type || 'N/A',
         'Company/Organization Name': lead.company_name || 'N/A',
         '# Beneficiary': lead.number_of_beneficiary || 'N/A',

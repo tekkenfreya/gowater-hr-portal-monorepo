@@ -40,7 +40,6 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
   const [formData, setFormData] = useState<LeadFormData>({
     type: lead.type,
     // LEAD FIELDS
-    date_of_interaction: lead.date_of_interaction || '',
     lead_type: lead.lead_type || '',
     company_name: lead.company_name || '',
     number_of_beneficiary: lead.number_of_beneficiary || '',

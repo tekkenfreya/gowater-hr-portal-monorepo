@@ -69,7 +69,6 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
     type,
     pipeline,
     industry,
-    date_of_interaction: new Date().toISOString().split('T')[0],
     lead_type: 'company',
     company_name: '',
     contact_person: '',

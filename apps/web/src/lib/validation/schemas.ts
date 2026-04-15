@@ -112,7 +112,6 @@ const baseLeadSchema = z.object({
 
 const leadSpecificSchema = z.object({
   type: z.literal('lead'),
-  date_of_interaction: dateStringSchema,
   lead_type: z.string().max(50, 'Lead type must be 50 characters or fewer').optional(),
   company_name: z.string().max(255, 'Company name must be 255 characters or fewer').optional(),
   number_of_beneficiary: numericStringSchema('Number of beneficiary'),
@@ -177,7 +176,6 @@ export const updateLeadSchema = z.object({
   pipeline: pipelineSchema.optional(),
   industry: industrySchema.optional(),
 
-  date_of_interaction: z.string().max(255).optional(),
   lead_type: z.string().max(50).optional(),
   company_name: z.string().max(255).optional(),
   number_of_beneficiary: z.string().max(50).optional(),

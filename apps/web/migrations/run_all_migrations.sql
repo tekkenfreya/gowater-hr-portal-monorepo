@@ -335,7 +335,6 @@ CREATE TABLE IF NOT EXISTS leads (
   type                  TEXT NOT NULL CHECK (type IN ('lead', 'event', 'supplier')),
   pipeline              TEXT NOT NULL CHECK (pipeline IN ('warm', 'cold', 'hot')),
   industry              TEXT CHECK (industry IN ('restaurants', 'lgu', 'hotel', 'microfinance', 'foundation')),
-  date_of_interaction   DATE,
   lead_type             TEXT,
   company_name          TEXT,
   number_of_beneficiary TEXT,

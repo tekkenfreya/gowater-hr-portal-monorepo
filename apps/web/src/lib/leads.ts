@@ -25,7 +25,6 @@ export class LeadService {
       pipeline,
       industry,
 
-      date_of_interaction: type === 'lead' ? leadData.date_of_interaction || null : null,
       lead_type: type === 'lead' ? leadData.lead_type || null : null,
       company_name: type === 'lead' ? leadData.company_name || null : null,
       number_of_beneficiary: type === 'lead' ? leadData.number_of_beneficiary || null : null,
@@ -83,8 +82,7 @@ export class LeadService {
     if (filter.industry) conditions.industry = filter.industry;
 
     let orderByField = 'created_at';
-    if (filter.type === 'lead') orderByField = 'date_of_interaction';
-    else if (filter.type === 'event') orderByField = 'event_start_date';
+    if (filter.type === 'event') orderByField = 'event_start_date';
 
     const leads = await this.db.all('leads', conditions, orderByField);
     return (leads || []) as Lead[];
@@ -107,7 +105,6 @@ export class LeadService {
     if (updates.pipeline !== undefined) updateData.pipeline = updates.pipeline;
     if (updates.industry !== undefined) updateData.industry = updates.industry || null;
 
-    if (updates.date_of_interaction !== undefined) updateData.date_of_interaction = updates.date_of_interaction || null;
     if (updates.lead_type !== undefined) updateData.lead_type = updates.lead_type || null;
     if (updates.company_name !== undefined) updateData.company_name = updates.company_name || null;
     if (updates.number_of_beneficiary !== undefined) updateData.number_of_beneficiary = updates.number_of_beneficiary || null;

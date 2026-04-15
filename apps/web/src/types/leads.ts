@@ -15,7 +15,6 @@ export interface Lead {
   industry: Industry | null;
 
   // LEAD-SPECIFIC FIELDS (used when type = 'lead')
-  date_of_interaction: string | null;
   lead_type: string | null;
   company_name: string | null;
   number_of_beneficiary: string | null;
@@ -78,7 +77,6 @@ export interface LeadFormData {
   industry?: Industry;
 
   // LEAD-SPECIFIC
-  date_of_interaction?: string;
   lead_type?: string;
   company_name?: string;
   number_of_beneficiary?: string;

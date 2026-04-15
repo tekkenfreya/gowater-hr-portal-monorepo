@@ -49,7 +49,6 @@ const FIELD_LABELS: Record<string, string> = {
   type: 'Category',
   pipeline: 'Pipeline',
   industry: 'Industry',
-  date_of_interaction: 'Date of Interaction',
   lead_type: 'Lead Type',
   company_name: 'Company Name',
   number_of_beneficiary: 'Number of Beneficiary',
