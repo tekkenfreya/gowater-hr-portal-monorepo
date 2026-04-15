@@ -275,7 +275,7 @@ export default function LeadsPage() {
                     {/* Dynamic headers based on category */}
                     {isLeadCategory && (
                       <>
-                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date of Interaction</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Type</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Company Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}># Beneficiary</th>
@@ -293,9 +293,10 @@ export default function LeadsPage() {
                     )}
                     {isEventCategory && (
                       <>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Event Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Venue</th>
-                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Event Date</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Time</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Contact</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Mobile</th>
@@ -310,6 +311,7 @@ export default function LeadsPage() {
                     )}
                     {isSupplierCategory && (
                       <>
+                        <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Date Created</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Supplier Name</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Location</th>
                         <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.4)' }}>Product</th>
@@ -418,6 +420,9 @@ export default function LeadsPage() {
                       )}
                       {isEventCategory && (
                         <>
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {new Date(lead.created_at).toLocaleDateString()}
+                          </td>
                           <td className="px-2 py-2 max-w-[150px]">
                             <div className="font-medium text-white/90 text-xs truncate" title={lead.event_name || ''}>{lead.event_name || 'N/A'}</div>
                           </td>
@@ -426,10 +431,10 @@ export default function LeadsPage() {
                               {lead.venue || 'N/A'}
                             </div>
                           </td>
-                          <td className="px-2 py-2 text-xs text-white/90">
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
                             {lead.event_start_date
                               ? new Date(lead.event_start_date).toLocaleDateString()
-                              : new Date(lead.created_at).toLocaleDateString()}
+                              : 'N/A'}
                           </td>
                           <td className="px-2 py-2 text-xs text-white/90">{lead.event_time || 'N/A'}</td>
                           <td className="px-2 py-2 text-xs text-white/90 max-w-[120px]">
@@ -501,6 +506,9 @@ export default function LeadsPage() {
                       )}
                       {isSupplierCategory && (
                         <>
+                          <td className="px-2 py-2 text-xs text-white/90 whitespace-nowrap">
+                            {new Date(lead.created_at).toLocaleDateString()}
+                          </td>
                           <td className="px-2 py-2 max-w-[150px]">
                             <div className="font-medium text-white/90 text-xs truncate" title={lead.supplier_name || ''}>{lead.supplier_name || 'N/A'}</div>
                           </td>
