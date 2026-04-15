@@ -3,6 +3,7 @@ import { logger } from './logger';
 import { getPhilippineDateString } from './timezone';
 import { getWebhookService } from './webhooks';
 import {
+  AttendanceRecord,
   AttendanceManagementFilters,
   AttendanceRecordWithUser,
   AttendanceManagementResponse,
@@ -14,20 +15,7 @@ import {
   AttendanceEditRequestsResponse
 } from '@/types/attendance';
 
-export interface AttendanceRecord {
-  id: number;
-  userId: number;
-  date: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  breakStartTime?: string;
-  breakEndTime?: string;
-  breakDuration: number;
-  totalHours: number;
-  status: 'present' | 'absent';
-  workLocation?: 'WFH' | 'Onsite' | 'Field';
-  notes?: string;
-}
+export type { AttendanceRecord };
 
 export interface AttendanceSummary {
   totalDays: number;
@@ -56,23 +44,24 @@ export class AttendanceService {
       // IMPORTANT: Check for BOTH check_in_time AND check_out_time for completed session
       // This prevents incorrectly treating records with only check_out_time as completed sessions
       if (existing && existing.check_in_time && existing.check_out_time) {
-        // Already checked out today - this is a new session
-        // Add previous session to sessions array
-        const sessions = existing.sessions ?
-          (typeof existing.sessions === 'string' ? JSON.parse(existing.sessions) : existing.sessions) :
-          [];
-        sessions.push({
-          checkIn: existing.check_in_time,
-          checkOut: existing.check_out_time
-        });
+        // Already checked out today — append the completed session and start a new one.
+        const priorSessions: Array<{ checkIn: string; checkOut: string }> = Array.isArray(existing.sessions)
+          ? existing.sessions
+          : typeof existing.sessions === 'string' && existing.sessions.length > 0
+            ? JSON.parse(existing.sessions)
+            : [];
 
-        // Reset check_in_time for new session, but keep accumulated total_hours and sessions
+        const sessions = [
+          ...priorSessions,
+          { checkIn: existing.check_in_time, checkOut: existing.check_out_time },
+        ];
+
         const result = await this.db.update('attendance', {
           check_in_time: checkInTime,
-          check_out_time: null, // Clear checkout for new session
+          check_out_time: null,
           work_location: workLocation || 'WFH',
           notes: notes ? `${existing.notes || ''}\n${notes}` : existing.notes,
-          sessions: JSON.stringify(sessions),
+          sessions,
           photo_url: photoUrl || existing.photo_url,
           updated_at: new Date()
         }, { id: existing.id });

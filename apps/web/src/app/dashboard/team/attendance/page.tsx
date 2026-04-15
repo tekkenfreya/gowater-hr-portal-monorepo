@@ -54,16 +54,16 @@ export default function TeamAttendancePage() {
     );
   };
 
-  const formatTime = (time: Date | undefined) => {
+  const formatTime = (time: string | undefined) => {
     if (!time) return '--';
     return formatPhilippineTime(new Date(time));
   };
 
-  const calculateWorkHours = (clockIn: Date | undefined, clockOut: Date | undefined) => {
-    if (!clockIn) return '--';
-    if (!clockOut) return 'Working...';
-    
-    const hours = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
+  const calculateWorkHours = (checkIn: string | undefined, checkOut: string | undefined) => {
+    if (!checkIn) return '--';
+    if (!checkOut) return 'Working...';
+
+    const hours = (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60);
     return `${hours.toFixed(1)}h`;
   };
 
@@ -278,13 +278,13 @@ export default function TeamAttendancePage() {
                       {getStatusBadge(member.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatTime(member.todayAttendance?.clockIn)}
+                      {formatTime(member.todayAttendance?.checkInTime)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatTime(member.todayAttendance?.clockOut)}
+                      {formatTime(member.todayAttendance?.checkOutTime)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {calculateWorkHours(member.todayAttendance?.clockIn, member.todayAttendance?.clockOut)}
+                      {calculateWorkHours(member.todayAttendance?.checkInTime, member.todayAttendance?.checkOutTime)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       <button className="text-blue-600 hover:text-blue-900 mr-4">View Details</button>

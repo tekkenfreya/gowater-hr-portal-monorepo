@@ -27,23 +27,18 @@ export interface LeaveBalance {
 }
 
 export interface AttendanceRecord {
-  id: string;
-  userId: string;
-  date: string; // YYYY-MM-DD
-  clockIn?: Date;
-  clockOut?: Date;
-  breaks: BreakRecord[];
-  totalWorkHours: number;
-  totalBreakHours: number;
+  id: number;
+  userId: number;
+  date: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  breakStartTime?: string;
+  breakEndTime?: string;
+  breakDuration: number;
+  totalHours: number;
   status: 'present' | 'absent';
-  location?: string;
-  tasks: Task[];
+  workLocation?: 'WFH' | 'Onsite' | 'Field';
   notes?: string;
-  regularizationRequest?: RegularizationRequest;
-  isHoliday: boolean;
-  overtimeHours: number;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface BreakRecord {
