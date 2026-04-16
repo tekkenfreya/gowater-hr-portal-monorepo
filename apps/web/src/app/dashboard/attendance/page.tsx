@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAttendance } from '@/contexts/AttendanceContext';
 import { logger } from '@/lib/logger';
 import { formatPhilippineTime } from '@/lib/timezone';
+import { hasStealthAttendanceAccess } from '@/lib/stealthAccess';
 import AttendanceEditModal from '@/components/AttendanceEditModal';
 
 interface WeeklyAttendanceData {
@@ -30,6 +31,25 @@ interface TeamUser {
   employeeName?: string;
 }
 
+interface InternSummary {
+  id: number;
+  name: string;
+  employeeId: string | null;
+  department: string | null;
+  position: string | null;
+  hireDate: string | null;
+  avatar: string | null;
+  daysWorked: number;
+  totalHours: number;
+  lastCheckIn: string | null;
+}
+
+interface InternAggregate {
+  totalInterns: number;
+  totalHours: number;
+  totalDays: number;
+}
+
 export default function AttendancePage() {
   const { user } = useAuth();
   const { isTimedIn, workDuration, checkInTime } = useAttendance();
@@ -37,13 +57,18 @@ export default function AttendancePage() {
 
   // Attendance calendar state
   const [weeklyAttendance, setWeeklyAttendance] = useState<WeeklyAttendanceData[]>([]);
-  const [activeTab, setActiveTab] = useState<'calendar' | 'summary' | 'team'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'summary' | 'team' | 'interns'>('calendar');
 
   // Team attendance state (admin only)
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
   const [teamWeeklyAttendance, setTeamWeeklyAttendance] = useState<WeeklyAttendanceData[]>([]);
   const [isLoadingTeamAttendance, setIsLoadingTeamAttendance] = useState(false);
+
+  // Interns/OJT state (admin only)
+  const [interns, setInterns] = useState<InternSummary[]>([]);
+  const [internsAggregate, setInternsAggregate] = useState<InternAggregate>({ totalInterns: 0, totalHours: 0, totalDays: 0 });
+  const [isLoadingInterns, setIsLoadingInterns] = useState(false);
 
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -63,7 +88,7 @@ export default function AttendancePage() {
   });
 
   // Check if user is admin (needed early for useEffects)
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || hasStealthAttendanceAccess(user?.id);
   const calendarRef = useRef<HTMLDivElement>(null);
 
   // Get week dates based on currentWeekStart (Sunday to Saturday)
@@ -160,6 +185,13 @@ export default function AttendancePage() {
     }
   }, [activeTab, selectedUserIndex, teamUsers, currentWeekStart, isAdmin]);
 
+  // Fetch interns summary when switching to interns tab (admin only)
+  useEffect(() => {
+    if (activeTab === 'interns' && isAdmin) {
+      fetchInternsSummary();
+    }
+  }, [activeTab, isAdmin]);
+
   // Format date as YYYY-MM-DD using local time (not UTC)
   const toLocalDateStr = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -249,6 +281,23 @@ export default function AttendancePage() {
       logger.error('Failed to fetch team attendance', error);
     } finally {
       setIsLoadingTeamAttendance(false);
+    }
+  };
+
+  // Fetch interns/OJT summary (admin only)
+  const fetchInternsSummary = async () => {
+    setIsLoadingInterns(true);
+    try {
+      const response = await fetch('/api/admin/interns/summary');
+      if (response.ok) {
+        const data = await response.json();
+        setInterns(data.interns || []);
+        setInternsAggregate(data.aggregate || { totalInterns: 0, totalHours: 0, totalDays: 0 });
+      }
+    } catch (error) {
+      logger.error('Failed to fetch interns summary', error);
+    } finally {
+      setIsLoadingInterns(false);
     }
   };
 
@@ -429,6 +478,22 @@ export default function AttendancePage() {
                 }}
               >
                 Team Attendance
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('interns')}
+                className={`pb-3 px-1 border-b-2 font-bold text-sm uppercase tracking-wider transition-all duration-300 ${
+                  activeTab === 'interns'
+                    ? 'border-cyan-400 text-cyan-400'
+                    : 'border-transparent hover:text-cyan-400'
+                }`}
+                style={{
+                  fontFamily: 'var(--font-geist-sans)',
+                  ...( activeTab !== 'interns' ? { color: 'rgba(255,255,255,0.4)' } : {} )
+                }}
+              >
+                Interns/OJT
               </button>
             )}
           </div>
@@ -991,7 +1056,7 @@ export default function AttendancePage() {
                 </div>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'team' ? (
             /* Team Attendance View - Admin Only */
             <div className="space-y-6">
               {/* User Navigation Header */}
@@ -1245,6 +1310,158 @@ export default function AttendancePage() {
                             </tr>
                           );
                         })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Interns/OJT View - Admin Only */
+            <div className="space-y-6">
+              {/* Aggregate Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div
+                  className="rounded-xl p-6"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-p3-cyan rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 3a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium mb-2" style={{ color: 'rgba(255,255,255,0.6)' }}>Total Interns</p>
+                  <p className="text-4xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{internsAggregate.totalInterns}</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Active OJTs</p>
+                </div>
+
+                <div
+                  className="rounded-xl p-6"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-p3-cyan rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium mb-2" style={{ color: 'rgba(255,255,255,0.6)' }}>Total Hours Logged</p>
+                  <p className="text-4xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{internsAggregate.totalHours}h</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Since start</p>
+                </div>
+
+                <div
+                  className="rounded-xl p-6"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(8px)'
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-p3-cyan rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium mb-2" style={{ color: 'rgba(255,255,255,0.6)' }}>Total Days Worked</p>
+                  <p className="text-4xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{internsAggregate.totalDays}</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Across all interns</p>
+                </div>
+              </div>
+
+              {/* Interns Table */}
+              {isLoadingInterns ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                </div>
+              ) : interns.length === 0 ? (
+                <div className="text-center py-12">
+                  <p style={{ color: 'rgba(255,255,255,0.4)' }}>No active interns found</p>
+                </div>
+              ) : (
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                >
+                  <div
+                    className="px-6 py-4"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      borderBottom: '1px solid rgba(255,255,255,0.1)'
+                    }}
+                  >
+                    <h3 className="text-base font-semibold text-white">Intern Hours Breakdown</h3>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Cumulative hours since each intern&apos;s hire date
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                      <thead style={{ background: 'rgba(255,255,255,0.05)' }}>
+                        <tr>
+                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Name</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Employee ID</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Department</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Hire Date</th>
+                          <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Days Worked</th>
+                          <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Total Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {interns.map((intern) => (
+                          <tr
+                            key={intern.id}
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+                          >
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-white font-bold text-sm">
+                                    {intern.name?.[0] || '?'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-white">{intern.name}</p>
+                                  {intern.position && (
+                                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{intern.position}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm" style={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-geist-mono, monospace)' }}>
+                              {intern.employeeId || '--'}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                              {intern.department || '--'}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                              {intern.hireDate
+                                ? new Date(intern.hireDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                : '--'}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm text-right text-white" style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>
+                              {intern.daysWorked}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-right">
+                              <span className="text-sm font-bold text-cyan-400" style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>
+                                {intern.totalHours}h
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
