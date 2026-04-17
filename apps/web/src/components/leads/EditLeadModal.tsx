@@ -174,7 +174,13 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     lead.industry === 'hospital' ? 'Hospital Name' :
     lead.industry === 'schools' ? 'School Name' :
     lead.industry === 'offices' ? 'Office Name' :
+    lead.industry === 'household' ? 'Customer Name' :
     'Company Name';
+
+  const hideBeneficiary = lead.industry !== null && [
+    'restaurants', 'lgu', 'hotel',
+    'property-development', 'hospital', 'offices', 'household',
+  ].includes(lead.industry);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -244,10 +250,8 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                 </div>
               )}
 
-              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel; renamed to "Members" for Microfinance */}
-              {lead.industry !== 'restaurants' &&
-                lead.industry !== 'lgu' &&
-                lead.industry !== 'hotel' && (
+              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel/Property Dev/Hospital/Offices/Household; renamed to "Members" for Microfinance */}
+              {!hideBeneficiary && (
               <div>
                 <label className="block text-sm font-semibold text-[#323130] mb-1.5">
                   {lead.industry === 'microfinance' ? 'Members' : 'Number of Beneficiary'}

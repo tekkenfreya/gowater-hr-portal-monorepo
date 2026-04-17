@@ -36,6 +36,7 @@ const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: 'schools', label: 'Schools' },
   { value: 'offices', label: 'Offices' },
   { value: 'sme', label: 'Small/Medium Enterprises' },
+  { value: 'household', label: 'Household' },
 ];
 
 interface Props {

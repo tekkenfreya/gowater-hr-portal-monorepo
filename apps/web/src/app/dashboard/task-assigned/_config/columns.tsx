@@ -53,6 +53,7 @@ export function getLeadColumns(
     industry === 'hospital' ? 'Hospital Name' :
     industry === 'schools' ? 'School Name' :
     industry === 'offices' ? 'Office Name' :
+    industry === 'household' ? 'Customer Name' :
     'Company Name';
   const columns: LeadColumn[] = [
     { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },
@@ -76,8 +77,10 @@ export function getLeadColumns(
   ];
 
   const hideType = pipeline === 'cold';
-  const hideBeneficiary =
-    industry === 'restaurants' || industry === 'lgu' || industry === 'hotel';
+  const hideBeneficiary = industry !== null && [
+    'restaurants', 'lgu', 'hotel',
+    'property-development', 'hospital', 'offices', 'household',
+  ].includes(industry);
 
   return columns.filter((c) => {
     if (hideType && c.header === 'Type') return false;

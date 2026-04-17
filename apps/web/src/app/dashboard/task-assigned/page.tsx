@@ -30,6 +30,7 @@ const INDUSTRY_LABELS: Record<Industry, string> = {
   schools: 'Schools',
   offices: 'Offices',
   sme: 'Small/Medium Enterprises',
+  household: 'Household',
 };
 
 const CATEGORY_LABELS: Record<LeadType, { plural: string; singular: string }> = {

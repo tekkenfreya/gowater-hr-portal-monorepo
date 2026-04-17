@@ -76,6 +76,7 @@ export const industrySchema = z.enum([
   'schools',
   'offices',
   'sme',
+  'household',
 ]);
 export const supplierCategorySchema = z.enum(['water-testing', 'printing-service', 'logistics', 'filters']);
 export const productTypeSchema = z.enum(['both', 'vending', 'dispenser']);

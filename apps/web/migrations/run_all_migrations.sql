@@ -537,7 +537,8 @@ BEGIN
   ALTER TABLE leads ADD CONSTRAINT leads_industry_check
     CHECK (industry IS NULL OR industry IN (
       'restaurants', 'lgu', 'hotel', 'microfinance', 'foundation',
-      'property-development', 'hospital', 'schools', 'offices', 'sme'
+      'property-development', 'hospital', 'schools', 'offices', 'sme',
+      'household'
     ));
 END $$;
 

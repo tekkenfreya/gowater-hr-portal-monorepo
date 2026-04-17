@@ -196,9 +196,15 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
     industry === 'hospital' ? 'Hospital Name' :
     industry === 'schools' ? 'School Name' :
     industry === 'offices' ? 'Office Name' :
+    industry === 'household' ? 'Customer Name' :
     industry === 'microfinance' ? 'Company Name' :
     industry === 'sme' ? 'Company Name' :
     'Company/Organization Name';
+
+  const hideBeneficiary = industry !== undefined && [
+    'restaurants', 'lgu', 'hotel',
+    'property-development', 'hospital', 'offices', 'household',
+  ].includes(industry);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -271,11 +277,8 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
                 />
               </div>
 
-              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel; renamed to "Members" for Microfinance */}
-              {(pipeline === 'cold' || formData.lead_type === 'company') &&
-                industry !== 'restaurants' &&
-                industry !== 'lgu' &&
-                industry !== 'hotel' && (
+              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel/Property Dev/Hospital/Offices/Household; renamed to "Members" for Microfinance */}
+              {(pipeline === 'cold' || formData.lead_type === 'company') && !hideBeneficiary && (
                 <div>
                   <label className="block text-sm font-semibold text-[#323130] mb-1.5">
                     {industry === 'microfinance' ? 'Members' : 'Number of Beneficiary'}
