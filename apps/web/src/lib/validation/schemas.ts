@@ -68,12 +68,18 @@ export const pipelineSchema = z.enum(['warm', 'cold', 'hot']);
 export const industrySchema = z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']);
 export const productTypeSchema = z.enum(['both', 'vending', 'dispenser']);
 export const leadStatusSchema = z.enum([
+  // lead/supplier values
   'not-started',
   'contacted',
   'quoted',
   'negotiating',
   'closed-deal',
-  'rejected'
+  'rejected',
+  // event values
+  'pending',
+  'confirmed',
+  'cancelled',
+  'attended',
 ]);
 
 const phoneNumberSchema = z.string()
@@ -141,6 +147,7 @@ const eventSpecificSchema = z.object({
   event_lead: z.string().max(255, 'Event lead must be 255 characters or fewer').optional(),
   number_of_attendees: numericStringSchema('Number of attendees'),
   event_report: z.string().max(500, 'Event report path must be 500 characters or fewer').optional(),
+  participation: z.string().max(50, 'Participation must be 50 characters or fewer').optional(),
 }).refine((data) => {
   if (data.event_start_date && data.event_end_date) {
     return new Date(data.event_end_date) >= new Date(data.event_start_date);
@@ -191,6 +198,7 @@ export const updateLeadSchema = z.object({
   event_lead: z.string().max(255).optional(),
   number_of_attendees: z.string().max(50).optional(),
   event_report: z.string().max(500).optional(),
+  participation: z.string().max(50).optional(),
 
   supplier_name: z.string().max(255).optional(),
   supplier_location: z.string().max(255).optional(),

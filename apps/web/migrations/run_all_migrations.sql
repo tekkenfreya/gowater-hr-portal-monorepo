@@ -466,6 +466,21 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Add participation column for event participation tracking
+-- (Exhibitor / Visitor / None — event-only, nullable)
+-- ============================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS participation TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_participation_to_leads') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_participation_to_leads', 'Added participation column for event Exhibitor/Visitor/None tracking', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

@@ -36,6 +36,19 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const EVENT_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'attended', label: 'Attended' },
+];
+
+const PARTICIPATION_OPTIONS = [
+  { value: 'exhibitor', label: 'Exhibitor' },
+  { value: 'visitor', label: 'Visitor' },
+  { value: 'none', label: 'None' },
+];
+
 export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: EditLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     type: lead.type,
@@ -67,6 +80,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     remarks: lead.remarks || '',
     disposition: lead.disposition || '',
     assigned_to: lead.assigned_to || '',
+    participation: lead.participation || '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -196,31 +210,39 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                 />
               </div>
 
-              {/* Lead Type */}
-              <div>
-                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Lead Type</label>
-                <input
-                  type="text"
-                  name="lead_type"
-                  value={formData.lead_type}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                  placeholder="e.g., Company/Organization, Individual"
-                />
-              </div>
+              {/* Lead Type - hidden for cold leads */}
+              {lead.pipeline !== 'cold' && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Lead Type</label>
+                  <input
+                    type="text"
+                    name="lead_type"
+                    value={formData.lead_type}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                    placeholder="e.g., Company/Organization, Individual"
+                  />
+                </div>
+              )}
 
-              {/* Number of Beneficiary */}
+              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel; renamed to "Members" for Microfinance */}
+              {lead.industry !== 'restaurants' &&
+                lead.industry !== 'lgu' &&
+                lead.industry !== 'hotel' && (
               <div>
-                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Number of Beneficiary</label>
+                <label className="block text-sm font-semibold text-[#323130] mb-1.5">
+                  {lead.industry === 'microfinance' ? 'Members' : 'Number of Beneficiary'}
+                </label>
                 <input
                   type="text"
                   name="number_of_beneficiary"
                   value={formData.number_of_beneficiary}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                  placeholder="Enter number of beneficiaries"
+                  placeholder={lead.industry === 'microfinance' ? 'Enter number of members' : 'Enter number of beneficiaries'}
                 />
               </div>
+              )}
 
               {/* Lead Source */}
               <div>
@@ -316,6 +338,24 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                   className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
                   placeholder="e.g., 200-300, 500+"
                 />
+              </div>
+
+              {/* Participation */}
+              <div>
+                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Participation</label>
+                <select
+                  name="participation"
+                  value={formData.participation || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                >
+                  <option value="">Select participation</option>
+                  {PARTICIPATION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </>
           )}
@@ -470,7 +510,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
               onChange={handleChange}
               className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
             >
-              {STATUS_OPTIONS.map((option) => (
+              {(lead.type === 'event' ? EVENT_STATUS_OPTIONS : STATUS_OPTIONS).map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

@@ -39,6 +39,9 @@ export interface Lead {
   price: string | null;
   unit_type: string | null;
 
+  // EVENT PARTICIPATION (event-only, null otherwise)
+  participation: string | null;
+
   // SHARED FIELDS
   contact_person: string | null;
   mobile_number: string | null;
@@ -100,6 +103,9 @@ export interface LeadFormData {
   supplier_product?: string;
   price?: string;
   unit_type?: string;
+
+  // EVENT PARTICIPATION
+  participation?: string;
 
   // SHARED
   contact_person?: string;

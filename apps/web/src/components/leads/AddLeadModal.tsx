@@ -38,6 +38,19 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
+const EVENT_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'attended', label: 'Attended' },
+];
+
+const PARTICIPATION_OPTIONS = [
+  { value: 'exhibitor', label: 'Exhibitor' },
+  { value: 'visitor', label: 'Visitor' },
+  { value: 'none', label: 'None' },
+];
+
 const LEAD_TYPE_OPTIONS = [
   { value: 'company', label: 'Company/Organization' },
   { value: 'individual', label: 'Individual' },
@@ -69,7 +82,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
     type,
     pipeline,
     industry,
-    lead_type: 'company',
+    lead_type: pipeline === 'cold' ? '' : 'company',
     company_name: '',
     contact_person: '',
     number_of_beneficiary: '',
@@ -92,10 +105,11 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
     mobile_number: '',
     email_address: '',
     product: undefined,
-    status: 'not-started',
+    status: type === 'event' ? 'pending' : 'not-started',
     remarks: '',
     disposition: '',
     assigned_to: '',
+    participation: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -103,7 +117,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
     e.preventDefault();
 
     // Validate based on category
-    if (type === 'lead' && formData.lead_type === 'company' && !formData.company_name?.trim()) {
+    if (type === 'lead' && (pipeline === 'cold' || formData.lead_type === 'company') && !formData.company_name?.trim()) {
       alert('Company name is required for company/organization leads');
       return;
     }
@@ -183,25 +197,27 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
           {/* LEAD FIELDS */}
           {isLead && (
             <>
-              {/* Lead Type */}
-              <div>
-                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Type</label>
-                <select
-                  name="lead_type"
-                  value={formData.lead_type || 'company'}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                >
-                  {LEAD_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Lead Type - hidden for cold leads */}
+              {pipeline !== 'cold' && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Type</label>
+                  <select
+                    name="lead_type"
+                    value={formData.lead_type || 'company'}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                  >
+                    {LEAD_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Company/Organization Name - conditional */}
-              {formData.lead_type === 'company' && (
+              {(pipeline === 'cold' || formData.lead_type === 'company') && (
                 <div>
                   <label className="block text-sm font-semibold text-[#323130] mb-1.5">
                     Company/Organization Name <span className="text-[#D13438]">*</span>
@@ -231,17 +247,22 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
                 />
               </div>
 
-              {/* Number of Beneficiary - conditional */}
-              {formData.lead_type === 'company' && (
+              {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel; renamed to "Members" for Microfinance */}
+              {(pipeline === 'cold' || formData.lead_type === 'company') &&
+                industry !== 'restaurants' &&
+                industry !== 'lgu' &&
+                industry !== 'hotel' && (
                 <div>
-                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Number of Beneficiary</label>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">
+                    {industry === 'microfinance' ? 'Members' : 'Number of Beneficiary'}
+                  </label>
                   <input
                     type="text"
                     name="number_of_beneficiary"
                     value={formData.number_of_beneficiary}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                    placeholder="e.g., 50, 100-200"
+                    placeholder={industry === 'microfinance' ? 'e.g., 200, 1000-5000' : 'e.g., 50, 100-200'}
                   />
                 </div>
               )}
@@ -464,6 +485,24 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
                   placeholder="Enter event lead/organizer name"
                 />
               </div>
+
+              {/* Participation */}
+              <div>
+                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Participation</label>
+                <select
+                  name="participation"
+                  value={formData.participation || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                >
+                  <option value="">Select participation</option>
+                  {PARTICIPATION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
 
@@ -620,7 +659,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
               onChange={handleChange}
               className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
             >
-              {STATUS_OPTIONS.map((option) => (
+              {(isEvent ? EVENT_STATUS_OPTIONS : STATUS_OPTIONS).map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

@@ -41,6 +41,8 @@ export class LeadService {
       number_of_attendees: type === 'event' ? leadData.number_of_attendees || null : null,
       event_report: type === 'event' ? leadData.event_report || null : null,
 
+      participation: type === 'event' ? leadData.participation || null : null,
+
       supplier_name: type === 'supplier' ? leadData.supplier_name || null : null,
       supplier_location: type === 'supplier' ? leadData.supplier_location || null : null,
       supplier_product: type === 'supplier' ? leadData.supplier_product || null : null,
@@ -120,6 +122,7 @@ export class LeadService {
     if (updates.event_lead !== undefined) updateData.event_lead = updates.event_lead || null;
     if (updates.number_of_attendees !== undefined) updateData.number_of_attendees = updates.number_of_attendees || null;
     if (updates.event_report !== undefined) updateData.event_report = updates.event_report || null;
+    if (updates.participation !== undefined) updateData.participation = updates.participation || null;
 
     if (updates.supplier_name !== undefined) updateData.supplier_name = updates.supplier_name || null;
     if (updates.supplier_location !== undefined) updateData.supplier_location = updates.supplier_location || null;
