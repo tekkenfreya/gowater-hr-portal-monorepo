@@ -134,7 +134,7 @@ export default function DispatchedUnitsPage() {
         itemsPerPage={ITEMS_PER_PAGE}
         onPageChange={setPage}
         onView={(unit) => router.push(`/dashboard/admin/units/${unit.id}`)}
-        onPrintLabel={(unit) => window.open(`/api/admin/units/${unit.id}/label`, '_blank')}
+        onPrintLabel={(unit) => window.open(`/api/admin/units/${unit.id}/label?v=qr`, '_blank')}
       />
 
       {showCreateModal && (

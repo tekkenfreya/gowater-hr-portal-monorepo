@@ -77,7 +77,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: 200,
       headers: {
         'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'public, max-age=300, must-revalidate',
       },
     });
   } catch (error) {
