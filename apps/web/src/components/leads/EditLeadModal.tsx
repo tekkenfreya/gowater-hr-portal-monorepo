@@ -49,6 +49,13 @@ const PARTICIPATION_OPTIONS = [
   { value: 'none', label: 'None' },
 ];
 
+const SUPPLIER_CATEGORY_OPTIONS = [
+  { value: 'water-testing', label: 'Water Testing' },
+  { value: 'printing-service', label: 'Printing Service' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'filters', label: 'Filters' },
+];
+
 export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: EditLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     type: lead.type,
@@ -71,6 +78,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     supplier_product: lead.supplier_product || '',
     price: lead.price || '',
     unit_type: lead.unit_type || '',
+    supplier_category: lead.supplier_category || undefined,
     // SHARED FIELDS
     contact_person: lead.contact_person || '',
     mobile_number: lead.mobile_number || '',
@@ -442,6 +450,24 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                   ))}
                 </select>
               </div>
+
+              {/* Supplier Category */}
+              <div>
+                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Category</label>
+                <select
+                  name="supplier_category"
+                  value={formData.supplier_category || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                >
+                  <option value="">Select category</option>
+                  {SUPPLIER_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
 
@@ -525,8 +551,8 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
             </select>
           </div>
 
-          {/* Assigned To - hidden for events */}
-          {!isEvent && (
+          {/* Assigned To - leads only */}
+          {isLead && (
             <div>
               <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
               <input
@@ -553,8 +579,8 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
             />
           </div>
 
-          {/* Disposition - hidden for events */}
-          {!isEvent && (
+          {/* Disposition - leads only */}
+          {isLead && (
             <div>
               <label className="block text-sm font-semibold text-[#323130] mb-1.5">Disposition</label>
               <textarea
@@ -563,7 +589,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                 onChange={handleChange}
                 rows={2}
                 className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-                placeholder={isLead ? 'Current disposition for this lead' : 'Current status with this supplier'}
+                placeholder="Current disposition for this lead"
               />
             </div>
           )}

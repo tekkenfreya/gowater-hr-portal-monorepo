@@ -1,5 +1,5 @@
 import { getDb } from './supabase';
-import { Lead, LeadActivity, LeadFormData, ActivityFormData, LeadWithActivities, DashboardStats, LeadType, Pipeline, Industry } from '@/types/leads';
+import { Lead, LeadActivity, LeadFormData, ActivityFormData, LeadWithActivities, DashboardStats, LeadType, Pipeline, Industry, SupplierCategory } from '@/types/leads';
 import { randomUUID } from 'crypto';
 import { getWebhookService } from './webhooks';
 import { logger } from './logger';
@@ -8,6 +8,7 @@ export interface LeadFilter {
   type?: LeadType;
   pipeline?: Pipeline;
   industry?: Industry;
+  supplier_category?: SupplierCategory;
 }
 
 export class LeadService {
@@ -48,6 +49,7 @@ export class LeadService {
       supplier_product: type === 'supplier' ? leadData.supplier_product || null : null,
       price: type === 'supplier' ? leadData.price || null : null,
       unit_type: type === 'supplier' ? leadData.unit_type || null : null,
+      supplier_category: type === 'supplier' ? leadData.supplier_category || null : null,
 
       contact_person: leadData.contact_person || null,
       mobile_number: leadData.mobile_number || null,
@@ -82,6 +84,7 @@ export class LeadService {
     if (filter.type) conditions.type = filter.type;
     if (filter.pipeline) conditions.pipeline = filter.pipeline;
     if (filter.industry) conditions.industry = filter.industry;
+    if (filter.supplier_category) conditions.supplier_category = filter.supplier_category;
 
     let orderByField = 'created_at';
     if (filter.type === 'event') orderByField = 'event_start_date';
@@ -129,6 +132,7 @@ export class LeadService {
     if (updates.supplier_product !== undefined) updateData.supplier_product = updates.supplier_product || null;
     if (updates.price !== undefined) updateData.price = updates.price || null;
     if (updates.unit_type !== undefined) updateData.unit_type = updates.unit_type || null;
+    if (updates.supplier_category !== undefined) updateData.supplier_category = updates.supplier_category || null;
 
     if (updates.contact_person !== undefined) updateData.contact_person = updates.contact_person || null;
     if (updates.mobile_number !== undefined) updateData.mobile_number = updates.mobile_number || null;

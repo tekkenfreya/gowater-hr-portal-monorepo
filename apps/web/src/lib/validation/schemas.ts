@@ -66,6 +66,7 @@ export const leadTypeSchema = z.enum(['lead', 'event', 'supplier']);
 export const leadCategorySchema = leadTypeSchema; // legacy alias
 export const pipelineSchema = z.enum(['warm', 'cold', 'hot']);
 export const industrySchema = z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']);
+export const supplierCategorySchema = z.enum(['water-testing', 'printing-service', 'logistics', 'filters']);
 export const productTypeSchema = z.enum(['both', 'vending', 'dispenser']);
 export const leadStatusSchema = z.enum([
   // lead/supplier values
@@ -168,6 +169,7 @@ const supplierSpecificSchema = z.object({
   supplier_product: z.string().max(255, 'Supplier product must be 255 characters or fewer').optional(),
   price: z.string().max(50, 'Price must be 50 characters or fewer').optional(),
   unit_type: z.string().max(50, 'Unit type must be 50 characters or fewer').optional(),
+  supplier_category: z.string().max(50, 'Supplier category must be 50 characters or fewer').optional(),
 });
 
 export const createLeadSchema = z.discriminatedUnion('type', [
@@ -205,6 +207,7 @@ export const updateLeadSchema = z.object({
   supplier_product: z.string().max(255).optional(),
   price: z.string().max(50).optional(),
   unit_type: z.string().max(50).optional(),
+  supplier_category: z.string().max(50).optional(),
 
   contact_person: z.string().max(255).optional(),
   mobile_number: phoneNumberSchema,

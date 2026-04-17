@@ -1,5 +1,12 @@
 import { ReactNode } from 'react';
 import { Lead, Pipeline, Industry } from '@/types/leads';
+
+const SUPPLIER_CATEGORY_LABELS: Record<string, string> = {
+  'water-testing': 'Water Testing',
+  'printing-service': 'Printing Service',
+  'logistics': 'Logistics',
+  'filters': 'Filters',
+};
 import StatusBadge from '../_components/StatusBadge';
 import RowActions, { RowActionHandlers } from '../_components/RowActions';
 
@@ -105,6 +112,11 @@ export function getSupplierColumns(h: RowActionHandlers): LeadColumn[] {
   return [
     { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },
     { header: 'Supplier Name', tdClassName: NAME_TD, cell: (l) => bold(l.supplier_name) },
+    {
+      header: 'Category',
+      tdClassName: TEXT_TD,
+      cell: (l) => l.supplier_category ? (SUPPLIER_CATEGORY_LABELS[l.supplier_category] || l.supplier_category) : 'N/A',
+    },
     { header: 'Location', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.supplier_location) },
     { header: 'Product', tdClassName: TEXT_TD, cell: (l) => l.supplier_product || 'N/A' },
     { header: 'Price', tdClassName: TEXT_TD, cell: (l) => l.price || 'N/A' },
@@ -113,8 +125,6 @@ export function getSupplierColumns(h: RowActionHandlers): LeadColumn[] {
     { header: 'Mobile', tdClassName: TEXT_TD, cell: (l) => l.mobile_number || 'N/A' },
     { header: 'Email', tdClassName: TRUNCATE_150, cell: (l) => trunc(l.email_address) },
     { header: 'Status', tdClassName: BARE_TD, cell: (l) => <StatusBadge status={l.status} /> },
-    { header: 'Assigned', tdClassName: TEXT_TD, cell: (l) => l.assigned_to || 'Unassigned' },
-    { header: 'Disposition', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.disposition, '-') },
     { header: 'Actions', tdClassName: BARE_TD, cell: (l) => <RowActions lead={l} {...h} /> },
   ];
 }

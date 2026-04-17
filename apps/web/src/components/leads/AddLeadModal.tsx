@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LeadType, Pipeline, Industry, ProductType, LeadFormData } from '@/types/leads';
+import { LeadType, Pipeline, Industry, SupplierCategory, ProductType, LeadFormData } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import { X } from 'lucide-react';
 
@@ -9,6 +9,7 @@ interface AddLeadModalProps {
   type: LeadType;
   pipeline?: Pipeline;
   industry?: Industry;
+  supplierCategory?: SupplierCategory;
   onClose: () => void;
   onSuccess: () => void;
   apiBasePath?: string;
@@ -51,6 +52,13 @@ const PARTICIPATION_OPTIONS = [
   { value: 'none', label: 'None' },
 ];
 
+const SUPPLIER_CATEGORY_OPTIONS = [
+  { value: 'water-testing', label: 'Water Testing' },
+  { value: 'printing-service', label: 'Printing Service' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'filters', label: 'Filters' },
+];
+
 const LEAD_TYPE_OPTIONS = [
   { value: 'company', label: 'Company/Organization' },
   { value: 'individual', label: 'Individual' },
@@ -77,7 +85,7 @@ const DISPOSITION_OPTIONS = [
   { value: 'for-negotiation', label: 'For Further Negotiation' },
 ];
 
-export default function AddLeadModal({ type, pipeline = 'warm', industry, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
+export default function AddLeadModal({ type, pipeline = 'warm', industry, supplierCategory, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     type,
     pipeline,
@@ -102,6 +110,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
     supplier_product: '',
     price: '',
     unit_type: '',
+    supplier_category: supplierCategory,
     mobile_number: '',
     email_address: '',
     product: undefined,
@@ -589,6 +598,24 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
                   ))}
                 </select>
               </div>
+
+              {/* Supplier Category */}
+              <div>
+                <label className="block text-sm font-semibold text-[#323130] mb-1.5">Category</label>
+                <select
+                  name="supplier_category"
+                  value={formData.supplier_category || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                >
+                  <option value="">Select category</option>
+                  {SUPPLIER_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
 
@@ -675,21 +702,6 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
             </select>
           </div>
 
-          {/* Assigned To - hidden for events */}
-          {!isEvent && (
-            <div>
-              <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
-              <input
-                type="text"
-                name="assigned_to"
-                value={formData.assigned_to}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                placeholder="Leave blank to auto-assign to yourself"
-              />
-            </div>
-          )}
-
           {/* Event Report Upload (Events only) or Remarks (Supplier only) */}
           {isEvent ? (
             <div>
@@ -723,20 +735,6 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
             </div>
           )}
 
-          {/* Next Action - for supplier only (removed for events) */}
-          {isSupplier && (
-            <div>
-              <label className="block text-sm font-semibold text-[#323130] mb-1.5">Next Action</label>
-              <textarea
-                name="disposition"
-                value={formData.disposition}
-                onChange={handleChange}
-                rows={2}
-                className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-                placeholder="What should be done next with this supplier?"
-              />
-            </div>
-          )}
             </>
           )}
 

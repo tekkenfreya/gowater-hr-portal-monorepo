@@ -1,4 +1,4 @@
-import { LeadType, Pipeline, Industry } from '@/types/leads';
+import { LeadType, Pipeline, Industry, SupplierCategory } from '@/types/leads';
 import {
   Plus,
   Building2,
@@ -15,7 +15,13 @@ const TYPES: {
 }[] = [
   { value: 'lead', label: 'Leads', icon: Building2 },
   { value: 'event', label: 'Events', icon: Calendar },
-  { value: 'supplier', label: 'Supplier', icon: Package },
+];
+
+const SUPPLIER_CATEGORIES: { value: SupplierCategory; label: string }[] = [
+  { value: 'water-testing', label: 'Water Testing' },
+  { value: 'printing-service', label: 'Printing Service' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'filters', label: 'Filters' },
 ];
 
 const INDUSTRIES: { value: Industry; label: string }[] = [
@@ -30,13 +36,17 @@ interface Props {
   selectedType: LeadType;
   selectedPipeline: Pipeline;
   selectedIndustry: Industry | null;
+  selectedSupplierCategory: SupplierCategory | null;
   coldLeadsExpanded: boolean;
   hotLeadsExpanded: boolean;
+  supplierExpanded: boolean;
   onAdd: () => void;
   onSelectWarm: (type: LeadType) => void;
+  onSelectSupplierCategory: (category: SupplierCategory) => void;
   onSelectPipelineIndustry: (pipeline: 'cold' | 'hot', industry: Industry) => void;
   onToggleCold: () => void;
   onToggleHot: () => void;
+  onToggleSupplier: () => void;
 }
 
 interface PipelineSectionProps {
@@ -112,14 +122,19 @@ export default function LeadsSidebar({
   selectedType,
   selectedPipeline,
   selectedIndustry,
+  selectedSupplierCategory,
   coldLeadsExpanded,
   hotLeadsExpanded,
+  supplierExpanded,
   onAdd,
   onSelectWarm,
+  onSelectSupplierCategory,
   onSelectPipelineIndustry,
   onToggleCold,
   onToggleHot,
+  onToggleSupplier,
 }: Props) {
+  const isSupplierActive = selectedPipeline === 'warm' && selectedType === 'supplier';
   return (
     <div className="w-64 border-r border-p3-cyan/20 p-6 flex flex-col bg-p3-navy-dark/30 backdrop-blur-sm">
       <button
@@ -130,7 +145,7 @@ export default function LeadsSidebar({
         Add Item
       </button>
 
-      <nav className="space-y-1 mb-4">
+      <nav className="space-y-1 mb-2">
         {TYPES.map((t) => {
           const Icon = t.icon;
           const isActive = selectedPipeline === 'warm' && selectedType === t.value;
@@ -149,6 +164,47 @@ export default function LeadsSidebar({
           );
         })}
       </nav>
+
+      {/* Supplier: expandable with sub-categories */}
+      <div className="space-y-0.5 mb-4">
+        <button
+          onClick={() => { onSelectWarm('supplier'); onToggleSupplier(); }}
+          className={`w-full text-left px-3 py-2 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
+            isSupplierActive && !selectedSupplierCategory ? 'text-cyan-400 border-l-4 border-cyan-400' : 'hover:bg-white/5'
+          }`}
+          style={{ color: isSupplierActive ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
+        >
+          <Package className="w-4 h-4" />
+          Supplier
+          <ChevronDown
+            className={`w-3.5 h-3.5 ml-auto transition-transform duration-200 ${
+              supplierExpanded ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        {supplierExpanded && (
+          <div className="ml-4 space-y-0.5">
+            {SUPPLIER_CATEGORIES.map((cat) => {
+              const isActive = isSupplierActive && selectedSupplierCategory === cat.value;
+              return (
+                <button
+                  key={cat.value}
+                  onClick={() => onSelectSupplierCategory(cat.value)}
+                  className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors duration-150 flex items-center gap-2 ${
+                    isActive ? 'text-cyan-400' : 'hover:bg-white/5'
+                  }`}
+                  style={{
+                    color: isActive ? '#7dd3fc' : 'rgba(255,255,255,0.6)',
+                    backgroundColor: isActive ? 'rgba(125,211,252,0.1)' : undefined,
+                  }}
+                >
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div className="mb-2">
         <PipelineSection

@@ -1,6 +1,7 @@
 export type LeadType = 'lead' | 'event' | 'supplier';
 export type Pipeline = 'warm' | 'cold' | 'hot';
 export type Industry = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
+export type SupplierCategory = 'water-testing' | 'printing-service' | 'logistics' | 'filters';
 export type ProductType = 'both' | 'vending' | 'dispenser';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'site-visit' | 'follow-up' | 'remark' | 'other' | 'active-supplier' | 'recording' | 'checking';
 
@@ -38,6 +39,7 @@ export interface Lead {
   supplier_product: string | null;
   price: string | null;
   unit_type: string | null;
+  supplier_category: string | null;
 
   // EVENT PARTICIPATION (event-only, null otherwise)
   participation: string | null;
@@ -103,6 +105,7 @@ export interface LeadFormData {
   supplier_product?: string;
   price?: string;
   unit_type?: string;
+  supplier_category?: string;
 
   // EVENT PARTICIPATION
   participation?: string;

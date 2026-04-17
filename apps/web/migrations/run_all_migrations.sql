@@ -481,6 +481,21 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Add supplier_category column for supplier sub-categorization
+-- (Water Testing / Printing Service / Logistics / Filters — supplier-only, nullable)
+-- ============================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS supplier_category TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_supplier_category_to_leads') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_supplier_category_to_leads', 'Added supplier_category column for Water Testing / Printing / Logistics / Filters', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

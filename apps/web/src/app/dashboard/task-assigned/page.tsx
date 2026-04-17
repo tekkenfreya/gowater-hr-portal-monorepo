@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Lead, LeadType, Pipeline, Industry } from '@/types/leads';
+import { Lead, LeadType, Pipeline, Industry, SupplierCategory } from '@/types/leads';
 import { logger } from '@/lib/logger';
 import AddLeadModal from '@/components/leads/AddLeadModal';
 import EditLeadModal from '@/components/leads/EditLeadModal';
@@ -32,6 +32,13 @@ const CATEGORY_LABELS: Record<LeadType, { plural: string; singular: string }> = 
   supplier: { plural: 'Supplier', singular: 'Supplier' },
 };
 
+const SUPPLIER_CATEGORY_LABELS: Record<SupplierCategory, string> = {
+  'water-testing': 'Water Testing',
+  'printing-service': 'Printing Service',
+  'logistics': 'Logistics',
+  'filters': 'Filters',
+};
+
 const API_BASE_PATH = '/api/leads';
 
 export default function LeadsPage() {
@@ -39,8 +46,10 @@ export default function LeadsPage() {
   const [selectedType, setSelectedType] = useState<LeadType>('lead');
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline>('warm');
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
+  const [selectedSupplierCategory, setSelectedSupplierCategory] = useState<SupplierCategory | null>(null);
   const [coldLeadsExpanded, setColdLeadsExpanded] = useState(false);
   const [hotLeadsExpanded, setHotLeadsExpanded] = useState(false);
+  const [supplierExpanded, setSupplierExpanded] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -57,6 +66,7 @@ export default function LeadsPage() {
       setLoading(true);
       const params = new URLSearchParams({ type: selectedType, pipeline });
       if (selectedIndustry) params.set('industry', selectedIndustry);
+      if (selectedSupplierCategory) params.set('supplier_category', selectedSupplierCategory);
       const response = await fetch(`${API_BASE_PATH}?${params.toString()}`);
       const data = await response.json();
       if (response.ok) {
@@ -73,12 +83,13 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetchLeads();
-  }, [selectedType, selectedPipeline, selectedIndustry]);
+  }, [selectedType, selectedPipeline, selectedIndustry, selectedSupplierCategory]);
 
   const handleExportToExcel = async () => {
     try {
       const params = new URLSearchParams({ type: selectedType, pipeline });
       if (selectedIndustry) params.set('industry', selectedIndustry);
+      if (selectedSupplierCategory) params.set('supplier_category', selectedSupplierCategory);
       const response = await fetch(`${API_BASE_PATH}/export?${params.toString()}`);
 
       if (!response.ok) {
@@ -138,6 +149,7 @@ export default function LeadsPage() {
 
   const { plural: categoryLabel, singular: singularLabel } = CATEGORY_LABELS[selectedType];
   const industryLabel = selectedIndustry ? INDUSTRY_LABELS[selectedIndustry] : null;
+  const supplierCategoryLabel = selectedSupplierCategory ? SUPPLIER_CATEGORY_LABELS[selectedSupplierCategory] : null;
   const pipelineLabel = selectedPipeline === 'hot' ? 'Hot' : 'Cold';
 
   return (
@@ -146,21 +158,32 @@ export default function LeadsPage() {
         selectedType={selectedType}
         selectedPipeline={selectedPipeline}
         selectedIndustry={selectedIndustry}
+        selectedSupplierCategory={selectedSupplierCategory}
         coldLeadsExpanded={coldLeadsExpanded}
         hotLeadsExpanded={hotLeadsExpanded}
+        supplierExpanded={supplierExpanded}
         onAdd={openAddFlow}
         onSelectWarm={(type) => {
           setSelectedType(type);
           setSelectedPipeline('warm');
           setSelectedIndustry(null);
+          setSelectedSupplierCategory(null);
+        }}
+        onSelectSupplierCategory={(category) => {
+          setSelectedType('supplier');
+          setSelectedPipeline('warm');
+          setSelectedIndustry(null);
+          setSelectedSupplierCategory(category);
         }}
         onSelectPipelineIndustry={(p, industry) => {
           setSelectedType('lead');
           setSelectedPipeline(p);
           setSelectedIndustry(industry);
+          setSelectedSupplierCategory(null);
         }}
         onToggleCold={() => setColdLeadsExpanded((prev) => !prev)}
         onToggleHot={() => setHotLeadsExpanded((prev) => !prev)}
+        onToggleSupplier={() => setSupplierExpanded((prev) => !prev)}
       />
 
       <div className="flex-1 p-8 min-w-0">
@@ -169,11 +192,15 @@ export default function LeadsPage() {
             <h1 className="text-3xl font-semibold text-white mb-1">
               {industryLabel
                 ? `${pipelineLabel} ${categoryLabel} — ${industryLabel}`
+                : supplierCategoryLabel
+                ? `Supplier — ${supplierCategoryLabel}`
                 : categoryLabel}
             </h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
               {industryLabel
                 ? `${pipelineLabel} leads for ${industryLabel}`
+                : supplierCategoryLabel
+                ? `${supplierCategoryLabel} suppliers`
                 : `Manage and track your ${categoryLabel.toLowerCase()}`}
             </p>
           </div>
@@ -204,6 +231,7 @@ export default function LeadsPage() {
           type={selectedType}
           pipeline={pipeline}
           industry={selectedIndustry || undefined}
+          supplierCategory={selectedSupplierCategory || undefined}
           apiBasePath={API_BASE_PATH}
           onClose={closeAddModal}
           onSuccess={() => {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getLeadService } from '@/lib/leads';
 import { logger } from '@/lib/logger';
-import { LeadFormData, LeadType, Pipeline, Industry } from '@/types/leads';
+import { LeadFormData, LeadType, Pipeline, Industry, SupplierCategory } from '@/types/leads';
 import { createLeadSchema, updateLeadSchema } from '@/lib/validation/schemas';
 import { safeParseBody, createErrorResponse } from '@/lib/validation/middleware';
 import { describeDbError } from '@/lib/validation/dbErrors';
@@ -27,12 +27,14 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') as LeadType | null;
     const pipeline = searchParams.get('pipeline') as Pipeline | null;
     const industry = searchParams.get('industry') as Industry | null;
+    const supplier_category = searchParams.get('supplier_category') as SupplierCategory | null;
 
     const leadService = getLeadService();
     const leads = await leadService.getLeads({
       type: type || undefined,
       pipeline: pipeline || undefined,
       industry: industry || undefined,
+      supplier_category: supplier_category || undefined,
     });
 
     return NextResponse.json({ leads, message: 'Leads fetched successfully' });
