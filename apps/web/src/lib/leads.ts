@@ -9,6 +9,7 @@ export interface LeadFilter {
   pipeline?: Pipeline;
   industry?: Industry;
   supplier_category?: SupplierCategory;
+  not_interested?: boolean;
 }
 
 export class LeadService {
@@ -59,6 +60,7 @@ export class LeadService {
       remarks: leadData.remarks || null,
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
+      not_interested: leadData.not_interested ?? false,
       created_by: employeeName,
       created_at: now,
       updated_at: now,
@@ -85,6 +87,7 @@ export class LeadService {
     if (filter.pipeline) conditions.pipeline = filter.pipeline;
     if (filter.industry) conditions.industry = filter.industry;
     if (filter.supplier_category) conditions.supplier_category = filter.supplier_category;
+    if (filter.not_interested !== undefined) conditions.not_interested = filter.not_interested;
 
     let orderByField = 'created_at';
     if (filter.type === 'event') orderByField = 'event_start_date';
@@ -103,7 +106,7 @@ export class LeadService {
   }
 
   async updateLead(leadId: string, updates: Partial<LeadFormData>): Promise<void> {
-    const updateData: Record<string, string | number | null> = {
+    const updateData: Record<string, string | number | boolean | null> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -142,6 +145,7 @@ export class LeadService {
     if (updates.remarks !== undefined) updateData.remarks = updates.remarks || null;
     if (updates.disposition !== undefined) updateData.disposition = updates.disposition || null;
     if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to || null;
+    if (updates.not_interested !== undefined) updateData.not_interested = updates.not_interested;
 
     await this.db.update('leads', updateData, { id: leadId });
 

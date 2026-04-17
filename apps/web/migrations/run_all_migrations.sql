@@ -496,6 +496,24 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Add not_interested flag for archive/trash functionality
+-- Rows with not_interested=true appear only in the Not Interested view;
+-- all other views filter them out.
+-- ============================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS not_interested BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_leads_not_interested ON leads(not_interested);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_not_interested_flag') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_not_interested_flag', 'Added not_interested boolean flag for archive/trash functionality', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

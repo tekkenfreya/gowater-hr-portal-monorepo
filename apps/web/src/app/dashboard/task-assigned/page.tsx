@@ -16,6 +16,7 @@ import {
   getLeadColumns,
   getEventColumns,
   getSupplierColumns,
+  getNotInterestedColumns,
 } from './_config/columns';
 
 const INDUSTRY_LABELS: Record<Industry, string> = {
@@ -47,6 +48,7 @@ export default function LeadsPage() {
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline>('warm');
   const [selectedIndustry, setSelectedIndustry] = useState<Industry | null>(null);
   const [selectedSupplierCategory, setSelectedSupplierCategory] = useState<SupplierCategory | null>(null);
+  const [isNotInterestedActive, setIsNotInterestedActive] = useState(false);
   const [coldLeadsExpanded, setColdLeadsExpanded] = useState(false);
   const [hotLeadsExpanded, setHotLeadsExpanded] = useState(false);
   const [supplierExpanded, setSupplierExpanded] = useState(false);
@@ -64,9 +66,16 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({ type: selectedType, pipeline });
-      if (selectedIndustry) params.set('industry', selectedIndustry);
-      if (selectedSupplierCategory) params.set('supplier_category', selectedSupplierCategory);
+      const params = new URLSearchParams();
+      if (isNotInterestedActive) {
+        params.set('not_interested', 'true');
+      } else {
+        params.set('type', selectedType);
+        params.set('pipeline', pipeline);
+        if (selectedIndustry) params.set('industry', selectedIndustry);
+        if (selectedSupplierCategory) params.set('supplier_category', selectedSupplierCategory);
+        params.set('not_interested', 'false');
+      }
       const response = await fetch(`${API_BASE_PATH}?${params.toString()}`);
       const data = await response.json();
       if (response.ok) {
@@ -83,7 +92,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetchLeads();
-  }, [selectedType, selectedPipeline, selectedIndustry, selectedSupplierCategory]);
+  }, [selectedType, selectedPipeline, selectedIndustry, selectedSupplierCategory, isNotInterestedActive]);
 
   const handleExportToExcel = async () => {
     try {
@@ -121,6 +130,25 @@ export default function LeadsPage() {
   const openAddFlow = () => setShowAddModal(true);
   const closeAddModal = () => setShowAddModal(false);
 
+  const handleToggleArchive = async (lead: Lead) => {
+    try {
+      const response = await fetch(API_BASE_PATH, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: lead.id, not_interested: !lead.not_interested }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        alert(`Failed to update: ${data.error}`);
+        logger.error('Failed to toggle archive', data.error);
+        return;
+      }
+      fetchLeads();
+    } catch (error) {
+      logger.error('Error toggling archive', error);
+    }
+  };
+
   const handlers = {
     onLog: (lead: Lead) => {
       setSelectedLead(lead);
@@ -138,14 +166,16 @@ export default function LeadsPage() {
       setSelectedLead(lead);
       setShowDeleteModal(true);
     },
+    onToggleArchive: handleToggleArchive,
   };
 
-  const columns =
-    selectedType === 'event'
-      ? getEventColumns(handlers)
-      : selectedType === 'supplier'
-      ? getSupplierColumns(handlers)
-      : getLeadColumns(handlers, selectedPipeline, selectedIndustry);
+  const columns = isNotInterestedActive
+    ? getNotInterestedColumns(handlers)
+    : selectedType === 'event'
+    ? getEventColumns(handlers)
+    : selectedType === 'supplier'
+    ? getSupplierColumns(handlers)
+    : getLeadColumns(handlers, selectedPipeline, selectedIndustry);
 
   const { plural: categoryLabel, singular: singularLabel } = CATEGORY_LABELS[selectedType];
   const industryLabel = selectedIndustry ? INDUSTRY_LABELS[selectedIndustry] : null;
@@ -159,6 +189,7 @@ export default function LeadsPage() {
         selectedPipeline={selectedPipeline}
         selectedIndustry={selectedIndustry}
         selectedSupplierCategory={selectedSupplierCategory}
+        isNotInterestedActive={isNotInterestedActive}
         coldLeadsExpanded={coldLeadsExpanded}
         hotLeadsExpanded={hotLeadsExpanded}
         supplierExpanded={supplierExpanded}
@@ -168,18 +199,28 @@ export default function LeadsPage() {
           setSelectedPipeline('warm');
           setSelectedIndustry(null);
           setSelectedSupplierCategory(null);
+          setIsNotInterestedActive(false);
         }}
         onSelectSupplierCategory={(category) => {
           setSelectedType('supplier');
           setSelectedPipeline('warm');
           setSelectedIndustry(null);
           setSelectedSupplierCategory(category);
+          setIsNotInterestedActive(false);
         }}
         onSelectPipelineIndustry={(p, industry) => {
           setSelectedType('lead');
           setSelectedPipeline(p);
           setSelectedIndustry(industry);
           setSelectedSupplierCategory(null);
+          setIsNotInterestedActive(false);
+        }}
+        onSelectNotInterested={() => {
+          setSelectedType('lead');
+          setSelectedPipeline('warm');
+          setSelectedIndustry(null);
+          setSelectedSupplierCategory(null);
+          setIsNotInterestedActive(true);
         }}
         onToggleCold={() => setColdLeadsExpanded((prev) => !prev)}
         onToggleHot={() => setHotLeadsExpanded((prev) => !prev)}
@@ -190,14 +231,18 @@ export default function LeadsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-white mb-1">
-              {industryLabel
+              {isNotInterestedActive
+                ? 'Not Interested'
+                : industryLabel
                 ? `${pipelineLabel} ${categoryLabel} — ${industryLabel}`
                 : supplierCategoryLabel
                 ? `Supplier — ${supplierCategoryLabel}`
                 : categoryLabel}
             </h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              {industryLabel
+              {isNotInterestedActive
+                ? 'Archived entries across all types — Restore to move back to original view'
+                : industryLabel
                 ? `${pipelineLabel} leads for ${industryLabel}`
                 : supplierCategoryLabel
                 ? `${supplierCategoryLabel} suppliers`
@@ -232,6 +277,7 @@ export default function LeadsPage() {
           pipeline={pipeline}
           industry={selectedIndustry || undefined}
           supplierCategory={selectedSupplierCategory || undefined}
+          notInterestedByDefault={isNotInterestedActive}
           apiBasePath={API_BASE_PATH}
           onClose={closeAddModal}
           onSuccess={() => {

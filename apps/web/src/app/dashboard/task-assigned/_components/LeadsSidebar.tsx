@@ -6,6 +6,7 @@ import {
   Package,
   Snowflake,
   ChevronDown,
+  Archive,
 } from 'lucide-react';
 
 const TYPES: {
@@ -37,6 +38,7 @@ interface Props {
   selectedPipeline: Pipeline;
   selectedIndustry: Industry | null;
   selectedSupplierCategory: SupplierCategory | null;
+  isNotInterestedActive: boolean;
   coldLeadsExpanded: boolean;
   hotLeadsExpanded: boolean;
   supplierExpanded: boolean;
@@ -44,6 +46,7 @@ interface Props {
   onSelectWarm: (type: LeadType) => void;
   onSelectSupplierCategory: (category: SupplierCategory) => void;
   onSelectPipelineIndustry: (pipeline: 'cold' | 'hot', industry: Industry) => void;
+  onSelectNotInterested: () => void;
   onToggleCold: () => void;
   onToggleHot: () => void;
   onToggleSupplier: () => void;
@@ -123,6 +126,7 @@ export default function LeadsSidebar({
   selectedPipeline,
   selectedIndustry,
   selectedSupplierCategory,
+  isNotInterestedActive,
   coldLeadsExpanded,
   hotLeadsExpanded,
   supplierExpanded,
@@ -130,11 +134,12 @@ export default function LeadsSidebar({
   onSelectWarm,
   onSelectSupplierCategory,
   onSelectPipelineIndustry,
+  onSelectNotInterested,
   onToggleCold,
   onToggleHot,
   onToggleSupplier,
 }: Props) {
-  const isSupplierActive = selectedPipeline === 'warm' && selectedType === 'supplier';
+  const isSupplierActive = !isNotInterestedActive && selectedPipeline === 'warm' && selectedType === 'supplier';
   return (
     <div className="w-64 border-r border-p3-cyan/20 p-6 flex flex-col bg-p3-navy-dark/30 backdrop-blur-sm">
       <button
@@ -148,7 +153,7 @@ export default function LeadsSidebar({
       <nav className="space-y-1 mb-2">
         {TYPES.map((t) => {
           const Icon = t.icon;
-          const isActive = selectedPipeline === 'warm' && selectedType === t.value;
+          const isActive = !isNotInterestedActive && selectedPipeline === 'warm' && selectedType === t.value;
           return (
             <button
               key={t.value}
@@ -216,7 +221,7 @@ export default function LeadsSidebar({
           activeClass="text-cyan-400"
           activeColor="#7dd3fc"
           activeBg="rgba(125,211,252,0.1)"
-          selectedPipeline={selectedPipeline}
+          selectedPipeline={isNotInterestedActive ? 'warm' : selectedPipeline}
           selectedIndustry={selectedIndustry}
           onSelect={(ind) => onSelectPipelineIndustry('cold', ind)}
         />
@@ -231,10 +236,22 @@ export default function LeadsSidebar({
         activeClass="text-orange-400"
         activeColor="#fb923c"
         activeBg="rgba(251,146,60,0.1)"
-        selectedPipeline={selectedPipeline}
+        selectedPipeline={isNotInterestedActive ? 'warm' : selectedPipeline}
         selectedIndustry={selectedIndustry}
         onSelect={(ind) => onSelectPipelineIndustry('hot', ind)}
       />
+
+      {/* Not Interested: standalone, after Hot Leads */}
+      <button
+        onClick={onSelectNotInterested}
+        className={`w-full text-left px-3 py-2 mt-4 rounded font-medium transition-colors duration-150 text-sm flex items-center gap-2 ${
+          isNotInterestedActive ? 'text-cyan-400 border-l-4 border-cyan-400' : 'hover:bg-white/5'
+        }`}
+        style={{ color: isNotInterestedActive ? '#7dd3fc' : 'rgba(255,255,255,0.9)' }}
+      >
+        <Archive className="w-4 h-4" />
+        Not Interested
+      </button>
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { Lead } from '@/types/leads';
-import { FileText, Eye, Pencil, Trash2 } from 'lucide-react';
+import { FileText, Eye, Pencil, Trash2, Archive, RotateCcw } from 'lucide-react';
 
 export interface RowActionHandlers {
   onLog: (lead: Lead) => void;
   onView: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
+  onToggleArchive: (lead: Lead) => void;
 }
 
 const SECONDARY_STYLE = {
@@ -26,7 +27,9 @@ export default function RowActions({
   onView,
   onEdit,
   onDelete,
+  onToggleArchive,
 }: { lead: Lead } & RowActionHandlers) {
+  const isArchived = lead.not_interested;
   return (
     <div className="flex space-x-1">
       <button
@@ -51,6 +54,15 @@ export default function RowActions({
       >
         <Pencil className="w-3 h-3" />
         Edit
+      </button>
+      <button
+        onClick={() => onToggleArchive(lead)}
+        className="px-2 py-1 text-xs rounded font-medium transition-colors duration-150 flex items-center gap-1 hover:bg-white/10"
+        style={SECONDARY_STYLE}
+        title={isArchived ? 'Restore to original view' : 'Move to Not Interested'}
+      >
+        {isArchived ? <RotateCcw className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
+        {isArchived ? 'Restore' : 'Archive'}
       </button>
       <button
         onClick={() => onDelete(lead)}

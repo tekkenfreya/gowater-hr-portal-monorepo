@@ -28,6 +28,11 @@ export async function GET(request: NextRequest) {
     const pipeline = searchParams.get('pipeline') as Pipeline | null;
     const industry = searchParams.get('industry') as Industry | null;
     const supplier_category = searchParams.get('supplier_category') as SupplierCategory | null;
+    const not_interested_param = searchParams.get('not_interested');
+    const not_interested =
+      not_interested_param === 'true' ? true :
+      not_interested_param === 'false' ? false :
+      undefined;
 
     const leadService = getLeadService();
     const leads = await leadService.getLeads({
@@ -35,6 +40,7 @@ export async function GET(request: NextRequest) {
       pipeline: pipeline || undefined,
       industry: industry || undefined,
       supplier_category: supplier_category || undefined,
+      not_interested,
     });
 
     return NextResponse.json({ leads, message: 'Leads fetched successfully' });

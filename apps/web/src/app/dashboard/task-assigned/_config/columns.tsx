@@ -128,3 +128,24 @@ export function getSupplierColumns(h: RowActionHandlers): LeadColumn[] {
     { header: 'Actions', tdClassName: BARE_TD, cell: (l) => <RowActions lead={l} {...h} /> },
   ];
 }
+
+const TYPE_LABELS: Record<string, string> = {
+  lead: 'Lead',
+  event: 'Event',
+  supplier: 'Supplier',
+};
+
+const entityName = (l: Lead) => l.company_name || l.event_name || l.supplier_name;
+
+export function getNotInterestedColumns(h: RowActionHandlers): LeadColumn[] {
+  return [
+    { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },
+    { header: 'Type', tdClassName: TEXT_TD, cell: (l) => TYPE_LABELS[l.type] || l.type },
+    { header: 'Name', tdClassName: NAME_TD, cell: (l) => bold(entityName(l)) },
+    { header: 'Contact', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.contact_person) },
+    { header: 'Mobile', tdClassName: TEXT_TD, cell: (l) => l.mobile_number || 'N/A' },
+    { header: 'Email', tdClassName: TRUNCATE_150, cell: (l) => trunc(l.email_address) },
+    { header: 'Status', tdClassName: BARE_TD, cell: (l) => <StatusBadge status={l.status} /> },
+    { header: 'Actions', tdClassName: BARE_TD, cell: (l) => <RowActions lead={l} {...h} /> },
+  ];
+}

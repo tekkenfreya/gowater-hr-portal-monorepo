@@ -115,6 +115,7 @@ const baseLeadSchema = z.object({
   remarks: z.string().max(1000, 'Remarks must be 1000 characters or fewer').optional(),
   disposition: z.string().max(500, 'Disposition must be 500 characters or fewer').optional(),
   assigned_to: z.string().max(255, 'Assigned-to name must be 255 characters or fewer').optional(),
+  not_interested: z.boolean().optional(),
 });
 
 const leadSpecificSchema = z.object({
@@ -217,6 +218,7 @@ export const updateLeadSchema = z.object({
   remarks: z.string().max(1000).optional(),
   disposition: z.string().max(500).optional(),
   assigned_to: z.string().max(255).optional(),
+  not_interested: z.boolean().optional(),
 });
 
 // ================================================================

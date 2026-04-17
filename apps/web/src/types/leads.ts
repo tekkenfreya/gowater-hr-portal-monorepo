@@ -53,6 +53,7 @@ export interface Lead {
   remarks: string | null;
   disposition: string | null;
   assigned_to: string | null;
+  not_interested: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -119,6 +120,7 @@ export interface LeadFormData {
   remarks?: string;
   disposition?: string;
   assigned_to?: string;
+  not_interested?: boolean;
 }
 
 export interface ActivityFormData {

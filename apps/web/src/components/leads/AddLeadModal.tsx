@@ -10,6 +10,7 @@ interface AddLeadModalProps {
   pipeline?: Pipeline;
   industry?: Industry;
   supplierCategory?: SupplierCategory;
+  notInterestedByDefault?: boolean;
   onClose: () => void;
   onSuccess: () => void;
   apiBasePath?: string;
@@ -85,7 +86,7 @@ const DISPOSITION_OPTIONS = [
   { value: 'for-negotiation', label: 'For Further Negotiation' },
 ];
 
-export default function AddLeadModal({ type, pipeline = 'warm', industry, supplierCategory, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
+export default function AddLeadModal({ type, pipeline = 'warm', industry, supplierCategory, notInterestedByDefault = false, onClose, onSuccess, apiBasePath = '/api/leads' }: AddLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     type,
     pipeline,
@@ -119,6 +120,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
     disposition: '',
     assigned_to: '',
     participation: '',
+    not_interested: notInterestedByDefault,
   });
   const [loading, setLoading] = useState(false);
 
