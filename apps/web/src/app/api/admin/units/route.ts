@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateRequest, isAdmin } from '@/lib/authHelper';
+import { authenticateRequest } from '@/lib/authHelper';
+import { hasUnitManageAccess } from '@/lib/stealthAccess';
 import { getUnitsService } from '@/lib/units';
 import { createUnitSchema } from '@/lib/validations/units';
 import { logger } from '@/lib/logger';
@@ -9,9 +10,6 @@ export async function GET(request: NextRequest) {
     const auth = await authenticateRequest(request);
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -43,8 +41,8 @@ export async function POST(request: NextRequest) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!hasUnitManageAccess(auth.role, auth.email)) {
+      return NextResponse.json({ error: 'Only admins or authorized users can create units' }, { status: 403 });
     }
 
     const body = await request.json();

@@ -20,11 +20,12 @@ interface EditFormData {
 
 interface Props {
   unit: DispatchedUnit;
+  canChangeStatus: boolean;
   onClose: () => void;
   onUpdated: (unit: DispatchedUnit) => void;
 }
 
-export default function EditUnitModal({ unit, onClose, onUpdated }: Props) {
+export default function EditUnitModal({ unit, canChangeStatus, onClose, onUpdated }: Props) {
   const [form, setForm] = useState<EditFormData>({
     modelName: unit.modelName,
     destination: unit.destination || '',
@@ -119,19 +120,21 @@ export default function EditUnitModal({ unit, onClose, onUpdated }: Props) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1">Status</label>
-            <select
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as DispatchedUnit['status'] })}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-p3-cyan focus:border-p3-cyan text-gray-900 bg-white transition-all duration-200"
-            >
-              <option value={unit.status} className="capitalize">{unit.status}</option>
-              {ALLOWED_TRANSITIONS[unit.status].map((s) => (
-                <option key={s} value={s} className="capitalize">{s}</option>
-              ))}
-            </select>
-          </div>
+          {canChangeStatus && (
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1">Status</label>
+              <select
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value as DispatchedUnit['status'] })}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-p3-cyan focus:border-p3-cyan text-gray-900 bg-white transition-all duration-200"
+              >
+                <option value={unit.status} className="capitalize">{unit.status}</option>
+                {ALLOWED_TRANSITIONS[unit.status].map((s) => (
+                  <option key={s} value={s} className="capitalize">{s}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex space-x-3 pt-4">
             <button

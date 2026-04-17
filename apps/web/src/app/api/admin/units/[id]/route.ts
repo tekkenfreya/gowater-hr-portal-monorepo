@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateRequest, isAdmin } from '@/lib/authHelper';
+import { authenticateRequest } from '@/lib/authHelper';
+import { hasUnitManageAccess } from '@/lib/stealthAccess';
 import { getUnitsService } from '@/lib/units';
 import { updateUnitSchema } from '@/lib/validations/units';
 import { logger } from '@/lib/logger';
@@ -13,9 +14,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const auth = await authenticateRequest(request);
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -46,9 +44,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
 
     const { id } = await params;
     const unitId = parseInt(id, 10);
@@ -63,6 +58,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(
         { error: 'Validation failed', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
+      );
+    }
+
+    // Changing status requires manage permission (admin + edson).
+    // Other field edits (model/destination/notes) are allowed for any authenticated user.
+    if (parsed.data.status !== undefined && !hasUnitManageAccess(auth.role, auth.email)) {
+      return NextResponse.json(
+        { error: 'Only admins or authorized users can change unit status' },
+        { status: 403 }
       );
     }
 
@@ -91,8 +95,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!hasUnitManageAccess(auth.role, auth.email)) {
+      return NextResponse.json({ error: 'Only admins or authorized users can delete units' }, { status: 403 });
     }
 
     const { id } = await params;

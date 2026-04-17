@@ -10,7 +10,7 @@ const bwipjs = require('bwip-js') as {
     includetext?: boolean;
   }) => string;
 };
-import { authenticateRequest, isAdmin } from '@/lib/authHelper';
+import { authenticateRequest } from '@/lib/authHelper';
 import { getUnitsService } from '@/lib/units';
 import { logger } from '@/lib/logger';
 
@@ -54,9 +54,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const auth = await authenticateRequest(request);
     if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (!isAdmin(auth)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { id } = await params;

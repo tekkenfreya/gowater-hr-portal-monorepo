@@ -7,6 +7,7 @@ import { DispatchedUnit, ServiceRequest } from '@/types/units';
 import { ArrowLeft, Edit, Printer, Truck, AlertTriangle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { logger } from '@/lib/logger';
+import { hasUnitManageAccess } from '@/lib/stealthAccess';
 import StatusBadge from '../_components/StatusBadge';
 import UnitInfoCard from '../_components/UnitInfoCard';
 import UnitTimeline from '../_components/UnitTimeline';
@@ -91,15 +92,13 @@ export default function UnitDetailPage() {
   }, [unitId]);
 
   useEffect(() => {
-    if (user && user.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-    if (unitId) {
+    if (user && unitId) {
       fetchUnit();
       fetchLabel();
     }
-  }, [user, router, unitId, fetchUnit, fetchLabel]);
+  }, [user, unitId, fetchUnit, fetchLabel]);
+
+  const canManage = hasUnitManageAccess(user?.role, user?.email);
 
   const handleDispatch = async () => {
     if (!unit || unit.status !== 'registered') return;
@@ -172,7 +171,7 @@ export default function UnitDetailPage() {
     }
   };
 
-  if (!user || user.role !== 'admin') {
+  if (!user) {
     return null;
   }
 
@@ -262,7 +261,7 @@ export default function UnitDetailPage() {
             <Printer className="w-4 h-4" />
             <span>Print Label</span>
           </button>
-          {unit.status === 'registered' && (
+          {canManage && unit.status === 'registered' && (
             <button
               onClick={handleDispatch}
               className="inline-flex items-center space-x-1.5 px-3 py-2 bg-p3-cyan text-p3-navy-darkest rounded-lg text-sm font-bold hover:bg-p3-cyan-dark shadow-md transition-all"
@@ -271,7 +270,7 @@ export default function UnitDetailPage() {
               <span>Dispatch</span>
             </button>
           )}
-          {unit.status === 'registered' && (
+          {canManage && unit.status === 'registered' && (
             <button
               onClick={handleDelete}
               className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors"
@@ -301,6 +300,7 @@ export default function UnitDetailPage() {
       {showEditModal && (
         <EditUnitModal
           unit={unit}
+          canChangeStatus={canManage}
           onClose={() => setShowEditModal(false)}
           onUpdated={(updated) => setUnit(updated)}
         />
