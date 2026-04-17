@@ -61,6 +61,7 @@ export class LeadService {
       disposition: leadData.disposition || null,
       assigned_to: leadData.assigned_to || employeeName,
       not_interested: leadData.not_interested ?? false,
+      business_type: leadData.business_type || null,
       created_by: employeeName,
       created_at: now,
       updated_at: now,
@@ -146,6 +147,7 @@ export class LeadService {
     if (updates.disposition !== undefined) updateData.disposition = updates.disposition || null;
     if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to || null;
     if (updates.not_interested !== undefined) updateData.not_interested = updates.not_interested;
+    if (updates.business_type !== undefined) updateData.business_type = updates.business_type || null;
 
     await this.db.update('leads', updateData, { id: leadId });
 

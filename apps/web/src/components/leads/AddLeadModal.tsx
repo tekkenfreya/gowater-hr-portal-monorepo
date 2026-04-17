@@ -60,6 +60,20 @@ const SUPPLIER_CATEGORY_OPTIONS = [
   { value: 'filters', label: 'Filters' },
 ];
 
+const BUSINESS_TYPE_OPTIONS = [
+  { value: 'sarisari-store', label: 'Sarisari Store' },
+  { value: 'gym', label: 'Gym' },
+  { value: 'salon', label: 'Salon / Barbershop' },
+  { value: 'laundry', label: 'Laundry Shop' },
+  { value: 'internet-cafe', label: 'Internet Cafe' },
+  { value: 'carinderia', label: 'Carinderia / Eatery' },
+  { value: 'bakery', label: 'Bakery' },
+  { value: 'pharmacy', label: 'Pharmacy' },
+  { value: 'auto-repair', label: 'Auto Repair / Car Wash' },
+  { value: 'pet-shop', label: 'Pet Shop' },
+  { value: 'other', label: 'Other' },
+];
+
 const LEAD_TYPE_OPTIONS = [
   { value: 'company', label: 'Company/Organization' },
   { value: 'individual', label: 'Individual' },
@@ -112,6 +126,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
     price: '',
     unit_type: '',
     supplier_category: supplierCategory,
+    business_type: '',
     mobile_number: '',
     email_address: '',
     product: undefined,
@@ -276,6 +291,26 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
                   placeholder="e.g., John Doe - Manager"
                 />
               </div>
+
+              {/* Business Type - shown only for SME */}
+              {industry === 'sme' && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Type</label>
+                  <select
+                    name="business_type"
+                    value={formData.business_type || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                  >
+                    <option value="">Select type</option>
+                    {BUSINESS_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Number of Beneficiary - hidden for Restaurants/LGU/Hotel/Property Dev/Hospital/Offices/Household; renamed to "Members" for Microfinance */}
               {(pipeline === 'cold' || formData.lead_type === 'company') && !hideBeneficiary && (

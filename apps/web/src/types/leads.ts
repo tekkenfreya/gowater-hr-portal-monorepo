@@ -56,6 +56,7 @@ export interface Lead {
   participation: string | null;
 
   // SHARED FIELDS
+  business_type: string | null;
   contact_person: string | null;
   mobile_number: string | null;
   email_address: string | null;
@@ -123,6 +124,7 @@ export interface LeadFormData {
   participation?: string;
 
   // SHARED
+  business_type?: string;
   contact_person?: string;
   mobile_number?: string;
   email_address?: string;

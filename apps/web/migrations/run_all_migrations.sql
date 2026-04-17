@@ -551,6 +551,23 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Add business_type column for industry-specific sub-typing
+-- (Used first by SME: sarisari-store, gym, salon, laundry, internet-cafe,
+--  carinderia, bakery, pharmacy, auto-repair, pet-shop, other.
+--  Generic enough to extend to other industries later.)
+-- ============================================================
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS business_type TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'add_business_type_column') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('add_business_type_column', 'Added business_type column (SME sub-typing: sarisari-store, gym, etc.)', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

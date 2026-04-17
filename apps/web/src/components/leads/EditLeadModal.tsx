@@ -56,6 +56,20 @@ const SUPPLIER_CATEGORY_OPTIONS = [
   { value: 'filters', label: 'Filters' },
 ];
 
+const BUSINESS_TYPE_OPTIONS = [
+  { value: 'sarisari-store', label: 'Sarisari Store' },
+  { value: 'gym', label: 'Gym' },
+  { value: 'salon', label: 'Salon / Barbershop' },
+  { value: 'laundry', label: 'Laundry Shop' },
+  { value: 'internet-cafe', label: 'Internet Cafe' },
+  { value: 'carinderia', label: 'Carinderia / Eatery' },
+  { value: 'bakery', label: 'Bakery' },
+  { value: 'pharmacy', label: 'Pharmacy' },
+  { value: 'auto-repair', label: 'Auto Repair / Car Wash' },
+  { value: 'pet-shop', label: 'Pet Shop' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = '/api/leads' }: EditLeadModalProps) {
   const [formData, setFormData] = useState<LeadFormData>({
     type: lead.type,
@@ -89,6 +103,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     disposition: lead.disposition || '',
     assigned_to: lead.assigned_to || '',
     participation: lead.participation || '',
+    business_type: lead.business_type || '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -247,6 +262,26 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                     className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
                     placeholder="e.g., Company/Organization, Individual"
                   />
+                </div>
+              )}
+
+              {/* Business Type - shown only for SME */}
+              {lead.industry === 'sme' && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#323130] mb-1.5">Type</label>
+                  <select
+                    name="business_type"
+                    value={formData.business_type || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                  >
+                    <option value="">Select type</option>
+                    {BUSINESS_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

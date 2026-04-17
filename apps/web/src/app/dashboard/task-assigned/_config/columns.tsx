@@ -7,6 +7,20 @@ const SUPPLIER_CATEGORY_LABELS: Record<string, string> = {
   'logistics': 'Logistics',
   'filters': 'Filters',
 };
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  'sarisari-store': 'Sarisari Store',
+  'gym': 'Gym',
+  'salon': 'Salon / Barbershop',
+  'laundry': 'Laundry Shop',
+  'internet-cafe': 'Internet Cafe',
+  'carinderia': 'Carinderia / Eatery',
+  'bakery': 'Bakery',
+  'pharmacy': 'Pharmacy',
+  'auto-repair': 'Auto Repair / Car Wash',
+  'pet-shop': 'Pet Shop',
+  'other': 'Other',
+};
 import StatusBadge from '../_components/StatusBadge';
 import RowActions, { RowActionHandlers } from '../_components/RowActions';
 
@@ -57,7 +71,14 @@ export function getLeadColumns(
     'Company Name';
   const columns: LeadColumn[] = [
     { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },
-    { header: 'Type', tdClassName: TEXT_TD, cell: (l) => trunc(l.lead_type) },
+    {
+      header: 'Type',
+      tdClassName: TEXT_TD,
+      cell: (l) =>
+        industry === 'sme'
+          ? (l.business_type ? (BUSINESS_TYPE_LABELS[l.business_type] || l.business_type) : 'N/A')
+          : trunc(l.lead_type),
+    },
     { header: entityNameHeader, tdClassName: NAME_TD, cell: (l) => bold(l.company_name) },
     { header: beneficiaryHeader, tdClassName: TEXT_TD, cell: (l) => l.number_of_beneficiary || 'N/A' },
     { header: 'Location', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.location) },
@@ -76,7 +97,8 @@ export function getLeadColumns(
     { header: 'Actions', tdClassName: BARE_TD, cell: (l) => <RowActions lead={l} {...h} /> },
   ];
 
-  const hideType = pipeline === 'cold';
+  // Hide Type column for cold pipeline unless industry is SME (which uses the Type column for business_type).
+  const hideType = pipeline === 'cold' && industry !== 'sme';
   const hideBeneficiary = industry !== null && [
     'restaurants', 'lgu', 'hotel',
     'property-development', 'hospital', 'offices', 'household',
