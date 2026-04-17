@@ -89,7 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname === '/' || pathname.includes('/auth/login')) {
+    // Public paths — no auth verification, no redirect on 401.
+    // /u/* is the public unit-info page scanned from QR codes.
+    const isPublicPath =
+      pathname === '/' ||
+      pathname.includes('/auth/login') ||
+      pathname.startsWith('/u/');
+
+    if (isPublicPath) {
       setAuthState(prev => prev.isLoading ? { user: null, isLoading: false, error: null } : prev);
       return;
     }
