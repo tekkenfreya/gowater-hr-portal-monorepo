@@ -5,9 +5,9 @@ const bwipjs = require('bwip-js') as {
     bcid: string;
     text: string;
     scale: number;
-    height: number;
-    includetext: boolean;
-    textxalign: string;
+    padding?: number;
+    eclevel?: string;
+    includetext?: boolean;
   }) => string;
 };
 import { authenticateRequest, isAdmin } from '@/lib/authHelper';
@@ -18,16 +18,16 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-function buildLabelSvg(barcodeSvg: string, serialNumber: string, modelName: string): string {
+function buildLabelSvg(qrSvg: string, serialNumber: string, modelName: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
   <rect width="300" height="200" fill="white" rx="8" />
-  <text x="150" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#1a2332">GoWater</text>
-  <line x1="40" y1="40" x2="260" y2="40" stroke="#e5e7eb" stroke-width="1" />
-  <g transform="translate(50, 50)">
-    ${barcodeSvg}
+  <text x="150" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1a2332">GoWater</text>
+  <line x1="40" y1="32" x2="260" y2="32" stroke="#e5e7eb" stroke-width="1" />
+  <g transform="translate(90, 38)">
+    ${qrSvg}
   </g>
-  <text x="150" y="165" text-anchor="middle" font-family="monospace" font-size="14" font-weight="bold" fill="#1a2332">${escapeXml(serialNumber)}</text>
-  <text x="150" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">${escapeXml(modelName)}</text>
+  <text x="150" y="175" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#1a2332">${escapeXml(serialNumber)}</text>
+  <text x="150" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">${escapeXml(modelName)}</text>
 </svg>`;
 }
 
@@ -63,16 +63,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const barcodeSvg = bwipjs.toSVG({
-      bcid: 'code128',
+    const qrSvg = bwipjs.toSVG({
+      bcid: 'qrcode',
       text: unit.serialNumber,
-      scale: 3,
-      height: 10,
-      includetext: true,
-      textxalign: 'center',
+      scale: 4,
+      padding: 0,
+      eclevel: 'M',
     });
 
-    const labelSvg = buildLabelSvg(barcodeSvg, unit.serialNumber, unit.modelName);
+    const labelSvg = buildLabelSvg(qrSvg, unit.serialNumber, unit.modelName);
 
     return new NextResponse(labelSvg, {
       status: 200,
@@ -82,7 +81,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    logger.error('Generate barcode label API error', error);
+    logger.error('Generate QR label API error', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

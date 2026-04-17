@@ -114,7 +114,7 @@ export default function UnitsTable({
                         onClick={() => onPrintLabel(unit)}
                         className="transition-colors hover:text-white"
                         style={{ color: 'rgba(255,255,255,0.6)' }}
-                        title="Print barcode label"
+                        title="Print QR label"
                       >
                         <Printer className="w-5 h-5" />
                       </button>
