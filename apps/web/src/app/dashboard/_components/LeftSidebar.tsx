@@ -144,34 +144,32 @@ export default function LeftSidebar({ user, isCollapsed, onToggle, onLogout }: L
       icon: <Folder className="w-5 h-5" />,
       href: '/dashboard/files'
     },
-    ...(user?.role === 'admin' ? [
-      {
-        id: 'assets',
-        label: 'Assets',
-        icon: <Package className="w-5 h-5" />,
-        href: '#',
-        subItems: [
-          {
-            id: 'assets-units',
-            label: 'Units',
-            icon: <Package className="w-4 h-4" />,
-            href: '/dashboard/admin/units'
-          },
-          {
-            id: 'assets-service-requests',
-            label: 'Service Requests',
-            icon: <Wrench className="w-4 h-4" />,
-            href: '/dashboard/admin/service-requests'
-          }
-        ]
-      },
-      {
-        id: 'admin',
-        label: 'Admin Panel',
-        icon: <ShieldCheck className="w-5 h-5" />,
-        href: '/dashboard/admin',
-      }
-    ] : [])
+    {
+      id: 'assets',
+      label: 'Assets',
+      icon: <Package className="w-5 h-5" />,
+      href: '#',
+      subItems: [
+        {
+          id: 'assets-units',
+          label: 'Units',
+          icon: <Package className="w-4 h-4" />,
+          href: '/dashboard/admin/units'
+        },
+        ...(user?.role === 'admin' ? [{
+          id: 'assets-service-requests',
+          label: 'Service Requests',
+          icon: <Wrench className="w-4 h-4" />,
+          href: '/dashboard/admin/service-requests'
+        }] : [])
+      ]
+    },
+    ...(user?.role === 'admin' ? [{
+      id: 'admin',
+      label: 'Admin Panel',
+      icon: <ShieldCheck className="w-5 h-5" />,
+      href: '/dashboard/admin',
+    }] : [])
   ];
 
   const settingsItem: NavItem = {
