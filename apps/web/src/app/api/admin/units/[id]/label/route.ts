@@ -13,6 +13,32 @@ const bwipjs = require('bwip-js') as {
 import { authenticateRequest, isAdmin } from '@/lib/authHelper';
 import { getUnitsService } from '@/lib/units';
 import { logger } from '@/lib/logger';
+import type { DispatchedUnit } from '@/types/units';
+
+function formatUnitType(type: DispatchedUnit['unitType']): string {
+  return type === 'vending_machine' ? 'Vending Machine' : 'Dispenser';
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'N/A';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function buildQrPayload(unit: DispatchedUnit): string {
+  return [
+    'GoWater Unit',
+    `Serial: ${unit.serialNumber}`,
+    `Model: ${unit.modelName}`,
+    `Type: ${formatUnitType(unit.unitType)}`,
+    `Status: ${unit.status}`,
+    `Destination: ${unit.destination || 'N/A'}`,
+    `Dispatched: ${formatDate(unit.dispatchedAt)}`,
+  ].join('\n');
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -72,9 +98,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
+    const qrText = buildQrPayload(unit);
     const qrSvg = bwipjs.toSVG({
       bcid: 'qrcode',
-      text: unit.serialNumber,
+      text: qrText,
       scale: 4,
       padding: 0,
       eclevel: 'M',

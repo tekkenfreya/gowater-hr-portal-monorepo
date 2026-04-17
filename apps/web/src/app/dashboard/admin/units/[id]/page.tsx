@@ -74,7 +74,7 @@ export default function UnitDetailPage() {
   const fetchLabel = useCallback(async () => {
     setLabelLoading(true);
     try {
-      const response = await fetch(`/api/admin/units/${unitId}/label?v=qr2`);
+      const response = await fetch(`/api/admin/units/${unitId}/label?v=qr3`);
       if (response.ok) {
         const contentType = response.headers.get('Content-Type') ?? '';
         if (!contentType.includes('image/svg+xml')) {
