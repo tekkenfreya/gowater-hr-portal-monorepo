@@ -118,7 +118,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
 
     // Validate based on category
     if (type === 'lead' && (pipeline === 'cold' || formData.lead_type === 'company') && !formData.company_name?.trim()) {
-      alert('Company name is required for company/organization leads');
+      alert(`${entityNameLabel} is required`);
       return;
     }
 
@@ -176,6 +176,14 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
   const modalTitle = isLead ? 'Add New Lead' : isEvent ? 'Add New Event' : 'Add New Supplier';
   const submitButtonText = loading ? 'Creating...' : isLead ? 'Create Lead' : isEvent ? 'Create Event' : 'Create Supplier';
 
+  const entityNameLabel =
+    industry === 'restaurants' ? 'Restaurant Name' :
+    industry === 'lgu' ? 'LGU Name' :
+    industry === 'hotel' ? 'Hotel Name' :
+    industry === 'foundation' ? 'Foundation Name' :
+    industry === 'microfinance' ? 'Company Name' :
+    'Company/Organization Name';
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -216,11 +224,11 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
                 </div>
               )}
 
-              {/* Company/Organization Name - conditional */}
+              {/* Entity name - label varies by industry */}
               {(pipeline === 'cold' || formData.lead_type === 'company') && (
                 <div>
                   <label className="block text-sm font-semibold text-[#323130] mb-1.5">
-                    Company/Organization Name <span className="text-[#D13438]">*</span>
+                    {entityNameLabel} <span className="text-[#D13438]">*</span>
                   </label>
                   <input
                     type="text"
@@ -229,7 +237,7 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                    placeholder="Enter company/organization name"
+                    placeholder={`Enter ${entityNameLabel.toLowerCase()}`}
                   />
                 </div>
               )}
@@ -667,18 +675,20 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, onClos
             </select>
           </div>
 
-          {/* Assigned To */}
-          <div>
-            <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
-            <input
-              type="text"
-              name="assigned_to"
-              value={formData.assigned_to}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-              placeholder="Leave blank to auto-assign to yourself"
-            />
-          </div>
+          {/* Assigned To - hidden for events */}
+          {!isEvent && (
+            <div>
+              <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
+              <input
+                type="text"
+                name="assigned_to"
+                value={formData.assigned_to}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                placeholder="Leave blank to auto-assign to yourself"
+              />
+            </div>
+          )}
 
           {/* Event Report Upload (Events only) or Remarks (Supplier only) */}
           {isEvent ? (

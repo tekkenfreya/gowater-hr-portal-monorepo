@@ -37,10 +37,16 @@ export function getLeadColumns(
   industry: Industry | null = null,
 ): LeadColumn[] {
   const beneficiaryHeader = industry === 'microfinance' ? 'Members' : '# Beneficiary';
+  const entityNameHeader =
+    industry === 'restaurants' ? 'Restaurant Name' :
+    industry === 'lgu' ? 'LGU Name' :
+    industry === 'hotel' ? 'Hotel Name' :
+    industry === 'foundation' ? 'Foundation Name' :
+    'Company Name';
   const columns: LeadColumn[] = [
     { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },
     { header: 'Type', tdClassName: TEXT_TD, cell: (l) => trunc(l.lead_type) },
-    { header: 'Company Name', tdClassName: NAME_TD, cell: (l) => bold(l.company_name) },
+    { header: entityNameHeader, tdClassName: NAME_TD, cell: (l) => bold(l.company_name) },
     { header: beneficiaryHeader, tdClassName: TEXT_TD, cell: (l) => l.number_of_beneficiary || 'N/A' },
     { header: 'Location', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.location) },
     { header: 'Contact', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.contact_person) },
@@ -91,8 +97,6 @@ export function getEventColumns(h: RowActionHandlers): LeadColumn[] {
       cell: (l) => <span className="capitalize">{l.participation || 'N/A'}</span>,
     },
     { header: 'Status', tdClassName: BARE_TD, cell: (l) => <StatusBadge status={l.status} /> },
-    { header: 'Assigned', tdClassName: TEXT_TD, cell: (l) => l.assigned_to || 'Unassigned' },
-    { header: 'Disposition', tdClassName: TRUNCATE_120, cell: (l) => trunc(l.disposition, '-') },
     { header: 'Actions', tdClassName: BARE_TD, cell: (l) => <RowActions lead={l} {...h} /> },
   ];
 }

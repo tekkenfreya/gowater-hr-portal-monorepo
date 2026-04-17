@@ -89,7 +89,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
 
     // Validate based on category
     if (lead.type === 'lead' && !formData.company_name?.trim()) {
-      alert('Company name is required for leads');
+      alert(`${entityNameLabel} is required`);
       return;
     }
 
@@ -157,6 +157,13 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     ? lead.event_name
     : lead.supplier_name;
 
+  const entityNameLabel =
+    lead.industry === 'restaurants' ? 'Restaurant Name' :
+    lead.industry === 'lgu' ? 'LGU Name' :
+    lead.industry === 'hotel' ? 'Hotel Name' :
+    lead.industry === 'foundation' ? 'Foundation Name' :
+    'Company Name';
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -181,10 +188,10 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
           {/* LEAD FIELDS */}
           {isLead && (
             <>
-              {/* Company Name */}
+              {/* Entity name - label varies by industry */}
               <div>
                 <label className="block text-sm font-semibold text-[#323130] mb-1.5">
-                  Company Name <span className="text-[#D13438]">*</span>
+                  {entityNameLabel} <span className="text-[#D13438]">*</span>
                 </label>
                 <input
                   type="text"
@@ -193,7 +200,7 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
                   onChange={handleChange}
                   required
                   className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-                  placeholder="Enter company name"
+                  placeholder={`Enter ${entityNameLabel.toLowerCase()}`}
                 />
               </div>
 
@@ -518,18 +525,20 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
             </select>
           </div>
 
-          {/* Assigned To */}
-          <div>
-            <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
-            <input
-              type="text"
-              name="assigned_to"
-              value={formData.assigned_to}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
-              placeholder="Leave blank to auto-assign to yourself"
-            />
-          </div>
+          {/* Assigned To - hidden for events */}
+          {!isEvent && (
+            <div>
+              <label className="block text-sm font-semibold text-[#323130] mb-1.5">Assign To</label>
+              <input
+                type="text"
+                name="assigned_to"
+                value={formData.assigned_to}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent text-[#323130]"
+                placeholder="Leave blank to auto-assign to yourself"
+              />
+            </div>
+          )}
 
           {/* Remarks */}
           <div>
@@ -544,18 +553,20 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
             />
           </div>
 
-          {/* Disposition */}
-          <div>
-            <label className="block text-sm font-semibold text-[#323130] mb-1.5">Disposition</label>
-            <textarea
-              name="disposition"
-              value={formData.disposition}
-              onChange={handleChange}
-              rows={2}
-              className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
-              placeholder={isLead ? 'Current disposition for this lead' : isEvent ? 'Current status of this event' : 'Current status with this supplier'}
-            />
-          </div>
+          {/* Disposition - hidden for events */}
+          {!isEvent && (
+            <div>
+              <label className="block text-sm font-semibold text-[#323130] mb-1.5">Disposition</label>
+              <textarea
+                name="disposition"
+                value={formData.disposition}
+                onChange={handleChange}
+                rows={2}
+                className="w-full px-3 py-2 border border-[#C8C6C4] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0078D4] focus:border-transparent resize-none text-[#323130]"
+                placeholder={isLead ? 'Current disposition for this lead' : 'Current status with this supplier'}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex space-x-3 pt-4">
