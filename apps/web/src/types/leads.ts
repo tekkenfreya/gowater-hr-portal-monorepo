@@ -1,6 +1,16 @@
 export type LeadType = 'lead' | 'event' | 'supplier';
 export type Pipeline = 'warm' | 'cold' | 'hot';
-export type Industry = 'restaurants' | 'lgu' | 'hotel' | 'microfinance' | 'foundation';
+export type Industry =
+  | 'restaurants'
+  | 'lgu'
+  | 'hotel'
+  | 'microfinance'
+  | 'foundation'
+  | 'property-development'
+  | 'hospital'
+  | 'schools'
+  | 'offices'
+  | 'sme';
 export type SupplierCategory = 'water-testing' | 'printing-service' | 'logistics' | 'filters';
 export type ProductType = 'both' | 'vending' | 'dispenser';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'site-visit' | 'follow-up' | 'remark' | 'other' | 'active-supplier' | 'recording' | 'checking';

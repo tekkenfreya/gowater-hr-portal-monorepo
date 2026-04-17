@@ -170,6 +170,10 @@ export default function EditLeadModal({ lead, onClose, onSuccess, apiBasePath = 
     lead.industry === 'lgu' ? 'LGU Name' :
     lead.industry === 'hotel' ? 'Hotel Name' :
     lead.industry === 'foundation' ? 'Foundation Name' :
+    lead.industry === 'property-development' ? 'Property Name' :
+    lead.industry === 'hospital' ? 'Hospital Name' :
+    lead.industry === 'schools' ? 'School Name' :
+    lead.industry === 'offices' ? 'Office Name' :
     'Company Name';
 
   return (

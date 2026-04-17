@@ -25,6 +25,11 @@ const INDUSTRY_LABELS: Record<Industry, string> = {
   hotel: 'Hotel',
   microfinance: 'Microfinance',
   foundation: 'Foundation',
+  'property-development': 'Property Development',
+  hospital: 'Hospital',
+  schools: 'Schools',
+  offices: 'Offices',
+  sme: 'Small/Medium Enterprises',
 };
 
 const CATEGORY_LABELS: Record<LeadType, { plural: string; singular: string }> = {

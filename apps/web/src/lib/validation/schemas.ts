@@ -65,7 +65,18 @@ export const changePasswordSchema = z.object({
 export const leadTypeSchema = z.enum(['lead', 'event', 'supplier']);
 export const leadCategorySchema = leadTypeSchema; // legacy alias
 export const pipelineSchema = z.enum(['warm', 'cold', 'hot']);
-export const industrySchema = z.enum(['restaurants', 'lgu', 'hotel', 'microfinance', 'foundation']);
+export const industrySchema = z.enum([
+  'restaurants',
+  'lgu',
+  'hotel',
+  'microfinance',
+  'foundation',
+  'property-development',
+  'hospital',
+  'schools',
+  'offices',
+  'sme',
+]);
 export const supplierCategorySchema = z.enum(['water-testing', 'printing-service', 'logistics', 'filters']);
 export const productTypeSchema = z.enum(['both', 'vending', 'dispenser']);
 export const leadStatusSchema = z.enum([

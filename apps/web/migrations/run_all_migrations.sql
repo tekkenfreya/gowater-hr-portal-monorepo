@@ -514,6 +514,42 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Expand industry enum with 5 new values:
+-- property-development, hospital, schools, offices, sme
+-- (Drops any existing industry CHECK constraint and re-adds with the
+--  expanded set. Idempotent — re-running is safe.)
+-- ============================================================
+
+DO $$
+DECLARE
+  cname TEXT;
+BEGIN
+  SELECT conname INTO cname FROM pg_constraint
+  WHERE conrelid = 'leads'::regclass
+    AND contype = 'c'
+    AND pg_get_constraintdef(oid) ~ 'industry.*(IN|ANY)'
+  LIMIT 1;
+
+  IF cname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE leads DROP CONSTRAINT %I', cname);
+  END IF;
+
+  ALTER TABLE leads ADD CONSTRAINT leads_industry_check
+    CHECK (industry IS NULL OR industry IN (
+      'restaurants', 'lgu', 'hotel', 'microfinance', 'foundation',
+      'property-development', 'hospital', 'schools', 'offices', 'sme'
+    ));
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM migration_log WHERE migration_name = 'expand_industry_enum_2026_04_17') THEN
+    INSERT INTO migration_log (migration_name, description, affected_records)
+    VALUES ('expand_industry_enum_2026_04_17', 'Added 5 industry values: property-development, hospital, schools, offices, sme', 0);
+  END IF;
+END $$;
+
+-- ============================================================
 -- Done. Verify applied migrations:
 -- SELECT * FROM migration_log ORDER BY applied_at;
 -- ============================================================

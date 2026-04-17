@@ -49,6 +49,10 @@ export function getLeadColumns(
     industry === 'lgu' ? 'LGU Name' :
     industry === 'hotel' ? 'Hotel Name' :
     industry === 'foundation' ? 'Foundation Name' :
+    industry === 'property-development' ? 'Property Name' :
+    industry === 'hospital' ? 'Hospital Name' :
+    industry === 'schools' ? 'School Name' :
+    industry === 'offices' ? 'Office Name' :
     'Company Name';
   const columns: LeadColumn[] = [
     { header: 'Date Created', tdClassName: NOWRAP_TD, cell: (l) => dateStr(l.created_at) },

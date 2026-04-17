@@ -192,7 +192,12 @@ export default function AddLeadModal({ type, pipeline = 'warm', industry, suppli
     industry === 'lgu' ? 'LGU Name' :
     industry === 'hotel' ? 'Hotel Name' :
     industry === 'foundation' ? 'Foundation Name' :
+    industry === 'property-development' ? 'Property Name' :
+    industry === 'hospital' ? 'Hospital Name' :
+    industry === 'schools' ? 'School Name' :
+    industry === 'offices' ? 'Office Name' :
     industry === 'microfinance' ? 'Company Name' :
+    industry === 'sme' ? 'Company Name' :
     'Company/Organization Name';
 
   return (
