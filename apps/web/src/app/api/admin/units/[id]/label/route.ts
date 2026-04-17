@@ -19,15 +19,24 @@ interface RouteParams {
 }
 
 function buildLabelSvg(qrSvg: string, serialNumber: string, modelName: string): string {
+  // bwip-js returns a self-contained <svg> whose natural size depends on the QR
+  // version (module count) and scale. Extract its viewBox and re-embed it inside
+  // our own <svg> with fixed 100x100 dimensions so layout is predictable.
+  const viewBoxMatch = qrSvg.match(/viewBox="([^"]+)"/);
+  const qrViewBox = viewBoxMatch ? viewBoxMatch[1] : '0 0 100 100';
+  const qrInner = qrSvg
+    .replace(/^[\s\S]*?<svg[^>]*>/, '')
+    .replace(/<\/svg>\s*$/, '');
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
   <rect width="300" height="200" fill="white" rx="8" />
   <text x="150" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1a2332">GoWater</text>
   <line x1="40" y1="32" x2="260" y2="32" stroke="#e5e7eb" stroke-width="1" />
-  <g transform="translate(90, 38)">
-    ${qrSvg}
-  </g>
-  <text x="150" y="175" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#1a2332">${escapeXml(serialNumber)}</text>
-  <text x="150" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">${escapeXml(modelName)}</text>
+  <svg x="100" y="38" width="100" height="100" viewBox="${qrViewBox}" preserveAspectRatio="xMidYMid meet">
+    ${qrInner}
+  </svg>
+  <text x="150" y="158" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#1a2332">${escapeXml(serialNumber)}</text>
+  <text x="150" y="178" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">${escapeXml(modelName)}</text>
 </svg>`;
 }
 
